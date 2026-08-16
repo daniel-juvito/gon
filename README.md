@@ -2,25 +2,58 @@
 
 Go with non-nil type annotations.
 
-Gon adds `!T` type modifiers to ordinary Go so you can express and enforce non-nil contracts at compile time (vet time). The toolchain strips the annotations and emits clean Go.
+Gon adds `!T` type modifiers to ordinary Go so you can express and enforce
+non-nil contracts at **vet time**. The toolchain strips the annotations and
+emits clean Go that `go build` accepts.
+
+**v1.0 is local and non-flow-sensitive.** It does not track values across
+assignments or infer nilability from implementation details.
+
+Architectural rule:
+
+> `go/types` determines what a symbol is;
+> `.gna` determines what nilability contract Gon assumes about it.
 
 ## Install
 
 ```bash
-go install github.com/daniel-juvito/gon/cmd/gon@latest
+go install github.com/daniel-juvito/gon/cmd/gon@v1.0.0
 ```
 
-Or build from source:
+Or from source:
 
 ```bash
+git clone https://github.com/daniel-juvito/gon
+cd gon
 go build -o gon ./cmd/gon
 ```
 
-## Usage
+## Quickstart
 
 ```bash
-gon vet file.gon          # check for nil-safety violations
-gon transpile file.gon    # emit clean Go source (file.go)
+# check (alias: vet)
+gon check file.gon
+
+# emit clean Go
+gon transpile file.gon    # writes file.go
+
+# transpile + go build
+gon build file.gon
+```
+
+Exit codes:
+
+| Code | Meaning |
+|------|---------|
+| 0 | success (warnings alone do not fail) |
+| 1 | checker error, Go type error, or build failure |
+| 2 | usage / invalid arguments |
+
+Diagnostics:
+
+```text
+file.gon:12:5: error GN001: cannot assign nil to non-nil variable !x
+file.gon:20:8: warning GW001: x is non-nil; comparison with nil is always false
 ```
 
 ## Syntax
@@ -34,16 +67,62 @@ type S struct { X !*int } // field is required non-nil
 func (r !*T) M()          // receiver is non-nil
 ```
 
+## External packages (`.gna`)
+
+Nilability for imported APIs is described in YAML annotation files:
+
+```
+<module-root>/annotations/<import-path>.gna
+```
+
+Examples: `annotations/io.gna`, `annotations/os.gna`,
+`annotations/github.com/acme/lib.gna`.
+
+Rules:
+
+- `"!T"` is an explicit non-nil claim
+- `"T"` (or omitted) is ordinary — no non-nil claim
+- Missing annotation → ordinary (not an error)
+- Malformed annotation → hard error
+- Unknown symbol in an annotated package → `GW002`
+- Annotations may only **strengthen** nilability under a real API contract
+
+Full format: [docs/gna-spec-v1.md](docs/gna-spec-v1.md)
+
 ## Diagnostics
 
 | Code  | Severity | Meaning |
 |-------|----------|---------|
-| GN001 | error    | literal `nil` assigned to / passed as / returned as a non-nil type |
+| GN001 | error    | literal `nil` assigned / passed / returned where `!T` is required |
 | GN002 | error    | struct literal missing a required non-nil field |
+| GN003 | error    | malformed or mismatched `.gna` while resolving a package |
 | GW001 | warning  | comparison of a non-nil name with `nil` (always true/false) |
+| GW002 | warning  | package has `.gna` but this symbol is not listed |
 
-v1.0 performs only local (non-flow-sensitive) checks. Assignments from other expressions are accepted without analysis.
+## v1.0 scope and limitations
 
-## Status
+**In scope**
 
-Phase 1 / v1.0 — covers named parameters, returns, variables, struct fields, and receivers. Unnamed parameters and some multi-result forms are deferred.
+- Named parameters, results, variables, struct fields, receivers
+- Package functions and methods (value, pointer, interface, method expression)
+- External packages via `.gna` + module-aware `go/packages`
+- Local, non-flow-sensitive checks only
+
+**Out of scope (v1)**
+
+- Flow-sensitive analysis / assignment propagation
+- Return-value inference
+- Automatic nilability inference from bodies
+- Generic type contracts
+- Remote annotation registries
+
+These are intentional. Gon v1 stays small and honest about what it guarantees.
+
+## Development
+
+```bash
+go test ./...
+go vet ./...
+```
+
+Module path: `github.com/daniel-juvito/gon`
