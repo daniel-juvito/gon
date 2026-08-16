@@ -1,0 +1,46 @@
+schema: 1
+package: os
+description: "Nilability metadata for package os (conservative)"
+
+# Intentionally conservative — same principle as io.gna.
+# A nil []byte is a valid Go argument to File.Write / File.Read.
+# Do not mark returns as non-nil: (*File, error) pairs are nil-on-error
+# (conditional), which is out of scope for v1.
+
+methods:
+  File.Write:
+    params:
+      - "[]byte"
+    results:
+      - "int"
+      - "error"
+
+  File.Read:
+    params:
+      - "[]byte"
+    results:
+      - "int"
+      - "error"
+
+  File.WriteString:
+    params:
+      - "string"
+    results:
+      - "int"
+      - "error"
+
+  File.WriteAt:
+    params:
+      - "[]byte"
+      - "int64"
+    results:
+      - "int"
+      - "error"
+
+  File.ReadAt:
+    params:
+      - "[]byte"
+      - "int64"
+    results:
+      - "int"
+      - "error"
