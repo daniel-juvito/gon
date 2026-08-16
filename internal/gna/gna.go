@@ -168,7 +168,7 @@ func parseReceiver(file, typeName, s string) (bool, error) {
 		if strings.HasPrefix(s, "!") {
 			return true, nil
 		}
-		return false, fmt.Errorf("%s: receivers.%s: expected "!" or "!T", got %q", file, typeName, s)
+		return false, fmt.Errorf("%s: receivers.%s: expected \"!\" or \"!T\", got %q", file, typeName, s)
 	}
 }
 
