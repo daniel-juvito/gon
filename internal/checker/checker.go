@@ -86,12 +86,22 @@ func (c *Checker) isNonNil(typeExpr ast.Expr) bool {
 
 func (c *Checker) addError(pos token.Pos, code, msg string) {
 	p := c.fset.Position(pos)
-	c.diagnostics = append(c.diagnostics, &Diagnostic{Severity: SeverityError, Code: code, Message: msg, File: filepath.Base(p.Filename), Line: p.Line, Col: p.Column})
+	// Always report the Gon source path. go/packages Overlay may rewrite the
+	// FileSet filename to a synthetic overlay path; c.filename is the user input.
+	name := c.filename
+	if name == "" {
+		name = p.Filename
+	}
+	c.diagnostics = append(c.diagnostics, &Diagnostic{Severity: SeverityError, Code: code, Message: msg, File: filepath.Base(name), Line: p.Line, Col: p.Column})
 }
 
 func (c *Checker) addWarning(pos token.Pos, code, msg string) {
 	p := c.fset.Position(pos)
-	c.diagnostics = append(c.diagnostics, &Diagnostic{Severity: SeverityWarning, Code: code, Message: msg, File: filepath.Base(p.Filename), Line: p.Line, Col: p.Column})
+	name := c.filename
+	if name == "" {
+		name = p.Filename
+	}
+	c.diagnostics = append(c.diagnostics, &Diagnostic{Severity: SeverityWarning, Code: code, Message: msg, File: filepath.Base(name), Line: p.Line, Col: p.Column})
 }
 
 func isNilIdent(expr ast.Expr) bool {
