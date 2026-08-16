@@ -1,0 +1,23 @@
+schema: 1
+package: github.com/daniel-juvito/gon/internal/extlib
+description: "Reference external-package annotation (in-module proof)"
+
+functions:
+  Take:
+    params:
+      - "!string"
+    results:
+      - "error"
+
+  Echo:
+    params:
+      - "string"
+    results:
+      - "string"
+
+methods:
+  Handle.Put:
+    params:
+      - "![]byte"
+    results:
+      - "error"
