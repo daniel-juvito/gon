@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/daniel-juvito/gon/internal/gna"
 	"github.com/daniel-juvito/gon/internal/preproc"
 )
 
@@ -141,3 +142,125 @@ func f(x *int) {
 // Keep token imported in this package's test compile path as a sanity check
 // that diagnostics use go/token positions.
 var _ = token.NoPos
+
+func TestGNAAnnotatedParamRejectsNil(t *testing.T) {
+	reg := gna.NewRegistry()
+	f, err := gna.LoadBytes("demo.gna", []byte(`
+schema: 1
+package: demo
+functions:
+  Take:
+    params:
+      - "!string"
+    results:
+      - "error"
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := reg.Add(f); err != nil {
+		t.Fatal(err)
+	}
+	src := `package main
+import "demo"
+func main() {
+	demo.Take(nil)
+}
+`
+	result := preproc.Process("test.gon", []byte(src))
+	c, err := NewWithAnnotations("test.gon", result.Clean, result.NonNilOffsets, reg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	diags := c.Check()
+	if len(diags) != 1 || diags[0].Code != "GN001" {
+		t.Fatalf("expected one GN001, got %v", diags)
+	}
+}
+
+func TestGNAOrdinaryParamAllowsNil(t *testing.T) {
+	reg := gna.NewRegistry()
+	f, err := gna.LoadBytes("demo.gna", []byte(`
+schema: 1
+package: demo
+functions:
+  Take:
+    params:
+      - "string"
+    results:
+      - "error"
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := reg.Add(f); err != nil {
+		t.Fatal(err)
+	}
+	src := `package main
+import "demo"
+func main() {
+	demo.Take(nil)
+}
+`
+	result := preproc.Process("test.gon", []byte(src))
+	c, err := NewWithAnnotations("test.gon", result.Clean, result.NonNilOffsets, reg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	diags := c.Check()
+	if len(diags) != 0 {
+		t.Fatalf("ordinary param must allow nil: %v", diags)
+	}
+}
+
+func TestGNAMissingPackageNoWarning(t *testing.T) {
+	reg := gna.NewRegistry()
+	src := `package main
+import "missing"
+func main() {
+	missing.F(nil)
+}
+`
+	result := preproc.Process("test.gon", []byte(src))
+	c, err := NewWithAnnotations("test.gon", result.Clean, result.NonNilOffsets, reg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	diags := c.Check()
+	if len(diags) != 0 {
+		t.Fatalf("missing package must be ordinary with no diagnostic: %v", diags)
+	}
+}
+
+func TestGNAUnknownSymbolWarning(t *testing.T) {
+	reg := gna.NewRegistry()
+	f, err := gna.LoadBytes("demo.gna", []byte(`
+schema: 1
+package: demo
+functions:
+  Known:
+    params:
+      - "int"
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := reg.Add(f); err != nil {
+		t.Fatal(err)
+	}
+	src := `package main
+import "demo"
+func main() {
+	demo.Unknown(nil)
+}
+`
+	result := preproc.Process("test.gon", []byte(src))
+	c, err := NewWithAnnotations("test.gon", result.Clean, result.NonNilOffsets, reg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	diags := c.Check()
+	if len(diags) != 1 || diags[0].Code != "GW002" {
+		t.Fatalf("expected GW002, got %v", diags)
+	}
+}
