@@ -2,6 +2,7 @@ package checker
 
 import (
 	"go/token"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -262,5 +263,188 @@ func main() {
 	diags := c.Check()
 	if len(diags) != 1 || diags[0].Code != "GW002" {
 		t.Fatalf("expected GW002, got %v", diags)
+	}
+}
+
+func TestGNAMethodAnnotatedParamRejectsNil(t *testing.T) {
+	reg := gna.NewRegistry()
+	f, err := gna.LoadBytes("main.gna", []byte(`
+schema: 1
+package: main
+methods:
+  Writer.Write:
+    params:
+      - "![]byte"
+    results:
+      - "int"
+      - "error"
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := reg.Add(f); err != nil {
+		t.Fatal(err)
+	}
+	src := `package main
+type Writer interface {
+	Write([]byte) (int, error)
+}
+func f(w Writer) {
+	w.Write(nil)
+}
+`
+	result := preproc.Process("test.gon", []byte(src))
+	c, err := NewWithAnnotations("test.gon", result.Clean, result.NonNilOffsets, reg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	diags := c.Check()
+	if len(diags) != 1 || diags[0].Code != "GN001" {
+		t.Fatalf("expected one GN001 for method arg, got %v", diags)
+	}
+}
+
+func TestGNAMethodOrdinaryParamAllowsNil(t *testing.T) {
+	reg := gna.NewRegistry()
+	f, err := gna.LoadBytes("main.gna", []byte(`
+schema: 1
+package: main
+methods:
+  Writer.Write:
+    params:
+      - "[]byte"
+    results:
+      - "int"
+      - "error"
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := reg.Add(f); err != nil {
+		t.Fatal(err)
+	}
+	src := `package main
+type Writer interface {
+	Write([]byte) (int, error)
+}
+func f(w Writer) {
+	w.Write(nil)
+}
+`
+	result := preproc.Process("test.gon", []byte(src))
+	c, err := NewWithAnnotations("test.gon", result.Clean, result.NonNilOffsets, reg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	diags := c.Check()
+	if len(diags) != 0 {
+		t.Fatalf("ordinary method param must allow nil: %v", diags)
+	}
+}
+
+func TestGNAMethodMissingAnnotationNoError(t *testing.T) {
+	// Package has .gna but method not listed → GW002 only, no GN001.
+	reg := gna.NewRegistry()
+	f, err := gna.LoadBytes("main.gna", []byte(`
+schema: 1
+package: main
+methods:
+  Other.Foo:
+    params:
+      - "!int"
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := reg.Add(f); err != nil {
+		t.Fatal(err)
+	}
+	src := `package main
+type Writer interface {
+	Write([]byte) (int, error)
+}
+func f(w Writer) {
+	w.Write(nil)
+}
+`
+	result := preproc.Process("test.gon", []byte(src))
+	c, err := NewWithAnnotations("test.gon", result.Clean, result.NonNilOffsets, reg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	diags := c.Check()
+	if len(diags) != 1 || diags[0].Code != "GW002" {
+		t.Fatalf("expected GW002 only, got %v", diags)
+	}
+}
+
+func TestGNAMethodWrongTypeNoMatch(t *testing.T) {
+	// Annotation is on Reader.Read; call is Writer.Write → no match, GW002.
+	reg := gna.NewRegistry()
+	f, err := gna.LoadBytes("main.gna", []byte(`
+schema: 1
+package: main
+methods:
+  Reader.Read:
+    params:
+      - "![]byte"
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := reg.Add(f); err != nil {
+		t.Fatal(err)
+	}
+	src := `package main
+type Writer interface {
+	Write([]byte) (int, error)
+}
+func f(w Writer) {
+	w.Write(nil)
+}
+`
+	result := preproc.Process("test.gon", []byte(src))
+	c, err := NewWithAnnotations("test.gon", result.Clean, result.NonNilOffsets, reg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	diags := c.Check()
+	// Must not GN001 (wrong type must not match). GW002 is OK.
+	for _, d := range diags {
+		if d.Code == "GN001" {
+			t.Fatalf("must not GN001 on type mismatch: %v", diags)
+		}
+	}
+}
+
+func TestGNAIOWriterWriteAllowsNilSlice(t *testing.T) {
+	// Real stdlib type + conservative io.gna: []byte is ordinary.
+	reg := gna.NewRegistry()
+	f, err := gna.Load(filepath.Join("..", "..", "annotations", "io.gna"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := reg.Add(f); err != nil {
+		t.Fatal(err)
+	}
+	if !reg.HasPackage("io") {
+		t.Fatal("expected annotations/io.gna to load")
+	}
+	src := `package main
+import "io"
+func f(w io.Writer) {
+	w.Write(nil)
+}
+`
+	result := preproc.Process("test.gon", []byte(src))
+	c, err := NewWithAnnotations("test.gon", result.Clean, result.NonNilOffsets, reg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	diags := c.Check()
+	for _, d := range diags {
+		if d.Code == "GN001" {
+			t.Fatalf("io.Writer.Write must not claim ![]byte: %v", diags)
+		}
 	}
 }
