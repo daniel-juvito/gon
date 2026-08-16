@@ -245,3 +245,22 @@ func main() {
 		t.Fatalf("GW002 should name the symbol: %v", diags[0])
 	}
 }
+
+func TestDiagnosticFileIsGonSource(t *testing.T) {
+	src := `package main
+func f(x !*int) {}
+func g() { f(nil) }
+`
+	result := preproc.Process("myfile.gon", []byte(src))
+	c, err := NewWithAnnotations("myfile.gon", result.Clean, result.NonNilOffsets, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	diags := c.Check()
+	if len(diags) != 1 || diags[0].Code != "GN001" {
+		t.Fatalf("expected GN001, got %v", diags)
+	}
+	if diags[0].File != "myfile.gon" {
+		t.Fatalf("diagnostic File must be Gon source basename, got %q", diags[0].File)
+	}
+}
