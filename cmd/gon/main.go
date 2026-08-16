@@ -1,6 +1,4 @@
-// Gon — Go with non-nil type annotations.
-// Usage: gon <command> <file.gon>
-// Commands: vet, transpile
+// Command gon is the Gon nil-safety toolchain (vet / transpile).
 package main
 
 import (
@@ -23,9 +21,8 @@ import (
 func main() {
 	if len(os.Args) < 3 {
 		usage()
-		os.Exit(1)
+		os.Exit(2)
 	}
-
 	cmd := os.Args[1]
 	filename := os.Args[2]
 
@@ -43,20 +40,20 @@ func main() {
 	// Pre-process: strip ! type modifiers, record positions.
 	result := preproc.Process(filename, src)
 
-	// Load .gna annotations from ./annotations relative to CWD (v1 discovery).
-	reg := gna.NewRegistry()
-	if err := reg.LoadDir("annotations"); err != nil {
-		fmt.Fprintf(os.Stderr, "gon: annotations: %v\n", err)
-		os.Exit(1)
+	// Compose annotation discovery policy at the CLI boundary.
+	// Checker receives only a Resolver; it does not know about filesystem layout.
+	wd, err := os.Getwd()
+	if err != nil {
+		wd = "."
 	}
-	// Also try module-relative path next to the source file.
+	startDir := wd
 	if abs, err := filepath.Abs(filename); err == nil {
-		_ = reg.LoadDir(filepath.Join(filepath.Dir(abs), "annotations"))
-		_ = reg.LoadDir(filepath.Join(filepath.Dir(abs), "..", "annotations"))
+		startDir = filepath.Dir(abs)
 	}
+	resolver := gna.DefaultChain(wd, startDir)
 
 	// Parse and check Gon-specific nil rules.
-	c, err := checker.NewWithAnnotations(filename, result.Clean, result.NonNilOffsets, reg)
+	c, err := checker.NewWithAnnotations(filename, result.Clean, result.NonNilOffsets, resolver)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "gon: parse error: %v\n", err)
 		os.Exit(1)

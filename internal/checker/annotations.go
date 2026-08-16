@@ -10,17 +10,21 @@ import (
 	"github.com/daniel-juvito/gon/internal/gna"
 )
 
-// NewWithAnnotations is like New but attaches a .gna annotation registry.
-// It also runs go/types for method identity resolution. Type-check failure
-// is non-fatal: local and package-function checks still run; method
-// resolution is simply unavailable.
-func NewWithAnnotations(filename string, cleanSrc []byte, nonNilOffsets map[int]bool, ann *gna.Registry) (*Checker, error) {
+// NewWithAnnotations is like New but attaches a .gna annotation resolver.
+// Type-check failure is non-fatal: local and package-function checks still
+// run; method resolution is simply unavailable when types info is missing.
+//
+// resolver may be nil (no external annotations), a *gna.Registry, a
+// *gna.Chain, or any other gna.Resolver.
+func NewWithAnnotations(filename string, cleanSrc []byte, nonNilOffsets map[int]bool, resolver gna.Resolver) (*Checker, error) {
 	c, err := New(filename, cleanSrc, nonNilOffsets)
 	if err != nil {
 		return nil, err
 	}
-	c.ann = ann
+	c.resolver = resolver
 	c.imports = make(map[string]string)
+	c.resolved = make(map[string]*gna.File)
+	c.resolvedMiss = make(map[string]bool)
 	c.collectImports()
 	c.typeCheck()
 	return c, nil
@@ -58,18 +62,45 @@ func (c *Checker) typeCheck() {
 	}
 	conf := types.Config{
 		Importer: importer.Default(),
-		// Soft: collect errors but still return partial info when possible.
-		Error: func(err error) {},
+		Error:    func(err error) {},
 	}
-	// Use the file's package name as the path; sufficient for identity lookup.
 	pkgPath := c.file.Name.Name
 	if _, err := conf.Check(pkgPath, c.fset, []*ast.File{c.file}, info); err != nil {
-		// Even with Error handler, Check may return error. Keep info if Selections populated.
 		if len(info.Selections) == 0 {
 			return
 		}
 	}
 	c.info = info
+}
+
+// resolvePackage asks the resolver for importPath, caching results.
+// Returns (nil, nil) when unannotated. Returns error on malformed .gna.
+func (c *Checker) resolvePackage(importPath string) (*gna.File, error) {
+	if c.resolver == nil || importPath == "" {
+		return nil, nil
+	}
+	if c.resolved == nil {
+		c.resolved = make(map[string]*gna.File)
+	}
+	if c.resolvedMiss == nil {
+		c.resolvedMiss = make(map[string]bool)
+	}
+	if f, ok := c.resolved[importPath]; ok {
+		return f, nil
+	}
+	if c.resolvedMiss[importPath] {
+		return nil, nil
+	}
+	f, err := c.resolver.Resolve(importPath)
+	if err != nil {
+		return nil, err
+	}
+	if f == nil {
+		c.resolvedMiss[importPath] = true
+		return nil, nil
+	}
+	c.resolved[importPath] = f
+	return f, nil
 }
 
 // resolveCallParams returns non-nil param flags and a display name for diagnostics.
@@ -84,23 +115,27 @@ func (c *Checker) resolveCallParams(fun ast.Expr) ([]bool, string) {
 		return params, f.Name
 
 	case *ast.SelectorExpr:
-		// Prefer method identity from go/types when available.
 		if params, display, ok := c.resolveMethodParams(f); ok {
 			return params, display
 		}
 		// Package-qualified function: pkg.Func(...)
 		pkgIdent, ok := f.X.(*ast.Ident)
-		if !ok || c.ann == nil {
+		if !ok || c.resolver == nil {
 			return nil, ""
 		}
 		pkgPath, ok := c.imports[pkgIdent.Name]
 		if !ok {
 			return nil, ""
 		}
-		if !c.ann.HasPackage(pkgPath) {
+		file, err := c.resolvePackage(pkgPath)
+		if err != nil {
+			c.addError(f.Pos(), "GN003", "malformed .gna for "+pkgPath+": "+err.Error())
 			return nil, ""
 		}
-		sig, ok := c.ann.LookupFunc(pkgPath, f.Sel.Name)
+		if file == nil {
+			return nil, ""
+		}
+		sig, ok := file.Functions[f.Sel.Name]
 		if !ok {
 			c.addWarning(f.Pos(), "GW002", "no .gna annotation for "+pkgPath+"."+f.Sel.Name+"; treating as ordinary")
 			return nil, ""
@@ -118,7 +153,7 @@ func (c *Checker) resolveCallParams(fun ast.Expr) ([]bool, string) {
 //
 // go/types is used only for identity. Nilability still comes solely from .gna.
 func (c *Checker) resolveMethodParams(selExpr *ast.SelectorExpr) (params []bool, display string, ok bool) {
-	if c.info == nil || c.ann == nil {
+	if c.info == nil || c.resolver == nil {
 		return nil, "", false
 	}
 	sel, found := c.info.Selections[selExpr]
@@ -148,18 +183,22 @@ func (c *Checker) resolveMethodParams(selExpr *ast.SelectorExpr) (params []bool,
 	if pkg := named.Obj().Pkg(); pkg != nil {
 		pkgPath = pkg.Path()
 	}
-	// Local package checked with path == package name (see typeCheck).
 	if pkgPath == "" {
 		pkgPath = c.file.Name.Name
 	}
 
-	if !c.ann.HasPackage(pkgPath) {
+	file, err := c.resolvePackage(pkgPath)
+	if err != nil {
+		c.addError(selExpr.Pos(), "GN003", "malformed .gna for "+pkgPath+": "+err.Error())
+		return nil, "", true
+	}
+	if file == nil {
 		// No .gna for this package → ordinary, no diagnostic.
-		return nil, "", true // handled; do not fall through to package-func path
+		return nil, "", true
 	}
 
 	methodName := fn.Name()
-	msig, found := c.ann.LookupMethod(pkgPath, typeName, methodName)
+	msig, found := file.Methods[typeName+"."+methodName]
 	if !found {
 		c.addWarning(selExpr.Pos(), "GW002",
 			fmt.Sprintf("no .gna annotation for %s.%s.%s; treating as ordinary", pkgPath, typeName, methodName))
