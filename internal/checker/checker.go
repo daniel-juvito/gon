@@ -7,6 +7,8 @@ import (
 	"go/parser"
 	"go/token"
 	"path/filepath"
+
+	"github.com/daniel-juvito/gon/internal/gna"
 )
 
 type Checker struct {
@@ -22,6 +24,12 @@ type Checker struct {
 	// false is also stored so a nullable shadowing declaration hides an outer !T.
 	scopes             []map[string]bool
 	currentFuncReturns []bool
+
+	// ann holds external package nilability contracts from .gna files.
+	// Set via NewWithAnnotations; nil means no external annotations.
+	ann *gna.Registry
+	// imports maps local import name -> package import path.
+	imports map[string]string
 
 	diagnostics []*Diagnostic
 }
@@ -370,17 +378,13 @@ func (c *Checker) checkReturnStmt(ret *ast.ReturnStmt) {
 }
 
 func (c *Checker) checkCallExpr(call *ast.CallExpr) {
-	id, ok := call.Fun.(*ast.Ident)
-	if !ok {
-		return
-	}
-	params, ok := c.funcParams[id.Name]
-	if !ok {
+	params, display := c.resolveCallParams(call.Fun)
+	if params == nil {
 		return
 	}
 	for i, arg := range call.Args {
 		if i < len(params) && params[i] && isNilIdent(arg) {
-			c.addError(arg.Pos(), "GN001", fmt.Sprintf("cannot pass nil as non-nil argument %d to %s", i+1, id.Name))
+			c.addError(arg.Pos(), "GN001", fmt.Sprintf("cannot pass nil as non-nil argument %d to %s", i+1, display))
 		}
 	}
 }
