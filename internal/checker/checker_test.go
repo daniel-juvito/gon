@@ -448,3 +448,155 @@ func f(w io.Writer) {
 		}
 	}
 }
+
+func TestGNAOSFileWriteAllowsNilSlice(t *testing.T) {
+	// Real os.File.Write + conservative os.gna: []byte is ordinary.
+	reg := gna.NewRegistry()
+	f, err := gna.Load(filepath.Join("..", "..", "annotations", "os.gna"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := reg.Add(f); err != nil {
+		t.Fatal(err)
+	}
+	src := `package main
+import "os"
+func f(file *os.File) {
+	file.Write(nil)
+}
+`
+	result := preproc.Process("test.gon", []byte(src))
+	c, err := NewWithAnnotations("test.gon", result.Clean, result.NonNilOffsets, reg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	diags := c.Check()
+	for _, d := range diags {
+		if d.Code == "GN001" {
+			t.Fatalf("os.File.Write must not claim ![]byte: %v", diags)
+		}
+	}
+}
+
+func TestGNAOSAnnotatedMethodRejectsNil(t *testing.T) {
+	// Synthetic ! contract on os.File.Write to prove method resolution
+	// against package path "os" (not committed to annotations/os.gna).
+	reg := gna.NewRegistry()
+	f, err := gna.LoadBytes("os.gna", []byte(`
+schema: 1
+package: os
+methods:
+  File.Write:
+    params:
+      - "![]byte"
+    results:
+      - "int"
+      - "error"
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := reg.Add(f); err != nil {
+		t.Fatal(err)
+	}
+	src := `package main
+import "os"
+func f(file *os.File) {
+	file.Write(nil)
+}
+`
+	result := preproc.Process("test.gon", []byte(src))
+	c, err := NewWithAnnotations("test.gon", result.Clean, result.NonNilOffsets, reg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	diags := c.Check()
+	if len(diags) != 1 || diags[0].Code != "GN001" {
+		t.Fatalf("expected GN001 for synthetic ![]byte on os.File.Write, got %v", diags)
+	}
+}
+
+func TestGNAOSUnannotatedSymbolNoGN001(t *testing.T) {
+	reg := gna.NewRegistry()
+	f, err := gna.Load(filepath.Join("..", "..", "annotations", "os.gna"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := reg.Add(f); err != nil {
+		t.Fatal(err)
+	}
+	// Chmod is not in os.gna → GW002, not GN001.
+	src := `package main
+import "os"
+func f(file *os.File) {
+	file.Chmod(0644)
+}
+`
+	result := preproc.Process("test.gon", []byte(src))
+	c, err := NewWithAnnotations("test.gon", result.Clean, result.NonNilOffsets, reg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	diags := c.Check()
+	for _, d := range diags {
+		if d.Code == "GN001" {
+			t.Fatalf("unannotated os symbol must not GN001: %v", diags)
+		}
+	}
+	if len(diags) != 1 || diags[0].Code != "GW002" {
+		t.Fatalf("expected GW002 for unannotated File.Chmod, got %v", diags)
+	}
+}
+
+func TestGNAOSWrongMethodNoMatch(t *testing.T) {
+	// Annotation on File.Read; call File.Write → must not GN001.
+	reg := gna.NewRegistry()
+	f, err := gna.LoadBytes("os.gna", []byte(`
+schema: 1
+package: os
+methods:
+  File.Read:
+    params:
+      - "![]byte"
+    results:
+      - "int"
+      - "error"
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := reg.Add(f); err != nil {
+		t.Fatal(err)
+	}
+	src := `package main
+import "os"
+func f(file *os.File) {
+	file.Write(nil)
+}
+`
+	result := preproc.Process("test.gon", []byte(src))
+	c, err := NewWithAnnotations("test.gon", result.Clean, result.NonNilOffsets, reg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	diags := c.Check()
+	for _, d := range diags {
+		if d.Code == "GN001" {
+			t.Fatalf("wrong method must not match: %v", diags)
+		}
+	}
+}
+
+func TestGNAOSLoadReferenceFile(t *testing.T) {
+	f, err := gna.Load(filepath.Join("..", "..", "annotations", "os.gna"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.Package != "os" || f.Schema != 1 {
+		t.Fatalf("unexpected header: %+v", f)
+	}
+	sig, ok := f.Methods["File.Write"]
+	if !ok || len(sig.Params) != 1 || sig.Params[0] {
+		t.Fatalf("File.Write must be ordinary []byte, got %+v", sig)
+	}
+}
