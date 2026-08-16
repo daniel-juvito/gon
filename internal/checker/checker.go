@@ -26,14 +26,18 @@ type Checker struct {
 	scopes             []map[string]bool
 	currentFuncReturns []bool
 
-	// ann holds external package nilability contracts from .gna files.
+	// resolver supplies external package nilability contracts from .gna files.
 	// Set via NewWithAnnotations; nil means no external annotations.
-	ann *gna.Registry
+	resolver gna.Resolver
 	// imports maps local import name -> package import path.
 	imports map[string]string
 	// info holds go/types selection data for method identity resolution.
 	// nil when type-checking was skipped or failed.
 	info *types.Info
+	// resolved caches successful Resolve results for this check run.
+	resolved map[string]*gna.File
+	// resolvedMiss caches import paths known to be unannotated.
+	resolvedMiss map[string]bool
 
 	diagnostics []*Diagnostic
 }
