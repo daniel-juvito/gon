@@ -64,7 +64,6 @@ func TestDirResolverMalformed(t *testing.T) {
 
 func TestDirResolverPackageMismatch(t *testing.T) {
 	root := t.TempDir()
-	// File named io.gna but package field says "os"
 	if err := os.WriteFile(filepath.Join(root, "io.gna"), []byte("schema: 1\npackage: os\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +95,6 @@ func TestDirResolverNestedImportPath(t *testing.T) {
 }
 
 func TestChainFallback(t *testing.T) {
-	// First resolver empty; second has the package.
 	empty := t.TempDir()
 	second := t.TempDir()
 	if err := os.WriteFile(filepath.Join(second, "demo.gna"), []byte("schema: 1\npackage: demo\n"), 0644); err != nil {
@@ -116,7 +114,6 @@ func TestChainFallback(t *testing.T) {
 }
 
 func TestChainMalformedNoFallback(t *testing.T) {
-	// First resolver finds a broken file — must not fall through to second.
 	first := t.TempDir()
 	second := t.TempDir()
 	if err := os.WriteFile(filepath.Join(first, "demo.gna"), []byte("schema: 99\npackage: demo\n"), 0644); err != nil {
@@ -161,7 +158,6 @@ func TestChainFirstWins(t *testing.T) {
 }
 
 func TestModuleResolver(t *testing.T) {
-	// Fake module layout: <root>/go.mod + <root>/annotations/io.gna
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/mod\n\ngo 1.22\n"), 0644); err != nil {
 		t.Fatal(err)
@@ -173,7 +169,6 @@ func TestModuleResolver(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(ann, "io.gna"), []byte("schema: 1\npackage: io\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	// Start from a nested dir to force walk-up.
 	start := filepath.Join(root, "cmd", "tool")
 	if err := os.MkdirAll(start, 0755); err != nil {
 		t.Fatal(err)
@@ -189,7 +184,6 @@ func TestModuleResolver(t *testing.T) {
 }
 
 func TestModuleResolverNoGoMod(t *testing.T) {
-	// Temp dir without go.mod → not found, not error.
 	m := &ModuleResolver{StartDir: t.TempDir()}
 	f, err := m.Resolve("io")
 	if err != nil {
@@ -221,13 +215,10 @@ func TestRegistryImplementsResolver(t *testing.T) {
 }
 
 func TestDefaultChainResolvesRepoAnnotations(t *testing.T) {
-	// Resolve real annotations/io.gna via module-relative path from this package dir.
-	// Test runs with cwd = package dir (internal/gna); module root is ../..
 	wd, err := os.Getwd()
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Prefer DirResolver pointed at ../../annotations when present.
 	annRoot := filepath.Join(wd, "..", "..", "annotations")
 	if _, err := os.Stat(filepath.Join(annRoot, "io.gna")); err != nil {
 		t.Skip("repo annotations not available")
@@ -248,5 +239,29 @@ func TestDefaultChainResolvesRepoAnnotations(t *testing.T) {
 	}
 	if f2 == nil || f2.Package != "os" {
 		t.Fatalf("expected os, got %+v", f2)
+	}
+}
+
+func TestDirResolverExtlibAnnotation(t *testing.T) {
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	annRoot := filepath.Join(wd, "..", "..", "annotations")
+	path := "github.com/daniel-juvito/gon/internal/extlib"
+	if _, err := os.Stat(filepath.Join(annRoot, path+".gna")); err != nil {
+		t.Skip("extlib annotation not available")
+	}
+	r := &DirResolver{Root: annRoot}
+	f, err := r.Resolve(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f == nil || f.Package != path {
+		t.Fatalf("expected %s, got %+v", path, f)
+	}
+	sig, ok := f.Functions["Take"]
+	if !ok || len(sig.Params) != 1 || !sig.Params[0] {
+		t.Fatalf("Take should claim !string, got %+v", sig)
 	}
 }
