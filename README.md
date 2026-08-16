@@ -9,10 +9,16 @@ emits clean Go that `go build` accepts.
 **v1.0 is local and non-flow-sensitive.** It does not track values across
 assignments or infer nilability from implementation details.
 
+`!T` is a **static Gon guarantee** enforced only for the cases covered by the
+v1 checker (literal `nil` into `!T` slots, required struct fields, and
+explicit `.gna` contracts). It is not a runtime non-nil guarantee.
+
 Architectural rule:
 
-> `go/types` determines what a symbol is;
+> `go/types` determines what a symbol is;  
 > `.gna` determines what nilability contract Gon assumes about it.
+
+Full scope contract: [docs/v1-scope.md](docs/v1-scope.md)
 
 ## Install
 
@@ -37,7 +43,7 @@ gon check file.gon
 # emit clean Go
 gon transpile file.gon    # writes file.go
 
-# transpile + go build
+# transpile then go build
 gon build file.gon
 ```
 
@@ -49,22 +55,33 @@ Exit codes:
 | 1 | checker error, Go type error, or build failure |
 | 2 | usage / invalid arguments |
 
-Diagnostics:
+Diagnostics go to **stderr**. Format:
 
 ```text
 file.gon:12:5: error GN001: cannot assign nil to non-nil variable !x
 file.gon:20:8: warning GW001: x is non-nil; comparison with nil is always false
 ```
 
+Positions refer to the Gon source (`.gon`), not generated `.go`.
+
 ## Syntax
 
 Prefix a type with `!` to mark it non-nil:
 
 ```go
-var x !*int = &n          // x must not be nil
+var x !*int = &n          // x must not be literal nil
 func f(p !*S) !*int       // parameter and return are non-nil
 type S struct { X !*int } // field is required non-nil
 func (r !*T) M()          // receiver is non-nil
+```
+
+Because v1 is not flow-sensitive, non-literal assignments are accepted:
+
+```go
+func get() *int { return nil }
+
+var x !*int = get()   // allowed in v1 — not tracked
+var y !*int = other   // allowed in v1 — not tracked
 ```
 
 ## External packages (`.gna`)
@@ -113,10 +130,12 @@ Full format: [docs/gna-spec-v1.md](docs/gna-spec-v1.md)
 - Flow-sensitive analysis / assignment propagation
 - Return-value inference
 - Automatic nilability inference from bodies
+- Runtime enforcement (annotations are stripped)
 - Generic type contracts
 - Remote annotation registries
 
-These are intentional. Gon v1 stays small and honest about what it guarantees.
+These are intentional. See [docs/v1-scope.md](docs/v1-scope.md) for the
+authoritative list of guarantees and non-guarantees.
 
 ## Development
 
