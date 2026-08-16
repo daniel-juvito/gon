@@ -183,3 +183,21 @@ func TestDuplicatePackage(t *testing.T) {
 		t.Fatal("expected duplicate package error")
 	}
 }
+
+func TestLoadOSAnnotation(t *testing.T) {
+	path := filepath.Join("..", "..", "annotations", "os.gna")
+	f, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load os.gna: %v", err)
+	}
+	if f.Schema != 1 || f.Package != "os" {
+		t.Fatalf("unexpected header: schema=%d package=%q", f.Schema, f.Package)
+	}
+	sig, ok := f.Methods["File.Write"]
+	if !ok {
+		t.Fatal("missing File.Write")
+	}
+	if len(sig.Params) != 1 || sig.Params[0] {
+		t.Fatalf("File.Write params should be ordinary []byte, got %v", sig.Params)
+	}
+}
