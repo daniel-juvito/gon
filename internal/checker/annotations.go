@@ -4,10 +4,15 @@ import (
 	"fmt"
 	"go/ast"
 	"go/importer"
+	"go/parser"
+	"go/token"
 	"go/types"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/daniel-juvito/gon/internal/gna"
+	"golang.org/x/tools/go/packages"
 )
 
 // NewWithAnnotations is like New but attaches a .gna annotation resolver.
@@ -25,14 +30,16 @@ func NewWithAnnotations(filename string, cleanSrc []byte, nonNilOffsets map[int]
 	c.imports = make(map[string]string)
 	c.resolved = make(map[string]*gna.File)
 	c.resolvedMiss = make(map[string]bool)
-	c.collectImports()
 	c.typeCheck()
+	// Imports from the (possibly replaced) AST.
+	c.collectImports()
 	return c, nil
 }
 
 func (c *Checker) collectImports() {
-	if c.imports == nil {
-		c.imports = make(map[string]string)
+	c.imports = make(map[string]string)
+	if c.file == nil {
+		return
 	}
 	for _, imp := range c.file.Imports {
 		path := strings.Trim(imp.Path.Value, `"`)
@@ -53,8 +60,79 @@ func (c *Checker) collectImports() {
 	}
 }
 
-// typeCheck populates c.info using go/types. Failures leave c.info nil.
+// typeCheck populates c.info. Prefers go/packages (module-aware) so external
+// imports resolve; falls back to go/types.Check with importer.Default().
 func (c *Checker) typeCheck() {
+	if c.typeCheckPackages() {
+		return
+	}
+	c.typeCheckFallback()
+}
+
+// typeCheckPackages uses go/packages with an Overlay so in-memory clean
+// source is type-checked against the real module graph. On success it
+// replaces c.file with the package AST so Selections keys match.
+func (c *Checker) typeCheckPackages() bool {
+	if len(c.cleanSrc) == 0 {
+		return false
+	}
+	start := "."
+	if c.filename != "" {
+		if abs, err := filepath.Abs(c.filename); err == nil {
+			start = filepath.Dir(abs)
+		}
+	}
+	if wd, err := os.Getwd(); err == nil && start == "." {
+		start = wd
+	}
+	root := findModuleRoot(start)
+	if root == "" {
+		root = start
+	}
+
+	// Place overlay under a synthetic package dir inside the module so
+	// go/packages treats it as a loadable package (root-level file=
+	// patterns are unreliable across toolchains).
+	overlayPath := filepath.Join(root, "__gon_overlay__", "check.go")
+
+	cfg := &packages.Config{
+		Mode: packages.NeedName |
+			packages.NeedTypes |
+			packages.NeedTypesInfo |
+			packages.NeedSyntax |
+			packages.NeedImports,
+		Fset: c.fset,
+		Dir:  root,
+		Overlay: map[string][]byte{
+			overlayPath: c.cleanSrc,
+		},
+		Tests: false,
+	}
+	pkgs, err := packages.Load(cfg, "file="+overlayPath)
+	if err != nil || len(pkgs) == 0 {
+		return false
+	}
+	pkg := pkgs[0]
+	if pkg.TypesInfo == nil || len(pkg.Syntax) == 0 {
+		return false
+	}
+	var file *ast.File
+	for _, syn := range pkg.Syntax {
+		pos := c.fset.Position(syn.Pos())
+		if filepath.Clean(pos.Filename) == filepath.Clean(overlayPath) {
+			file = syn
+			break
+		}
+	}
+	if file == nil {
+		file = pkg.Syntax[0]
+	}
+	c.file = file
+	c.info = pkg.TypesInfo
+	return true
+}
+
+func (c *Checker) typeCheckFallback() {
 	info := &types.Info{
 		Selections: make(map[*ast.SelectorExpr]*types.Selection),
 		Uses:       make(map[*ast.Ident]types.Object),
@@ -64,13 +142,52 @@ func (c *Checker) typeCheck() {
 		Importer: importer.Default(),
 		Error:    func(err error) {},
 	}
-	pkgPath := c.file.Name.Name
+	if len(c.cleanSrc) > 0 {
+		fset := token.NewFileSet()
+		f, err := parser.ParseFile(fset, c.filename, c.cleanSrc, parser.AllErrors)
+		if err == nil {
+			c.fset = fset
+			c.file = f
+		}
+	}
+	if c.file == nil {
+		return
+	}
+	pkgPath := "main"
+	if c.file.Name != nil {
+		pkgPath = c.file.Name.Name
+	}
 	if _, err := conf.Check(pkgPath, c.fset, []*ast.File{c.file}, info); err != nil {
 		if len(info.Selections) == 0 {
 			return
 		}
 	}
 	c.info = info
+}
+
+func findModuleRoot(start string) string {
+	dir := start
+	if dir == "" {
+		var err error
+		dir, err = os.Getwd()
+		if err != nil {
+			return ""
+		}
+	}
+	dir, err := filepath.Abs(dir)
+	if err != nil {
+		return ""
+	}
+	for {
+		if st, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil && !st.IsDir() {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return ""
+		}
+		dir = parent
+	}
 }
 
 // resolvePackage asks the resolver for importPath, caching results.
@@ -118,7 +235,6 @@ func (c *Checker) resolveCallParams(fun ast.Expr) ([]bool, string) {
 		if params, display, ok := c.resolveMethodParams(f); ok {
 			return params, display
 		}
-		// Package-qualified function: pkg.Func(...)
 		pkgIdent, ok := f.X.(*ast.Ident)
 		if !ok || c.resolver == nil {
 			return nil, ""
@@ -180,20 +296,36 @@ func (c *Checker) resolveMethodParams(selExpr *ast.SelectorExpr) (params []bool,
 
 	typeName := named.Obj().Name()
 	pkgPath := ""
+	pkgName := ""
 	if pkg := named.Obj().Pkg(); pkg != nil {
 		pkgPath = pkg.Path()
+		pkgName = pkg.Name()
 	}
 	if pkgPath == "" {
 		pkgPath = c.file.Name.Name
+		pkgName = pkgPath
 	}
 
+	// Resolve by import path first; fall back to package name so local tests
+	// that annotate package: main still match when go/packages loads the
+	// overlay as <module>/__gon_overlay__.
 	file, err := c.resolvePackage(pkgPath)
 	if err != nil {
 		c.addError(selExpr.Pos(), "GN003", "malformed .gna for "+pkgPath+": "+err.Error())
 		return nil, "", true
 	}
+	resolvedAs := pkgPath
+	if file == nil && pkgName != "" && pkgName != pkgPath {
+		file, err = c.resolvePackage(pkgName)
+		if err != nil {
+			c.addError(selExpr.Pos(), "GN003", "malformed .gna for "+pkgName+": "+err.Error())
+			return nil, "", true
+		}
+		if file != nil {
+			resolvedAs = pkgName
+		}
+	}
 	if file == nil {
-		// No .gna for this package → ordinary, no diagnostic.
 		return nil, "", true
 	}
 
@@ -201,9 +333,9 @@ func (c *Checker) resolveMethodParams(selExpr *ast.SelectorExpr) (params []bool,
 	msig, found := file.Methods[typeName+"."+methodName]
 	if !found {
 		c.addWarning(selExpr.Pos(), "GW002",
-			fmt.Sprintf("no .gna annotation for %s.%s.%s; treating as ordinary", pkgPath, typeName, methodName))
+			fmt.Sprintf("no .gna annotation for %s.%s.%s; treating as ordinary", resolvedAs, typeName, methodName))
 		return nil, "", true
 	}
-	display = pkgPath + "." + typeName + "." + methodName
+	display = resolvedAs + "." + typeName + "." + methodName
 	return msig.Params, display, true
 }
