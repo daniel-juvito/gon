@@ -15,6 +15,8 @@ import (
 type Checker struct {
 	fset          *token.FileSet
 	file          *ast.File
+	filename      string
+	cleanSrc      []byte
 	nonNilOffsets map[int]bool
 
 	funcParams   map[string][]bool
@@ -51,6 +53,8 @@ func New(filename string, cleanSrc []byte, nonNilOffsets map[int]bool) (*Checker
 	return &Checker{
 		fset:          fset,
 		file:          file,
+		filename:      filename,
+		cleanSrc:      cleanSrc,
 		nonNilOffsets: nonNilOffsets,
 		funcParams:    make(map[string][]bool),
 		funcReturns:   make(map[string][]bool),
@@ -249,7 +253,6 @@ func (c *Checker) checkFuncDecl(d *ast.FuncDecl) {
 	c.pushScope()
 
 	if d.Recv != nil {
-		// Receiver field names are stored in d.Recv.List.
 		for _, field := range d.Recv.List {
 			nn := c.isNonNil(field.Type)
 			for _, name := range field.Names {
@@ -415,7 +418,7 @@ func (c *Checker) checkCompositeLit(lit *ast.CompositeLit) {
 		kv, ok := elt.(*ast.KeyValueExpr)
 		if !ok {
 			return
-		} // leave unkeyed literals to Go
+		}
 		key, ok := kv.Key.(*ast.Ident)
 		if !ok {
 			continue
