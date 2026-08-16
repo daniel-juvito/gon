@@ -6,6 +6,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"go/types"
 	"path/filepath"
 
 	"github.com/daniel-juvito/gon/internal/gna"
@@ -30,6 +31,9 @@ type Checker struct {
 	ann *gna.Registry
 	// imports maps local import name -> package import path.
 	imports map[string]string
+	// info holds go/types selection data for method identity resolution.
+	// nil when type-checking was skipped or failed.
+	info *types.Info
 
 	diagnostics []*Diagnostic
 }
