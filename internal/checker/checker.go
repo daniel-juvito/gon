@@ -393,9 +393,18 @@ func (c *Checker) checkCallExpr(call *ast.CallExpr) {
 	if params == nil {
 		return
 	}
+	// Method expressions (T.M(recv, args...)) pass the receiver as args[0].
+	// .gna params describe only the declared method parameters, not the receiver.
+	argOffset := 0
+	if sel, ok := call.Fun.(*ast.SelectorExpr); ok && c.info != nil {
+		if s, found := c.info.Selections[sel]; found && s.Kind() == types.MethodExpr {
+			argOffset = 1
+		}
+	}
 	for i, arg := range call.Args {
-		if i < len(params) && params[i] && isNilIdent(arg) {
-			c.addError(arg.Pos(), "GN001", fmt.Sprintf("cannot pass nil as non-nil argument %d to %s", i+1, display))
+		pi := i - argOffset
+		if pi >= 0 && pi < len(params) && params[pi] && isNilIdent(arg) {
+			c.addError(arg.Pos(), "GN001", fmt.Sprintf("cannot pass nil as non-nil argument %d to %s", pi+1, display))
 		}
 	}
 }
