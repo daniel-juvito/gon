@@ -1,0 +1,7 @@
+package main
+
+type S struct {
+	X !*int
+}
+
+var s = S{}

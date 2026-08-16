@@ -1,0 +1,17 @@
+package main
+
+import "fmt"
+
+type S struct {
+	X !*int
+}
+
+func f(x !*int) {}
+
+func main() {
+	n := 42
+	var x !*int = &n
+	f(&n)
+	s := S{X: &n}
+	fmt.Println(x, s)
+}

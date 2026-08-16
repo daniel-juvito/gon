@@ -1,0 +1,13 @@
+package main
+
+func getPointer() *int {
+	return nil
+}
+
+func main() {
+	var x !*int = getPointer()
+	someVar := getPointer()
+	var y !*int = someVar
+	_ = x
+	_ = y
+}

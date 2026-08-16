@@ -1,0 +1,11 @@
+# Binaries
+/gon
+*.exe
+*.test
+*.out
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
