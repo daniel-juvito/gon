@@ -1,0 +1,28 @@
+schema: 1
+package: io
+description: "Nilability metadata for package io"
+
+# Intentionally conservative. io.Writer.Write and io.Reader.Read accept
+# a nil []byte; marking them "![]byte" would overclaim.
+
+methods:
+  Writer.Write:
+    params:
+      - "[]byte"
+    results:
+      - "int"
+      - "error"
+
+  WriterTo.WriteTo:
+    params:
+      - "io.Writer"
+    results:
+      - "int64"
+      - "error"
+
+  Reader.Read:
+    params:
+      - "[]byte"
+    results:
+      - "int"
+      - "error"
