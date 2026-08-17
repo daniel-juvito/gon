@@ -1,6 +1,6 @@
 # RFC: Return-Value Contracts (Gon v1.1)
 
-**Status:** Accepted for implementation (pending final review)  
+**Status:** Implemented in v1.1.0  
 **Target:** Gon v1.1  
 **Related:** `docs/gna-spec-v1.md`, `docs/v1-scope.md`  
 **Date:** 2026-08-17
@@ -148,7 +148,7 @@ generation is implied by this RFC).
 config.MustConfig().Reload()
 ```
 
-is accepted when `MustConfig`’s result is annotated `!*Config` (or the
+is accepted when `MustConfig`'s result is annotated `!*Config` (or the
 receiver of `Reload` is declared non-nil). This is simply an immediate use
 of a non-nil source; it does not open the door to general data-flow tracking.
 
@@ -224,7 +224,7 @@ panics) should be annotated `"!*File"`.
 | Alternative | Reason rejected |
 |-------------|-----------------|
 | Conditional contracts | Requires path sensitivity |
-| Body inference | Violates “explicit contract only" |
+| Body inference | Violates "explicit contract only" |
 | Making ordinary → `!T` an error | Breaking; changes the character of v1 |
 | New syntax for results | Unnecessary; `"!T"` is already sufficient |
 | Raising schema to 1.1 | Syntax did not change |
