@@ -23,10 +23,6 @@ import (
 	"github.com/daniel-juvito/gon/internal/preproc"
 )
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 func checkWithGNA(t *testing.T, gnaSrc, gonSrc string) []*Diagnostic {
 	t.Helper()
 	reg := gna.NewRegistry()
@@ -78,12 +74,7 @@ func mustNotHaveGW001(t *testing.T, diags []*Diagnostic) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// 1. Single return — annotated !T becomes non-nil source
-// ---------------------------------------------------------------------------
-
 func TestRV_SingleAnnotatedReturnIsNonNilSource(t *testing.T) {
-	// Annotated !*Config result is a non-nil source → GW001 on nil comparison.
 	gnaSrc := `
 schema: 1
 package: demo
@@ -105,8 +96,33 @@ func f() {
 	mustHaveGW001(t, diags)
 }
 
+func TestRV_VarWithoutTypePromotesFromCall(t *testing.T) {
+	// var cfg = demo.MustLoad() (no explicit type) must still become a
+	// non-nil source via the return contract — same as short declaration.
+	gnaSrc := `
+schema: 1
+package: demo
+functions:
+  MustLoad:
+    results:
+      - "!*Config"
+`
+	gonSrc := `package main
+import "demo"
+type Config struct{}
+func f() {
+	var cfg = demo.MustLoad()
+	if cfg == nil {}
+}
+`
+	diags := checkWithGNA(t, gnaSrc, gonSrc)
+	mustNoGN001(t, diags)
+	mustHaveGW001(t, diags)
+}
+
 func TestRV_SingleAnnotatedReturnIntoNonNilVar(t *testing.T) {
-	// Assignment of annotated result into !T var is accepted.
+	// var c !*Config = call: binding is non-nil from explicit type (v1.0 path).
+	// Still accepted; documents coexistence with return contracts.
 	gnaSrc := `
 schema: 1
 package: demo
@@ -128,8 +144,6 @@ func f() {
 }
 
 func TestRV_SingleUnannotatedReturnIsOrdinary(t *testing.T) {
-	// Unannotated return is ordinary → no GW001 on nil comparison.
-	// Assignment ordinary → !T remains accepted.
 	gnaSrc := `
 schema: 1
 package: demo
@@ -153,12 +167,7 @@ func f() {
 	mustNotHaveGW001(t, diags)
 }
 
-// ---------------------------------------------------------------------------
-// 2. Multi-return — positional contracts only
-// ---------------------------------------------------------------------------
-
 func TestRV_MultiReturnPositionalOnlyFirstIsNonNilSource(t *testing.T) {
-	// results[0]=!*File → non-nil source (GW001); results[1]=error → ordinary.
 	gnaSrc := `
 schema: 1
 package: demo
@@ -207,10 +216,6 @@ func f() {
 	mustNotHaveGW001(t, diags)
 }
 
-// ---------------------------------------------------------------------------
-// 3. Ignored / blank result preserves contract on the kept position
-// ---------------------------------------------------------------------------
-
 func TestRV_BlankIdentifierKeepsContractOnKeptResult(t *testing.T) {
 	gnaSrc := `
 schema: 1
@@ -234,12 +239,7 @@ func f() {
 	mustHaveGW001(t, diags)
 }
 
-// ---------------------------------------------------------------------------
-// 4. Direct receiver use of annotated result
-// ---------------------------------------------------------------------------
-
 func TestRV_DirectReceiverFromAnnotatedResult(t *testing.T) {
-	// Immediate method call on annotated result is an allowed use site.
 	gnaSrc := `
 schema: 1
 package: demo
@@ -260,10 +260,6 @@ func f() {
 	mustNoGN001(t, diags)
 }
 
-// ---------------------------------------------------------------------------
-// 5. Local .gon function with !T result
-// ---------------------------------------------------------------------------
-
 func TestRV_LocalGonFunctionResultIsNonNilSource(t *testing.T) {
 	gonSrc := `package main
 func mustInt() !*int {
@@ -280,14 +276,7 @@ func f() {
 	mustHaveGW001(t, diags)
 }
 
-// ---------------------------------------------------------------------------
-// 6. Method result — contract lookup via go/types + .gna
-// ---------------------------------------------------------------------------
-
 func TestRV_MethodResultAnnotatedIsNonNilSource(t *testing.T) {
-	// Method is defined in package main; .gna must use package: main so
-	// go/types identity matches the annotation key (same pattern as
-	// existing method-param tests).
 	gnaSrc := `
 schema: 1
 package: main
@@ -310,14 +299,7 @@ func g(fac *Factory) {
 	mustHaveGW001(t, diags)
 }
 
-// ---------------------------------------------------------------------------
-// 7. Negative boundary — no propagation (discriminated by GW001)
-// ---------------------------------------------------------------------------
-
 func TestRV_ConversionDoesNotPropagateNonNilSource(t *testing.T) {
-	// Guardrail: annotated return is a non-nil source, but a conversion of
-	// that value is ordinary. GW001 must fire on cfg and must NOT fire on
-	// converted. This is the discriminating property.
 	gnaSrc := `
 schema: 1
 package: demo
@@ -372,10 +354,6 @@ func f() {
 			countGW001(diags), diags)
 	}
 }
-
-// ---------------------------------------------------------------------------
-// 8. Regression — ordinary → !T stays accepted; existing diagnostics intact
-// ---------------------------------------------------------------------------
 
 func TestRV_RegressionOrdinaryIntoNonNilStillAccepted(t *testing.T) {
 	diags := checkSource(t, `package main
