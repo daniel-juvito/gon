@@ -1,6 +1,6 @@
 # RFC: Field Annotations / Field Contracts (Gon v1.2)
 
-**Status:** Draft  
+**Status:** Accepted  
 **Target:** Gon v1.2  
 **Related:** `docs/gna-spec-v1.md`, `docs/v1-scope.md`, `docs/rfc-return-value-contracts.md`  
 **Date:** 2026-08-17
