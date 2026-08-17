@@ -263,6 +263,108 @@ func (c *Checker) resolveCallParams(fun ast.Expr) ([]bool, string) {
 	}
 }
 
+// resolveCallResults returns non-nil flags for each result position of the
+// called function/method. Used by return-value contracts (v1.1): an annotated
+// "!T" result position becomes a non-nil source at the immediate use site.
+//
+// Order matches resolveCallParams: method (go/types) → package function (.gna)
+// → local function (funcReturns from !T in source).
+//
+// Returns nil when no result contracts are known (all ordinary).
+func (c *Checker) resolveCallResults(fun ast.Expr) []bool {
+	switch f := fun.(type) {
+	case *ast.Ident:
+		return c.funcReturns[f.Name]
+
+	case *ast.SelectorExpr:
+		if results, ok := c.resolveMethodResults(f); ok {
+			return results
+		}
+		pkgIdent, ok := f.X.(*ast.Ident)
+		if !ok || c.resolver == nil {
+			return nil
+		}
+		pkgPath, ok := c.imports[pkgIdent.Name]
+		if !ok {
+			return nil
+		}
+		file, err := c.resolvePackage(pkgPath)
+		if err != nil || file == nil {
+			return nil
+		}
+		sig, ok := file.Functions[f.Sel.Name]
+		if !ok || sig == nil {
+			return nil
+		}
+		return sig.Results
+
+	default:
+		return nil
+	}
+}
+
+// resolveMethodResults is the results counterpart of resolveMethodParams.
+// ok=false means "not a method we can resolve".
+func (c *Checker) resolveMethodResults(selExpr *ast.SelectorExpr) (results []bool, ok bool) {
+	if c.info == nil || c.resolver == nil {
+		return nil, false
+	}
+	sel, found := c.info.Selections[selExpr]
+	if !found || (sel.Kind() != types.MethodVal && sel.Kind() != types.MethodExpr) {
+		return nil, false
+	}
+	fn, isFunc := sel.Obj().(*types.Func)
+	if !isFunc {
+		return nil, false
+	}
+	sig, isSig := fn.Type().(*types.Signature)
+	if !isSig || sig.Recv() == nil {
+		return nil, false
+	}
+
+	recvType := sig.Recv().Type()
+	if p, isPtr := recvType.(*types.Pointer); isPtr {
+		recvType = p.Elem()
+	}
+	named, isNamed := recvType.(*types.Named)
+	if !isNamed {
+		return nil, false
+	}
+
+	typeName := named.Obj().Name()
+	pkgPath := ""
+	pkgName := ""
+	if pkg := named.Obj().Pkg(); pkg != nil {
+		pkgPath = pkg.Path()
+		pkgName = pkg.Name()
+	}
+	if pkgPath == "" {
+		pkgPath = c.file.Name.Name
+		pkgName = pkgPath
+	}
+
+	file, err := c.resolvePackage(pkgPath)
+	if err != nil {
+		return nil, true
+	}
+	if file == nil && pkgName != "" && pkgName != pkgPath {
+		file, err = c.resolvePackage(pkgName)
+		if err != nil {
+			return nil, true
+		}
+	}
+	if file == nil {
+		return nil, true
+	}
+
+	methodName := fn.Name()
+	msig, found := file.Methods[typeName+"."+methodName]
+	if !found || msig == nil {
+		return nil, true
+	}
+	return msig.Results, true
+}
+
 // resolveMethodParams uses go/types selection info to map a call to
 // TypeName.MethodName in the .gna registry. ok=false means "not a method
 // we can resolve" (caller may try package-function path).
