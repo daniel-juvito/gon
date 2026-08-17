@@ -1,63 +1,95 @@
-# Gon v1.0 — Scope and Guarantees
+# Gon Scope and Guarantees
 
-This document is the contract for what Gon v1.0 **does** and **does not**
-promise. It exists so future contributors do not “improve” the checker by
+This document is the contract for what Gon **does** and **does not**
+promise. It exists so future contributors do not "improve" the checker by
 adding inference that silently expands scope.
 
-Architectural rule (unchanged):
+Architectural rule (unchanged across v1.x):
 
 > `go/types` determines what a symbol is;  
 > `.gna` determines what nilability contract Gon assumes about it.
 
-## Guaranteed in v1.0
+## Version map
+
+| Version | What landed |
+|---------|-------------|
+| v1.0.0 | Local non-flow-sensitive checks; `.gna` param/result *declaration*; external packages |
+| v1.1.0 | Annotated result positions become **non-nil sources** at immediate use sites |
+
+`.gna` schema remains **1**. v1.1 is a checker-semantics change, not a format break.
+
+## Guaranteed
 
 Static checks only. Enforced at `gon check` / `gon vet` time.
 
-| Case | Diagnostic |
-|------|------------|
-| Literal `nil` assigned to a `!T` variable | GN001 |
-| Literal `nil` passed to a `!T` parameter (local or `.gna`-annotated) | GN001 |
-| Literal `nil` returned from a function with a `!T` result | GN001 |
-| Struct literal missing a required `!T` field, or assigning literal `nil` to one | GN001 / GN002 |
-| Annotated external-package function or method parameter (`!T` in `.gna`) receiving literal `nil` | GN001 |
-| Comparison of a known non-nil name with `nil` | GW001 (warning) |
-| Package has `.gna` but the called symbol is not listed | GW002 (warning) |
-| Malformed or schema-mismatched `.gna` while resolving a package | GN003 (error) |
+| Case | Diagnostic | Since |
+|------|------------|-------|
+| Literal `nil` assigned to a `!T` variable | GN001 | v1.0 |
+| Literal `nil` passed to a `!T` parameter (local or `.gna`-annotated) | GN001 | v1.0 |
+| Literal `nil` returned from a function with a `!T` result | GN001 | v1.0 |
+| Struct literal missing a required `!T` field, or assigning literal `nil` to one | GN001 / GN002 | v1.0 |
+| Annotated external-package function or method parameter (`!T` in `.gna`) receiving literal `nil` | GN001 | v1.0 |
+| Comparison of a known non-nil name with `nil` | GW001 (warning) | v1.0 |
+| Package has `.gna` but the called symbol is not listed | GW002 (warning) | v1.0 |
+| Malformed or schema-mismatched `.gna` while resolving a package | GN003 (error) | v1.0 |
+| Annotated `!T` result position used in a short declaration / untyped `var` is a non-nil source (GW001 on nil comparison) | GW001 | **v1.1** |
 
 Warnings alone do **not** fail the process (exit 0). Errors do (exit 1).
 
-## Explicitly not guaranteed
+### Return-value contracts (v1.1)
 
-These are **out of scope** for v1.0. Code that relies on them will not be
-diagnosed, and that is intentional.
+An explicitly annotated result position (`"!T"` in `.gna` or `!T` in a local
+Gon signature) becomes a **non-nil source** at its **immediate use site**:
+
+```go
+// .gna: MustLoad results: ["!*Config"]
+cfg := config.MustLoad()   // cfg is a non-nil source
+if cfg == nil {}           // GW001
+
+var c = config.MustLoad()  // same (no explicit type)
+
+f, err := config.Open()    // only f (result[0]) is a non-nil source if annotated
+```
+
+**Precedence:**
+
+1. Explicit type in the binding wins (`var c !*Config = call()` → non-nil from type).
+2. Otherwise, an annotated call result may promote the binding.
+3. Conversion, type assertion, selector, index, and plain assignment from an
+   existing name do **not** propagate source-ness.
+
+Spec: [docs/rfc-return-value-contracts.md](rfc-return-value-contracts.md).
+
+## Explicitly not guaranteed
 
 | Area | Why |
 |------|-----|
-| Values returned by functions | No return-value inference; `var x !*T = getT()` is allowed |
-| Values held in variables after assignment | No flow-sensitive propagation |
+| Ordinary (unannotated) return into `!T` | Still accepted — no flow analysis; monotonic with v1.0 |
+| Values held in variables after assignment from another name | No flow-sensitive propagation |
 | Conditional contracts (`non-nil when err == nil`) | No path-sensitive analysis |
 | Runtime enforcement | Annotations are stripped; emitted Go has ordinary types |
 | Automatic inference from implementation bodies | `.gna` and source `!T` are explicit contracts only |
 | Generics / type-parameter contracts | Deferred |
 | Remote annotation registries | Deferred |
+| Field annotations under `types:` | Deferred |
 
-Examples that are **accepted** in v1.0 (no diagnostic):
+Examples that remain **accepted** (no diagnostic):
 
 ```go
 func get() *int { return nil }
 
-var x !*int = get()   // allowed — not flow-sensitive
+var x !*int = get()   // allowed — get() is not annotated !T
 var y !*int = other   // allowed — not flow-sensitive
 
-func f(w io.Writer) {
-    w.Write(nil)      // allowed — io.gna does not claim ![]byte
-}
+cfg := config.MustLoad()
+converted := (*Special)(cfg)
+if converted == nil {}   // no GW001 — conversion does not propagate
 ```
 
 ## Design principles
 
 1. **Strengthen only.** A `.gna` annotation may claim non-nil only when the
-   API has an explicit contract. Do not infer from “usually non-nil” or from
+   API has an explicit contract. Do not infer from "usually non-nil" or from
    current implementation details.
 2. **Missing annotation is ordinary.** No `.gna` → every member treated as
    ordinary. Not an error.
@@ -67,8 +99,10 @@ func f(w io.Writer) {
    sees contracts.
 5. **No second type system.** `go/types` remains the sole authority for Go
    semantics. `.gna` only supplies nilability metadata by position.
+6. **No new inference (v1.1).** Only explicit result-position promotion at
+   the immediate use site.
 
-## CLI contract (v1.0)
+## CLI contract
 
 ```
 gon check|vet <file.gon>     # diagnostics → stderr; exit 1 on errors
@@ -93,14 +127,13 @@ file.gon:12:7: warning GW001: x is non-nil; comparison with nil is always false
 
 Positions refer to the **Gon source** (`.gon`), not generated `.go`.
 
-## After v1.0
+## After v1.1
 
-Candidate topics for a separate v1.1 RFC (not part of this release):
+Candidate topics for later RFCs (not part of this release):
 
-- Return-value contracts in `.gna`
 - Field annotations under a `types:` section
 - Generic / type-parameter nilability
-- Optional strict mode (treat GW002 as error)
+- Optional strict mode (ordinary value into `!T` becomes an error)
 - Community / remote annotation registry
 
-Do not land inference or flow analysis under the v1.0 tag.
+Do not land flow analysis or body inference under a v1.x tag without an RFC.
