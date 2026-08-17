@@ -285,16 +285,18 @@ func f() {
 // ---------------------------------------------------------------------------
 
 func TestRV_MethodResultAnnotatedIsNonNilSource(t *testing.T) {
+	// Method is defined in package main; .gna must use package: main so
+	// go/types identity matches the annotation key (same pattern as
+	// existing method-param tests).
 	gnaSrc := `
 schema: 1
-package: demo
+package: main
 methods:
   Factory.MustBuild:
     results:
       - "!*Product"
 `
 	gonSrc := `package main
-import "demo"
 type Factory struct{}
 type Product struct{}
 func (f *Factory) MustBuild() *Product { return nil }
