@@ -385,8 +385,56 @@ func (c *Checker) checkAssignStmt(assign *ast.AssignStmt) {
 			}
 		}
 	}
+
+	// v1.1 return-value contracts: on short declaration (:=), promote
+	// explicitly annotated result positions to non-nil sources.
+	// No propagation from other RHS forms (idents, conversions, assertions).
+	if assign.Tok == token.DEFINE {
+		c.defineFromCallResults(assign)
+	}
+
 	for _, rhs := range assign.Rhs {
 		c.checkExpr(rhs)
+	}
+}
+
+// defineFromCallResults implements the core of return-value contracts.
+// Only CallExpr RHS contributes non-nil sources, and only for result
+// positions annotated "!T". All other short-decl names are defined as
+// ordinary so they correctly shadow outer !T bindings.
+func (c *Checker) defineFromCallResults(assign *ast.AssignStmt) {
+	// Multi-value form: f, err := pkg.Open()  → single CallExpr RHS
+	if len(assign.Rhs) == 1 {
+		if call, ok := assign.Rhs[0].(*ast.CallExpr); ok {
+			results := c.resolveCallResults(call.Fun)
+			for i, lhs := range assign.Lhs {
+				id, ok := lhs.(*ast.Ident)
+				if !ok || id.Name == "_" {
+					continue
+				}
+				nn := i < len(results) && results[i]
+				c.define(id.Name, nn)
+			}
+			return
+		}
+	}
+
+	// 1:1 form: x := foo()  or  x, y := a, b
+	for i, lhs := range assign.Lhs {
+		id, ok := lhs.(*ast.Ident)
+		if !ok || id.Name == "_" {
+			continue
+		}
+		nn := false
+		if i < len(assign.Rhs) {
+			if call, ok := assign.Rhs[i].(*ast.CallExpr); ok {
+				results := c.resolveCallResults(call.Fun)
+				if len(results) > 0 && results[0] {
+					nn = true
+				}
+			}
+		}
+		c.define(id.Name, nn)
 	}
 }
 
