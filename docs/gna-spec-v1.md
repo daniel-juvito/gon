@@ -53,6 +53,12 @@ methods:
 
 receivers:
   TypeName: "!"                   # optional; marks the receiver non-nil
+
+types:                            # optional; field contracts (v1.2)
+  TypeName:
+    fields:
+      FieldName: "!T"
+      Other:     "T"
 ```
 
 ### Nilability notation
@@ -70,6 +76,8 @@ receivers:
 - Method identity is `TypeName.MethodName`.
 - Receiver annotations live under `receivers:` and are independent of
   the method parameter list.
+- Field contracts under `types:` (v1.2) make `!T` fields storage invariants
+  for the named type; see [docs/rfc-field-contracts.md](rfc-field-contracts.md).
 
 ## Rules
 
@@ -101,5 +109,4 @@ because a nil slice is uncommon; a nil slice is a valid Go value for
 
 - Generics / type parameters
 - Variadic special cases beyond ordinary positional matching
-- Struct field annotations (may appear later under a `types:` section)
 - Conditional or flow-dependent nilability

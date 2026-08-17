@@ -11,8 +11,9 @@ assignments or infer nilability from implementation details.
 
 `!T` is a **static Gon guarantee** enforced only for the cases covered by the
 checker (literal `nil` into `!T` slots, required struct fields, explicit
-`.gna` contracts, and — since v1.1 — annotated return positions as non-nil
-sources at immediate use sites). It is not a runtime non-nil guarantee.
+`.gna` contracts, annotated return positions as non-nil sources, and — since
+v1.2 — field storage invariants at construction, mutation, and selector use).
+It is not a runtime non-nil guarantee.
 
 Architectural rule:
 
@@ -24,7 +25,7 @@ Full scope contract: [docs/v1-scope.md](docs/v1-scope.md)
 ## Install
 
 ```bash
-go install github.com/daniel-juvito/gon/cmd/gon@v1.1.0
+go install github.com/daniel-juvito/gon/cmd/gon@v1.2.0
 ```
 
 Or from source:
@@ -72,7 +73,7 @@ Prefix a type with `!` to mark it non-nil:
 ```go
 var x !*int = &n          // x must not be literal nil
 func f(p !*S) !*int       // parameter and return are non-nil
-type S struct { X !*int } // field is required non-nil
+type S struct { X !*int } // field is required non-nil (storage invariant)
 func (r !*T) M()          // receiver is non-nil
 ```
 
@@ -98,6 +99,23 @@ if cfg == nil {}          // GW001
 Conversion and assignment from names do not propagate source-ness.
 See [docs/rfc-return-value-contracts.md](docs/rfc-return-value-contracts.md).
 
+**v1.2 — field contracts.** A `!T` field is a storage invariant:
+
+```go
+type Config struct {
+    Client !*http.Client
+}
+
+var c Config                         // GN002 — Client at zero
+cfg := Config{Client: http.DefaultClient} // OK
+cfg.Client = nil                     // GN001
+if cfg.Client == nil {}              // GW001 — selector is non-nil source
+```
+
+Structural walk covers embedded structs and fixed arrays; stops at every
+indirection (`*T`, `[]T`, `map`, …). External types use `.gna` `types:`.
+See [docs/rfc-field-contracts.md](docs/rfc-field-contracts.md).
+
 ## External packages (`.gna`)
 
 Nilability for imported APIs is described in YAML annotation files:
@@ -117,6 +135,7 @@ Rules:
 - Malformed annotation → hard error
 - Unknown symbol in an annotated package → `GW002`
 - Annotations may only **strengthen** nilability under a real API contract
+- Field contracts for external types live under `types:` (v1.2)
 
 Full format: [docs/gna-spec-v1.md](docs/gna-spec-v1.md)
 
@@ -124,10 +143,10 @@ Full format: [docs/gna-spec-v1.md](docs/gna-spec-v1.md)
 
 | Code  | Severity | Meaning |
 |-------|----------|---------|
-| GN001 | error    | literal `nil` assigned / passed / returned where `!T` is required |
-| GN002 | error    | struct literal missing a required non-nil field |
+| GN001 | error    | literal `nil` assigned / passed / returned where `!T` is required; or `nil` assigned into a `!T` field |
+| GN002 | error    | construction leaves a required non-nil field at zero (including nested / embedded / array) |
 | GN003 | error    | malformed or mismatched `.gna` while resolving a package |
-| GW001 | warning  | comparison of a non-nil name with `nil` (always true/false) |
+| GW001 | warning  | comparison of a non-nil name or `!T` field selector with `nil` (always true/false) |
 | GW002 | warning  | package has `.gna` but this symbol is not listed |
 
 ## Scope and limitations
@@ -139,6 +158,7 @@ Full format: [docs/gna-spec-v1.md](docs/gna-spec-v1.md)
 - External packages via `.gna` + module-aware `go/packages`
 - Local, non-flow-sensitive checks only
 - Annotated return positions as non-nil sources at immediate use sites (v1.1)
+- Field storage invariants: construction, mutation, selector (v1.2)
 
 **Out of scope**
 

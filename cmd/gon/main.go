@@ -42,7 +42,7 @@ func run(args []string) int {
 		usage()
 		return 0
 	case "version", "-version", "--version":
-		fmt.Println("gon version 1.1.0")
+		fmt.Println("gon version 1.2.0")
 		return 0
 	}
 

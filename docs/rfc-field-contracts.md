@@ -1,6 +1,6 @@
 # RFC: Field Annotations / Field Contracts (Gon v1.2)
 
-**Status:** Accepted  
+**Status:** Implemented in v1.2.0  
 **Target:** Gon v1.2  
 **Related:** `docs/gna-spec-v1.md`, `docs/v1-scope.md`, `docs/rfc-return-value-contracts.md`  
 **Date:** 2026-08-17
@@ -406,6 +406,5 @@ All existing v1.1 tests must remain green.
 
 ---
 
-**Next step after acceptance of this RFC:** implement the structural walk
-and the three local checks, starting from the test suite as executable
-specification, then tag v1.2.0.
+**Implemented in v1.2.0.** Structural walk and three local checks landed;
+executable specification: `internal/checker/field_contracts_test.go`.
