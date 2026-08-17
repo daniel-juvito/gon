@@ -1,7 +1,10 @@
 // Return-value contracts (v1.1 RFC).
 //
-// These tests are the executable specification for
-// docs/rfc-return-value-contracts.md.
+// Executable specification for docs/rfc-return-value-contracts.md.
+//
+// Observable for "is non-nil source":
+//   GW001 fires on `if x == nil` / `if x != nil` only when x is a known
+//   non-nil source. That is the discriminant used by boundary tests.
 //
 // Positive cases that rely on annotated returns becoming non-nil sources
 // are expected to FAIL under v1.0 and PASS once the feature lands.
@@ -51,12 +54,59 @@ func mustNoGN001(t *testing.T, diags []*Diagnostic) {
 	}
 }
 
+func countGW001(diags []*Diagnostic) int {
+	n := 0
+	for _, d := range diags {
+		if d.Code == "GW001" {
+			n++
+		}
+	}
+	return n
+}
+
+func mustHaveGW001(t *testing.T, diags []*Diagnostic) {
+	t.Helper()
+	if countGW001(diags) == 0 {
+		t.Fatalf("expected at least one GW001 (non-nil source compared with nil), got %v", diags)
+	}
+}
+
+func mustNotHaveGW001(t *testing.T, diags []*Diagnostic) {
+	t.Helper()
+	if countGW001(diags) != 0 {
+		t.Fatalf("expected no GW001 (expression must be ordinary), got %v", diags)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // 1. Single return — annotated !T becomes non-nil source
 // ---------------------------------------------------------------------------
 
+func TestRV_SingleAnnotatedReturnIsNonNilSource(t *testing.T) {
+	// Annotated !*Config result is a non-nil source → GW001 on nil comparison.
+	gnaSrc := `
+schema: 1
+package: demo
+functions:
+  MustLoad:
+    results:
+      - "!*Config"
+`
+	gonSrc := `package main
+import "demo"
+type Config struct{}
+func f() {
+	cfg := demo.MustLoad()
+	if cfg == nil {}
+}
+`
+	diags := checkWithGNA(t, gnaSrc, gonSrc)
+	mustNoGN001(t, diags)
+	mustHaveGW001(t, diags)
+}
+
 func TestRV_SingleAnnotatedReturnIntoNonNilVar(t *testing.T) {
-	// Target: annotated !*Config result may be assigned to !*Config variable.
+	// Assignment of annotated result into !T var is accepted.
 	gnaSrc := `
 schema: 1
 package: demo
@@ -77,9 +127,9 @@ func f() {
 	mustNoGN001(t, diags)
 }
 
-func TestRV_SingleUnannotatedReturnStillOrdinary(t *testing.T) {
-	// v1.0 behaviour preserved: unannotated return is ordinary.
-	// Assignment ordinary → !T remains accepted (no flow analysis).
+func TestRV_SingleUnannotatedReturnIsOrdinary(t *testing.T) {
+	// Unannotated return is ordinary → no GW001 on nil comparison.
+	// Assignment ordinary → !T remains accepted.
 	gnaSrc := `
 schema: 1
 package: demo
@@ -92,12 +142,15 @@ functions:
 import "demo"
 type Config struct{}
 func f() {
-	var c !*Config = demo.Load()
-	_ = c
+	c := demo.Load()
+	if c == nil {}
+	var x !*Config = c
+	_ = x
 }
 `
 	diags := checkWithGNA(t, gnaSrc, gonSrc)
 	mustNoGN001(t, diags)
+	mustNotHaveGW001(t, diags)
 }
 
 // ---------------------------------------------------------------------------
@@ -105,7 +158,7 @@ func f() {
 // ---------------------------------------------------------------------------
 
 func TestRV_MultiReturnPositionalOnlyFirstIsNonNilSource(t *testing.T) {
-	// results[0]=!*File, results[1]=error → only position 0 is non-nil source.
+	// results[0]=!*File → non-nil source (GW001); results[1]=error → ordinary.
 	gnaSrc := `
 schema: 1
 package: demo
@@ -120,18 +173,18 @@ import "demo"
 type File struct{}
 func f() {
 	f, err := demo.Open()
-	var x !*File = f
-	_ = x
-	_ = err
+	if f == nil {}
+	if err == nil {}
 }
 `
 	diags := checkWithGNA(t, gnaSrc, gonSrc)
 	mustNoGN001(t, diags)
+	if countGW001(diags) != 1 {
+		t.Fatalf("expected exactly one GW001 (on f, not err), got %d: %v", countGW001(diags), diags)
+	}
 }
 
 func TestRV_MultiReturnSecondPositionOrdinary(t *testing.T) {
-	// results[1] is ordinary; using it as !T source must NOT be treated as guaranteed.
-	// (Still accepted under "ordinary → !T stays accepted".)
 	gnaSrc := `
 schema: 1
 package: demo
@@ -146,12 +199,12 @@ import "demo"
 type File struct{}
 func f() {
 	_, err := demo.Open()
-	var e !error = err
-	_ = e
+	if err == nil {}
 }
 `
 	diags := checkWithGNA(t, gnaSrc, gonSrc)
 	mustNoGN001(t, diags)
+	mustNotHaveGW001(t, diags)
 }
 
 // ---------------------------------------------------------------------------
@@ -173,12 +226,12 @@ import "demo"
 type File struct{}
 func f() {
 	f, _ := demo.Open()
-	var x !*File = f
-	_ = x
+	if f == nil {}
 }
 `
 	diags := checkWithGNA(t, gnaSrc, gonSrc)
 	mustNoGN001(t, diags)
+	mustHaveGW001(t, diags)
 }
 
 // ---------------------------------------------------------------------------
@@ -186,7 +239,7 @@ func f() {
 // ---------------------------------------------------------------------------
 
 func TestRV_DirectReceiverFromAnnotatedResult(t *testing.T) {
-	// MustConfig() !*Config → immediate .Method() is an allowed use site.
+	// Immediate method call on annotated result is an allowed use site.
 	gnaSrc := `
 schema: 1
 package: demo
@@ -212,26 +265,26 @@ func f() {
 // ---------------------------------------------------------------------------
 
 func TestRV_LocalGonFunctionResultIsNonNilSource(t *testing.T) {
-	// Local function declared with !*int result.
 	gonSrc := `package main
 func mustInt() !*int {
 	n := 1
 	return &n
 }
 func f() {
-	var x !*int = mustInt()
-	_ = x
+	x := mustInt()
+	if x == nil {}
 }
 `
 	diags := checkSource(t, gonSrc)
 	mustNoGN001(t, diags)
+	mustHaveGW001(t, diags)
 }
 
 // ---------------------------------------------------------------------------
-// 6. Method / method expression — contract lookup via go/types
+// 6. Method result — contract lookup via go/types + .gna
 // ---------------------------------------------------------------------------
 
-func TestRV_MethodResultAnnotated(t *testing.T) {
+func TestRV_MethodResultAnnotatedIsNonNilSource(t *testing.T) {
 	gnaSrc := `
 schema: 1
 package: demo
@@ -246,22 +299,23 @@ type Factory struct{}
 type Product struct{}
 func (f *Factory) MustBuild() *Product { return nil }
 func g(fac *Factory) {
-	var p !*Product = fac.MustBuild()
-	_ = p
+	p := fac.MustBuild()
+	if p == nil {}
 }
 `
 	diags := checkWithGNA(t, gnaSrc, gonSrc)
 	mustNoGN001(t, diags)
+	mustHaveGW001(t, diags)
 }
 
 // ---------------------------------------------------------------------------
-// 7. Negative boundary — no propagation through conversion / assertion
+// 7. Negative boundary — no propagation (discriminated by GW001)
 // ---------------------------------------------------------------------------
 
-func TestRV_ConversionDoesNotCreateNonNilSource(t *testing.T) {
-	// Guardrail: annotated return is a non-nil source, but conversion of it
-	// must NOT become a non-nil source. Implementation must not silently
-	// start doing propagation.
+func TestRV_ConversionDoesNotPropagateNonNilSource(t *testing.T) {
+	// Guardrail: annotated return is a non-nil source, but a conversion of
+	// that value is ordinary. GW001 must fire on cfg and must NOT fire on
+	// converted. This is the discriminating property.
 	gnaSrc := `
 schema: 1
 package: demo
@@ -276,20 +330,20 @@ type Config struct{}
 type SpecialConfig Config
 func f() {
 	cfg := demo.MustLoad()
+	if cfg == nil {}
 	converted := (*SpecialConfig)(cfg)
-	var x !*SpecialConfig = converted
-	_ = x
+	if converted == nil {}
 }
 `
 	diags := checkWithGNA(t, gnaSrc, gonSrc)
-	// Under the RFC this assignment is still *accepted* (ordinary → !T),
-	// but converted must not be treated as a guaranteed non-nil source.
-	// The test documents the boundary: no diagnostic is required, and
-	// no new inference is introduced.
 	mustNoGN001(t, diags)
+	if countGW001(diags) != 1 {
+		t.Fatalf("expected exactly one GW001 (on cfg only, not converted), got %d: %v",
+			countGW001(diags), diags)
+	}
 }
 
-func TestRV_TypeAssertionDoesNotCreateNonNilSource(t *testing.T) {
+func TestRV_TypeAssertionDoesNotPropagateNonNilSource(t *testing.T) {
 	gnaSrc := `
 schema: 1
 package: demo
@@ -304,13 +358,17 @@ type Config struct{}
 type Special interface{ M() }
 func f() {
 	cfg := demo.MustLoad()
+	if cfg == nil {}
 	s, _ := any(cfg).(Special)
-	var x !Special = s
-	_ = x
+	if s == nil {}
 }
 `
 	diags := checkWithGNA(t, gnaSrc, gonSrc)
 	mustNoGN001(t, diags)
+	if countGW001(diags) != 1 {
+		t.Fatalf("expected exactly one GW001 (on cfg only, not assertion result), got %d: %v",
+			countGW001(diags), diags)
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -318,7 +376,6 @@ func f() {
 // ---------------------------------------------------------------------------
 
 func TestRV_RegressionOrdinaryIntoNonNilStillAccepted(t *testing.T) {
-	// Exact v1.0 behaviour: no flow analysis.
 	diags := checkSource(t, `package main
 func get() *int { return nil }
 var p *int
@@ -346,8 +403,6 @@ func f() !*int {
 }
 
 func TestRV_RegressionUnannotatedReturnNotSource(t *testing.T) {
-	// Explicitly: a function with no ! annotation on its result must not
-	// magically become a non-nil source.
 	gnaSrc := `
 schema: 1
 package: demo
@@ -360,11 +415,11 @@ functions:
 import "demo"
 type Config struct{}
 func f() {
-	// still accepted (ordinary → !T), but Load is not a guaranteed source
-	var c !*Config = demo.Load()
-	_ = c
+	c := demo.Load()
+	if c == nil {}
 }
 `
 	diags := checkWithGNA(t, gnaSrc, gonSrc)
 	mustNoGN001(t, diags)
+	mustNotHaveGW001(t, diags)
 }
