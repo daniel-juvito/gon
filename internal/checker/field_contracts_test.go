@@ -38,28 +38,28 @@ func countCode(diags []*Diagnostic, code string) int {
 	return n
 }
 
-func mustHaveGN002(t *testing.T, diags []*Diagnostic) {
+func fcMustHaveGN002(t *testing.T, diags []*Diagnostic) {
 	t.Helper()
 	if countCode(diags, "GN002") == 0 {
 		t.Fatalf("expected at least one GN002, got %v", diags)
 	}
 }
 
-func mustHaveGN001(t *testing.T, diags []*Diagnostic) {
+func fcMustHaveGN001(t *testing.T, diags []*Diagnostic) {
 	t.Helper()
 	if countCode(diags, "GN001") == 0 {
 		t.Fatalf("expected at least one GN001, got %v", diags)
 	}
 }
 
-func mustNoGN002(t *testing.T, diags []*Diagnostic) {
+func fcMustNoGN002(t *testing.T, diags []*Diagnostic) {
 	t.Helper()
 	if countCode(diags, "GN002") != 0 {
 		t.Fatalf("expected no GN002, got %v", diags)
 	}
 }
 
-func mustNoGN001(t *testing.T, diags []*Diagnostic) {
+func fcMustNoGN001(t *testing.T, diags []*Diagnostic) {
 	t.Helper()
 	for _, d := range diags {
 		if d.Code == "GN001" {
@@ -79,7 +79,7 @@ type S struct {
 }
 var _ = S{}
 `)
-	mustHaveGN002(t, diags)
+	fcMustHaveGN002(t, diags)
 }
 
 func TestFC_DirectFieldProvidedOK(t *testing.T) {
@@ -91,8 +91,8 @@ func f(c *int) {
 	_ = S{Client: c}
 }
 `)
-	mustNoGN002(t, diags)
-	mustNoGN001(t, diags)
+	fcMustNoGN002(t, diags)
+	fcMustNoGN001(t, diags)
 }
 
 func TestFC_DirectFieldNilInCompositeGN001(t *testing.T) {
@@ -102,7 +102,7 @@ type S struct {
 }
 var _ = S{Client: nil}
 `)
-	mustHaveGN001(t, diags)
+	fcMustHaveGN001(t, diags)
 }
 
 func TestFC_DeclareThenPopulateGN002(t *testing.T) {
@@ -116,7 +116,7 @@ func f() {
 	_ = s
 }
 `)
-	mustHaveGN002(t, diags)
+	fcMustHaveGN002(t, diags)
 }
 
 func TestFC_VarWithZeroCompositeGN002(t *testing.T) {
@@ -129,7 +129,7 @@ func f() {
 	_ = s
 }
 `)
-	mustHaveGN002(t, diags)
+	fcMustHaveGN002(t, diags)
 }
 
 func TestFC_VarWithFullCompositeOK(t *testing.T) {
@@ -142,8 +142,8 @@ func f(c *int) {
 	_ = s
 }
 `)
-	mustNoGN002(t, diags)
-	mustNoGN001(t, diags)
+	fcMustNoGN002(t, diags)
+	fcMustNoGN001(t, diags)
 }
 
 func TestFC_AnonymousStructTraversed(t *testing.T) {
@@ -152,7 +152,7 @@ func f() {
 	_ = struct{ Client !*int }{}
 }
 `)
-	mustHaveGN002(t, diags)
+	fcMustHaveGN002(t, diags)
 }
 
 func TestFC_AnonymousStructProvidedOK(t *testing.T) {
@@ -161,8 +161,8 @@ func f(c *int) {
 	_ = struct{ Client !*int }{Client: c}
 }
 `)
-	mustNoGN002(t, diags)
-	mustNoGN001(t, diags)
+	fcMustNoGN002(t, diags)
+	fcMustNoGN001(t, diags)
 }
 
 func TestFC_EmbeddedStructTraversed(t *testing.T) {
@@ -175,7 +175,7 @@ type Outer struct {
 }
 var _ = Outer{}
 `)
-	mustHaveGN002(t, diags)
+	fcMustHaveGN002(t, diags)
 }
 
 func TestFC_EmbeddedStructProvidedOK(t *testing.T) {
@@ -190,8 +190,8 @@ func f(c *int) {
 	_ = Outer{Inner: Inner{Client: c}}
 }
 `)
-	mustNoGN002(t, diags)
-	mustNoGN001(t, diags)
+	fcMustNoGN002(t, diags)
+	fcMustNoGN001(t, diags)
 }
 
 func TestFC_ArrayOfStructTraversed(t *testing.T) {
@@ -204,7 +204,7 @@ type Arrayed struct {
 }
 var _ = Arrayed{}
 `)
-	mustHaveGN002(t, diags)
+	fcMustHaveGN002(t, diags)
 }
 
 func TestFC_ArrayOfStructProvidedOK(t *testing.T) {
@@ -222,8 +222,8 @@ func f(c *int) {
 	}}
 }
 `)
-	mustNoGN002(t, diags)
-	mustNoGN001(t, diags)
+	fcMustNoGN002(t, diags)
+	fcMustNoGN001(t, diags)
 }
 
 func TestFC_NestedArrayTraversed(t *testing.T) {
@@ -233,7 +233,7 @@ type Inner struct {
 }
 var _ = [2][1]Inner{}
 `)
-	mustHaveGN002(t, diags)
+	fcMustHaveGN002(t, diags)
 }
 
 // ---------------------------------------------------------------------------
@@ -250,7 +250,7 @@ type Box struct {
 }
 var _ = Box{}
 `)
-	mustNoGN002(t, diags)
+	fcMustNoGN002(t, diags)
 }
 
 func TestFC_SliceFieldNotTraversed(t *testing.T) {
@@ -263,7 +263,7 @@ type Box struct {
 }
 var _ = Box{}
 `)
-	mustNoGN002(t, diags)
+	fcMustNoGN002(t, diags)
 }
 
 func TestFC_MapFieldNotTraversed(t *testing.T) {
@@ -276,7 +276,7 @@ type Box struct {
 }
 var _ = Box{}
 `)
-	mustNoGN002(t, diags)
+	fcMustNoGN002(t, diags)
 }
 
 func TestFC_InterfaceFieldNotTraversed(t *testing.T) {
@@ -289,7 +289,7 @@ type Box struct {
 }
 var _ = Box{}
 `)
-	mustNoGN002(t, diags)
+	fcMustNoGN002(t, diags)
 }
 
 func TestFC_ChanFieldNotTraversed(t *testing.T) {
@@ -302,7 +302,7 @@ type Box struct {
 }
 var _ = Box{}
 `)
-	mustNoGN002(t, diags)
+	fcMustNoGN002(t, diags)
 }
 
 func TestFC_FuncFieldNotTraversed(t *testing.T) {
@@ -312,7 +312,7 @@ type Box struct {
 }
 var _ = Box{}
 `)
-	mustNoGN002(t, diags)
+	fcMustNoGN002(t, diags)
 }
 
 // ---------------------------------------------------------------------------
@@ -330,7 +330,7 @@ func f(a S) {
 	_ = b
 }
 `)
-	mustNoGN002(t, diags)
+	fcMustNoGN002(t, diags)
 }
 
 func TestFC_RangeLoopCopyNotConstruction(t *testing.T) {
@@ -344,7 +344,7 @@ func f(items []S) {
 	}
 }
 `)
-	mustNoGN002(t, diags)
+	fcMustNoGN002(t, diags)
 }
 
 // ---------------------------------------------------------------------------
@@ -360,7 +360,7 @@ func f(s *S) {
 	s.Client = nil
 }
 `)
-	mustHaveGN001(t, diags)
+	fcMustHaveGN001(t, diags)
 }
 
 func TestFC_MutationOrdinaryAccepted(t *testing.T) {
@@ -373,7 +373,7 @@ func f(s *S, ordinary *int) {
 	s.Client = ordinary
 }
 `)
-	mustNoGN001(t, diags)
+	fcMustNoGN001(t, diags)
 }
 
 func TestFC_MutationNonNilSourceOK(t *testing.T) {
@@ -389,7 +389,7 @@ func f(s *S) {
 	s.Client = must()
 }
 `)
-	mustNoGN001(t, diags)
+	fcMustNoGN001(t, diags)
 }
 
 // ---------------------------------------------------------------------------
@@ -418,7 +418,7 @@ func f(s S) {
 	_ = x
 }
 `)
-	mustNoGN001(t, diags)
+	fcMustNoGN001(t, diags)
 }
 
 func TestFC_SelectorAsArgToNonNilParamOK(t *testing.T) {
@@ -431,7 +431,7 @@ func f(s S) {
 	take(s.Client)
 }
 `)
-	mustNoGN001(t, diags)
+	fcMustNoGN001(t, diags)
 }
 
 func TestFC_SelectorDoesNotPropagateThroughConversion(t *testing.T) {
@@ -470,7 +470,7 @@ func f() {
 }
 `
 	diags := checkWithGNA(t, gnaSrc, gonSrc)
-	mustHaveGN002(t, diags)
+	fcMustHaveGN002(t, diags)
 }
 
 func TestFC_GNATypeFieldProvidedOK(t *testing.T) {
@@ -510,7 +510,7 @@ type S struct {
 }
 var _ = S{A: new(int)}
 `)
-	mustHaveGN002(t, diags)
+	fcMustHaveGN002(t, diags)
 	// B is missing → GN002; A is provided non-nil → no GN001 for A.
 	if countCode(diags, "GN002") < 1 {
 		t.Fatalf("expected GN002 for missing B: %v", diags)
@@ -531,7 +531,7 @@ type Outer struct {
 }
 var _ = Outer{}
 `)
-	mustHaveGN002(t, diags)
+	fcMustHaveGN002(t, diags)
 	found := false
 	for _, d := range diags {
 		if d.Code == "GN002" && (strings.Contains(d.Message, "Client") || strings.Contains(d.Message, "Inner")) {
