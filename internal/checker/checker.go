@@ -1,4 +1,4 @@
-// Package checker performs Gon v1.0 nil-safety analysis on clean Go source.
+// Package checker performs Gon nil-safety analysis on clean Go source (v1.x).
 package checker
 
 import (
@@ -228,6 +228,9 @@ func (c *Checker) registerPackageVars() {
 					}
 				}
 			}
+			if vs.Type != nil && len(vs.Values) == 0 {
+				c.reportMissingNonNilFields(vs.Type.Pos(), vs.Type, nil, "")
+			}
 		}
 	}
 }
@@ -371,6 +374,12 @@ func (c *Checker) checkLocalVarDecl(d *ast.GenDecl) {
 					c.addError(vs.Values[i].Pos(), "GN001", fmt.Sprintf("cannot assign nil to non-nil type !%s", formatType(vs.Type)))
 				}
 			}
+			if len(vs.Values) == 0 {
+				c.reportMissingNonNilFields(vs.Type.Pos(), vs.Type, nil, "")
+			}
+			for _, val := range vs.Values {
+				c.checkExpr(val)
+			}
 			continue
 		}
 		// No explicit type: promote from annotated call results (v1.1),
@@ -408,6 +417,11 @@ func (c *Checker) checkAssignStmt(assign *ast.AssignStmt) {
 		if id, ok := lhs.(*ast.Ident); ok {
 			if nn, exists := c.lookup(id.Name); exists && nn && isNilIdent(assign.Rhs[i]) {
 				c.addError(assign.Rhs[i].Pos(), "GN001", fmt.Sprintf("cannot assign nil to non-nil variable !%s", id.Name))
+			}
+		}
+		if sel, ok := lhs.(*ast.SelectorExpr); ok {
+			if c.selectorFieldIsNonNil(sel) && isNilIdent(assign.Rhs[i]) {
+				c.addError(assign.Rhs[i].Pos(), "GN001", fmt.Sprintf("cannot assign nil to non-nil field %s", sel.Sel.Name))
 			}
 		}
 	}
@@ -492,65 +506,11 @@ func (c *Checker) checkCallExpr(call *ast.CallExpr) {
 }
 
 func (c *Checker) checkCompositeLit(lit *ast.CompositeLit) {
-	typeName := ""
-	switch t := lit.Type.(type) {
-	case *ast.Ident:
-		typeName = t.Name
-	default:
-		return
-	}
-	fields, ok := c.structFields[typeName]
-	if !ok {
-		return
-	}
-
-	provided := make(map[string]bool)
-	for _, elt := range lit.Elts {
-		kv, ok := elt.(*ast.KeyValueExpr)
-		if !ok {
-			return
-		}
-		key, ok := kv.Key.(*ast.Ident)
-		if !ok {
-			continue
-		}
-		provided[key.Name] = true
-		if fields[key.Name] && isNilIdent(kv.Value) {
-			c.addError(kv.Value.Pos(), "GN001", fmt.Sprintf("cannot assign nil to non-nil field %s.%s", typeName, key.Name))
-		}
-	}
-	for name, nn := range fields {
-		if nn && !provided[name] {
-			c.addError(lit.Pos(), "GN002", fmt.Sprintf("struct literal of %s missing required non-nil field %s", typeName, name))
-		}
-	}
+	c.checkCompositeLitFields(lit)
 }
 
 func (c *Checker) checkBinaryExpr(expr *ast.BinaryExpr) {
-	if expr.Op != token.EQL && expr.Op != token.NEQ {
-		return
-	}
-	var x ast.Expr
-	if isNilIdent(expr.X) {
-		x = expr.Y
-	} else if isNilIdent(expr.Y) {
-		x = expr.X
-	} else {
-		return
-	}
-	id, ok := x.(*ast.Ident)
-	if !ok {
-		return
-	}
-	nn, exists := c.lookup(id.Name)
-	if !exists || !nn {
-		return
-	}
-	if expr.Op == token.EQL {
-		c.addWarning(expr.Pos(), "GW001", fmt.Sprintf("%s is non-nil; comparison with nil is always false", id.Name))
-	} else {
-		c.addWarning(expr.Pos(), "GW001", fmt.Sprintf("%s is non-nil; comparison with nil is always true", id.Name))
-	}
+	c.checkBinaryExprNil(expr)
 }
 
 func (c *Checker) checkExpr(expr ast.Expr) {
