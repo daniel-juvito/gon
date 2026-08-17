@@ -42,7 +42,7 @@ func run(args []string) int {
 		usage()
 		return 0
 	case "version", "-version", "--version":
-		fmt.Println("gon version 1.0.0")
+		fmt.Println("gon version 1.1.0")
 		return 0
 	}
 
@@ -63,25 +63,25 @@ func run(args []string) int {
 	filename := args[1]
 
 	if !strings.HasSuffix(filename, ".gon") {
-		fmt.Fprintf(os.Stderr, "gon: file must have .gon extension: %s\n", filename)
+		fmt.Fprintf(os.Stderr, "gon: input must be a .gon file, got %s\n", filename)
 		return 2
 	}
 
 	src, err := os.ReadFile(filename)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "gon: %v\n", err)
+		fmt.Fprintf(os.Stderr, "gon: read %s: %v\n", filename, err)
 		return 1
 	}
 
 	result := preproc.Process(filename, src)
 
+	startDir := filepath.Dir(filename)
+	if abs, err := filepath.Abs(startDir); err == nil {
+		startDir = abs
+	}
 	wd, err := os.Getwd()
 	if err != nil {
-		wd = "."
-	}
-	startDir := wd
-	if abs, err := filepath.Abs(filename); err == nil {
-		startDir = filepath.Dir(abs)
+		wd = startDir
 	}
 	resolver := gna.DefaultChain(wd, startDir)
 
