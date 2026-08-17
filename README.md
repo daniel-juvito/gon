@@ -6,12 +6,13 @@ Gon adds `!T` type modifiers to ordinary Go so you can express and enforce
 non-nil contracts at **vet time**. The toolchain strips the annotations and
 emits clean Go that `go build` accepts.
 
-**v1.0 is local and non-flow-sensitive.** It does not track values across
+**v1.x is local and non-flow-sensitive.** It does not track values across
 assignments or infer nilability from implementation details.
 
 `!T` is a **static Gon guarantee** enforced only for the cases covered by the
-v1 checker (literal `nil` into `!T` slots, required struct fields, and
-explicit `.gna` contracts). It is not a runtime non-nil guarantee.
+checker (literal `nil` into `!T` slots, required struct fields, explicit
+`.gna` contracts, and — since v1.1 — annotated return positions as non-nil
+sources at immediate use sites). It is not a runtime non-nil guarantee.
 
 Architectural rule:
 
@@ -23,7 +24,7 @@ Full scope contract: [docs/v1-scope.md](docs/v1-scope.md)
 ## Install
 
 ```bash
-go install github.com/daniel-juvito/gon/cmd/gon@v1.0.0
+go install github.com/daniel-juvito/gon/cmd/gon@v1.1.0
 ```
 
 Or from source:
@@ -75,14 +76,27 @@ type S struct { X !*int } // field is required non-nil
 func (r !*T) M()          // receiver is non-nil
 ```
 
-Because v1 is not flow-sensitive, non-literal assignments are accepted:
+Because v1.x is not flow-sensitive, ordinary (unannotated) non-literal
+assignments into `!T` are accepted:
 
 ```go
 func get() *int { return nil }
 
-var x !*int = get()   // allowed in v1 — not tracked
-var y !*int = other   // allowed in v1 — not tracked
+var x !*int = get()   // allowed — get() is not annotated !T
+var y !*int = other   // allowed — not flow-sensitive
 ```
+
+**v1.1 — return-value contracts.** An annotated `!T` result becomes a
+non-nil source at the immediate use site:
+
+```go
+// .gna results: ["!*Config"]
+cfg := config.MustLoad()  // cfg is a non-nil source
+if cfg == nil {}          // GW001
+```
+
+Conversion and assignment from names do not propagate source-ness.
+See [docs/rfc-return-value-contracts.md](docs/rfc-return-value-contracts.md).
 
 ## External packages (`.gna`)
 
@@ -116,7 +130,7 @@ Full format: [docs/gna-spec-v1.md](docs/gna-spec-v1.md)
 | GW001 | warning  | comparison of a non-nil name with `nil` (always true/false) |
 | GW002 | warning  | package has `.gna` but this symbol is not listed |
 
-## v1.0 scope and limitations
+## Scope and limitations
 
 **In scope**
 
@@ -124,11 +138,12 @@ Full format: [docs/gna-spec-v1.md](docs/gna-spec-v1.md)
 - Package functions and methods (value, pointer, interface, method expression)
 - External packages via `.gna` + module-aware `go/packages`
 - Local, non-flow-sensitive checks only
+- Annotated return positions as non-nil sources at immediate use sites (v1.1)
 
-**Out of scope (v1)**
+**Out of scope**
 
 - Flow-sensitive analysis / assignment propagation
-- Return-value inference
+- Conditional contracts (`non-nil when err == nil`)
 - Automatic nilability inference from bodies
 - Runtime enforcement (annotations are stripped)
 - Generic type contracts
