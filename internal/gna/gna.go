@@ -22,6 +22,11 @@ type Signature struct {
 	Results []bool
 }
 
+// TypeAnnotation holds field-level nilability contracts for a named type.
+type TypeAnnotation struct {
+	Fields map[string]bool // field name -> non-nil claim
+}
+
 // File is the validated contents of one .gna file.
 type File struct {
 	Schema      int
@@ -30,6 +35,7 @@ type File struct {
 	Functions   map[string]*Signature // key: function name
 	Methods     map[string]*Signature // key: TypeName.MethodName
 	Receivers   map[string]bool       // key: TypeName; true => non-nil receiver
+	Types       map[string]*TypeAnnotation // key: TypeName
 }
 
 // raw YAML shapes (all type strings are quoted in the file).
@@ -40,6 +46,11 @@ type rawFile struct {
 	Functions   map[string]*rawSignature  `yaml:"functions"`
 	Methods     map[string]*rawSignature  `yaml:"methods"`
 	Receivers   map[string]string         `yaml:"receivers"`
+	Types       map[string]*rawType       `yaml:"types"`
+}
+
+type rawType struct {
+	Fields map[string]string `yaml:"fields"`
 }
 
 type rawSignature struct {
@@ -80,6 +91,7 @@ func LoadBytes(name string, data []byte) (*File, error) {
 		Functions:   make(map[string]*Signature),
 		Methods:     make(map[string]*Signature),
 		Receivers:   make(map[string]bool),
+		Types:       make(map[string]*TypeAnnotation),
 	}
 
 	for nameFn, rs := range raw.Functions {
@@ -119,6 +131,21 @@ func LoadBytes(name string, data []byte) (*File, error) {
 			return nil, err
 		}
 		f.Receivers[typeName] = nn
+	}
+
+	for typeName, rt := range raw.Types {
+		if rt == nil {
+			return nil, fmt.Errorf("%s: type %q: empty type annotation", name, typeName)
+		}
+		ta := &TypeAnnotation{Fields: make(map[string]bool)}
+		for fieldName, ann := range rt.Fields {
+			nn, err := parseTypeAnn(name, fmt.Sprintf("types.%s.fields.%s", typeName, fieldName), ann)
+			if err != nil {
+				return nil, err
+			}
+			ta.Fields[fieldName] = nn
+		}
+		f.Types[typeName] = ta
 	}
 
 	return f, nil
