@@ -20,7 +20,9 @@ import (
 	"strings"
 
 	"github.com/daniel-juvito/gon/internal/checker"
+	gonfmt "github.com/daniel-juvito/gon/internal/fmt"
 	"github.com/daniel-juvito/gon/internal/gna"
+	"github.com/daniel-juvito/gon/internal/lsp"
 	"github.com/daniel-juvito/gon/internal/preproc"
 	"github.com/daniel-juvito/gon/transpiler"
 )
@@ -42,17 +44,26 @@ func run(args []string) int {
 		usage()
 		return 0
 	case "version", "-version", "--version":
-		fmt.Println("gon version 1.2.1")
+		fmt.Println("gon version 1.3.0-dev")
 		return 0
 	}
 
 	switch cmd {
-	case "check", "vet", "transpile", "build":
+	case "check", "vet", "transpile", "build", "fmt", "lsp":
 		// ok
 	default:
 		fmt.Fprintf(os.Stderr, "gon: unknown command: %s\n", cmd)
 		usage()
 		return 2
+	}
+
+	if cmd == "lsp" {
+		srv := lsp.New(os.Stdin, os.Stdout)
+		if err := srv.Run(); err != nil {
+			fmt.Fprintf(os.Stderr, "gon: lsp error: %v\n", err)
+			return 1
+		}
+		return 0
 	}
 
 	if len(args) < 2 {
@@ -71,6 +82,19 @@ func run(args []string) int {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "gon: read %s: %v\n", filename, err)
 		return 1
+	}
+
+	if cmd == "fmt" {
+		formatted, err := gonfmt.Format(filename, src)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "gon: fmt error: %v\n", err)
+			return 1
+		}
+		if err := os.WriteFile(filename, formatted, 0o644); err != nil {
+			fmt.Fprintf(os.Stderr, "gon: write %s: %v\n", filename, err)
+			return 1
+		}
+		return 0
 	}
 
 	result := preproc.Process(filename, src)
@@ -157,6 +181,8 @@ func usage() {
 
 Commands:
   check, vet   check for nil-safety violations (exit 1 on errors)
+  fmt          format Gon source in place
+  lsp          run the language server over stdio
   transpile    emit clean Go source (.go next to the input)
   build        transpile then run go build
   version      print version
