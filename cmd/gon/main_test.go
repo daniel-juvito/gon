@@ -144,3 +144,44 @@ func main() {
 		t.Fatalf("flow-insensitive assignment must be accepted, got exit %d", code)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// v1.3 CLI regression
+// ---------------------------------------------------------------------------
+
+func TestCLIVetIsCheckAlias(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTempGon(t, dir, "bad.gon", `package main
+type S struct { X !*int }
+var _ = S{}
+`)
+	if run([]string{"check", path}) != 1 || run([]string{"vet", path}) != 1 {
+		t.Fatal("check and vet must both exit 1 on GN002")
+	}
+}
+
+func TestCLICheckNewConstruction(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTempGon(t, dir, "new.gon", `package main
+type S struct { Client !*int }
+func f() { _ = new(S) }
+`)
+	if run([]string{"check", path}) != 1 {
+		t.Fatal("new(S) missing ! field must exit 1")
+	}
+}
+
+func TestCLIFmtPreservesBang(t *testing.T) {
+	dir := t.TempDir()
+	path := writeTempGon(t, dir, "fmt.gon", "package main\nfunc f(x !*int) {\n}\n")
+	if run([]string{"fmt", path}) != 0 {
+		t.Fatal("fmt exit non-zero")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "!*int") {
+		t.Fatalf("fmt lost !: %s", data)
+	}
+}
