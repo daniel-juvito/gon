@@ -11,6 +11,10 @@ const (
 )
 
 // Diagnostic is a single error or warning produced by the Gon checker.
+//
+// Trace is optional structured contract context (v1.3). String() keeps the
+// v1.2 wire format so existing CLI and tests remain stable; consumers that
+// need the chain (LSP, golden tests) read Trace directly.
 type Diagnostic struct {
 	Severity Severity
 	Code     string
@@ -18,6 +22,8 @@ type Diagnostic struct {
 	File     string
 	Line     int
 	Col      int
+	// Trace is nil for diagnostics that are not construction-site derived.
+	Trace *ContractTrace
 }
 
 func (d *Diagnostic) String() string {
