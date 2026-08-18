@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.2.1] — 2026-08-18
+
+### Fixed
+
+- **Preprocessor: `!` in multi-result function signatures.** Local forms such
+  as `func Open() (!*string, error)`, `func Open() (*string, !error)`, and
+  `func F(a !*T) (!*U, error)` are recognized as type modifiers. Parameter
+  and parenthesized result lists (including interface methods) are tracked so
+  unary `!` in expressions (`f(a, !b)`, `(!flag)`) is not stripped.
+
+### Compatibility
+
+- No checker semantics change relative to v1.2.0.
+- Field contracts and return-value contracts unchanged.
+- `.gna` schema remains **1**.
+
+> Gon v1.2.1 is a preprocessor bugfix so valid local multi-return `!`
+> syntax works as intended since v1.1.
+
+### Changed
+
+- `gon version` reports `1.2.1`.
+
 ## [1.2.0] — 2026-08-17
 
 ### Added

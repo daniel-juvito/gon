@@ -16,8 +16,9 @@ Architectural rule (unchanged across v1.x):
 | v1.0.0 | Local non-flow-sensitive checks; `.gna` param/result *declaration*; external packages |
 | v1.1.0 | Annotated result positions become **non-nil sources** at immediate use sites |
 | v1.2.0 | Field contracts: `!T` field is a storage invariant; construction GN002, mutation GN001, selector non-nil source; `.gna` `types:` |
+| v1.2.1 | Preprocessor: `!` in local multi-result / signature type lists (bugfix; semantics unchanged) |
 
-`.gna` schema remains **1**. v1.1 and v1.2 are checker-semantics changes, not format breaks.
+`.gna` schema remains **1**. v1.1 and v1.2 are checker-semantics changes, not format breaks. v1.2.1 is a patch only.
 
 ## Guaranteed
 
@@ -56,6 +57,9 @@ var c = config.MustLoad()  // same (no explicit type)
 
 f, err := config.Open()    // only f (result[0]) is a non-nil source if annotated
 ```
+
+Local multi-result signatures such as `func Open() (!*string, error)` are
+supported by the preprocessor (complete as of **v1.2.1**).
 
 **Precedence:**
 

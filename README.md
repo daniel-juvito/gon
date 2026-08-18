@@ -25,7 +25,7 @@ Full scope contract: [docs/v1-scope.md](docs/v1-scope.md)
 ## Install
 
 ```bash
-go install github.com/daniel-juvito/gon/cmd/gon@v1.2.0
+go install github.com/daniel-juvito/gon/cmd/gon@v1.2.1
 ```
 
 Or from source:
@@ -94,6 +94,10 @@ non-nil source at the immediate use site:
 // .gna results: ["!*Config"]
 cfg := config.MustLoad()  // cfg is a non-nil source
 if cfg == nil {}          // GW001
+
+// Local multi-return (v1.2.1+ preprocessor)
+func Open() (!*string, error)
+f, err := Open()          // only f is a non-nil source
 ```
 
 Conversion and assignment from names do not propagate source-ness.
