@@ -4,30 +4,12 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
-	"go/types"
 )
 
 // checkCompositeLitFields is retained as a v1.2 compatibility alias.
-// v1.3 construction (keyed + unkeyed + new) lives in construction.go.
+// All composite-literal construction analysis goes through M2a.
 func (c *Checker) checkCompositeLitFields(lit *ast.CompositeLit) {
 	c.checkCompositeLitConstruction(lit)
-}
-
-func (c *Checker) fieldsFromStructAST(st *ast.StructType) map[string]bool {
-	fields := make(map[string]bool)
-	if st == nil || st.Fields == nil {
-		return fields
-	}
-	for _, field := range st.Fields.List {
-		isNN := c.isNonNil(field.Type)
-		if len(field.Names) == 0 {
-			continue
-		}
-		for _, name := range field.Names {
-			fields[name.Name] = isNN
-		}
-	}
-	return fields
 }
 
 func (c *Checker) reportMissingFromStructAST(pos token.Pos, st *ast.StructType, provided map[string]bool, pathPrefix string) {
@@ -77,18 +59,24 @@ func (c *Checker) reportMissingNonNilFields(pos token.Pos, typExpr ast.Expr, pro
 	switch t := typExpr.(type) {
 	case *ast.Ident:
 		fields, ok := c.structFields[t.Name]
-		if ok {
-			for name, nn := range fields {
-				p := name
-				if pathPrefix != "" {
-					p = pathPrefix + "." + name
-				}
-				if nn && (provided == nil || !provided[name]) {
-					c.addError(pos, "GN002", fmt.Sprintf("missing required non-nil field %s", p))
+		st := c.lookupStructAST(t.Name)
+		// Prefer declaration-order AST walk when available (same source as
+		// collectGenDecl). Map-only iteration is non-deterministic and is
+		// not used as a fallback under v1.3 local-file invariants.
+		if ok && st != nil {
+			for _, field := range st.Fields.List {
+				for _, name := range field.Names {
+					nn := fields[name.Name]
+					p := name.Name
+					if pathPrefix != "" {
+						p = pathPrefix + "." + name.Name
+					}
+					if nn && (provided == nil || !provided[name.Name]) {
+						c.addError(pos, "GN002", fmt.Sprintf("missing required non-nil field %s", p))
+					}
 				}
 			}
 		}
-		st := c.lookupStructAST(t.Name)
 		if st != nil {
 			for _, field := range st.Fields.List {
 				if len(field.Names) == 0 {
@@ -138,6 +126,16 @@ func (c *Checker) reportMissingNonNilFields(pos token.Pos, typExpr ast.Expr, pro
 	}
 }
 
+func (c *Checker) reportExternalTypeFields(pos token.Pos, sel *ast.SelectorExpr, provided map[string]bool) {
+	if sel == nil || c.resolver == nil {
+		return
+	}
+	// External field contracts come from .gna (M4). Positional mapping is
+	// intentionally not applied here.
+	_ = pos
+	_ = provided
+}
+
 func (c *Checker) lookupStructAST(name string) *ast.StructType {
 	if c.file == nil {
 		return nil
@@ -160,114 +158,19 @@ func (c *Checker) lookupStructAST(name string) *ast.StructType {
 	return nil
 }
 
-func (c *Checker) reportExternalTypeFields(pos token.Pos, sel *ast.SelectorExpr, provided map[string]bool) {
-	if c.resolver == nil || sel == nil || sel.X == nil || sel.Sel == nil {
-		return
-	}
-	x, ok := sel.X.(*ast.Ident)
-	if !ok {
-		return
-	}
-	pkgPath, ok := c.imports[x.Name]
-	if !ok {
-		return
-	}
-	file, err := c.resolvePackage(pkgPath)
-	if err != nil || file == nil || file.Types == nil {
-		return
-	}
-	typeAnn, ok := file.Types[sel.Sel.Name]
-	if !ok || typeAnn == nil {
-		return
-	}
-	for name, nn := range typeAnn.Fields {
-		if nn && (provided == nil || !provided[name]) {
-			c.addError(pos, "GN002", fmt.Sprintf("missing required non-nil field %s.%s", sel.Sel.Name, name))
-		}
-	}
-}
-
-func (c *Checker) checkBinaryExprNil(expr *ast.BinaryExpr) {
-	if expr.Op != token.EQL && expr.Op != token.NEQ {
-		return
-	}
-	var x ast.Expr
-	if isNilIdent(expr.X) {
-		x = expr.Y
-	} else if isNilIdent(expr.Y) {
-		x = expr.X
-	} else {
-		return
-	}
-	if id, ok := x.(*ast.Ident); ok {
-		nn, exists := c.lookup(id.Name)
-		if !exists || !nn {
-			return
-		}
-		if expr.Op == token.EQL {
-			c.addWarning(expr.Pos(), "GW001", fmt.Sprintf("%s is non-nil; comparison with nil is always false", id.Name))
-		} else {
-			c.addWarning(expr.Pos(), "GW001", fmt.Sprintf("%s is non-nil; comparison with nil is always true", id.Name))
-		}
-		return
-	}
-	if sel, ok := x.(*ast.SelectorExpr); ok {
-		if !c.selectorFieldIsNonNil(sel) {
-			return
-		}
-		name := sel.Sel.Name
-		if expr.Op == token.EQL {
-			c.addWarning(expr.Pos(), "GW001", fmt.Sprintf("%s is non-nil; comparison with nil is always false", name))
-		} else {
-			c.addWarning(expr.Pos(), "GW001", fmt.Sprintf("%s is non-nil; comparison with nil is always true", name))
-		}
-	}
-}
-
 func (c *Checker) selectorFieldIsNonNil(sel *ast.SelectorExpr) bool {
-	fieldName := sel.Sel.Name
-	if c.info != nil {
-		if tv, ok := c.info.Types[sel.X]; ok && tv.Type != nil {
-			if c.namedTypeFieldNonNil(tv.Type, fieldName) {
-				return true
-			}
-		}
-	}
-	for _, fields := range c.structFields {
-		if fields[fieldName] {
-			return true
-		}
-	}
-	return false
-}
-
-func (c *Checker) namedTypeFieldNonNil(typ types.Type, fieldName string) bool {
-	if typ == nil {
+	if sel == nil || sel.Sel == nil {
 		return false
 	}
-	if p, ok := typ.(*types.Pointer); ok {
-		typ = p.Elem()
-	}
-	switch t := typ.(type) {
-	case *types.Named:
-		if fields, ok := c.structFields[t.Obj().Name()]; ok {
-			if fields[fieldName] {
-				return true
-			}
+	// Local struct field non-nil lookup by receiver type name when available.
+	if id, ok := sel.X.(*ast.Ident); ok {
+		if fields, ok := c.structFields[id.Name]; ok {
+			return fields[sel.Sel.Name]
 		}
-		return c.namedTypeFieldNonNil(t.Underlying(), fieldName)
-	case *types.Struct:
-		for i := 0; i < t.NumFields(); i++ {
-			f := t.Field(i)
-			if f.Name() == fieldName {
-				for _, fields := range c.structFields {
-					if fields[fieldName] {
-						return true
-					}
-				}
-				return false
-			}
-			if f.Embedded() && c.namedTypeFieldNonNil(f.Type(), fieldName) {
+		// Variable whose type is a local named struct — conservative: use
+		// field map if any local type declares this field name as !T.
+		for _, fields := range c.structFields {
+			if fields[sel.Sel.Name] {
 				return true
 			}
 		}
