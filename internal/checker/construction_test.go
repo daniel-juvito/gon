@@ -124,7 +124,7 @@ var p = new(S)
 
 func TestM2a_NestedStructKeyed(t *testing.T) {
 	diags := checkSource(t, `package main
-type S struct { X !*int }
+type Inner struct { X !*int }
 type Outer struct { Inner Inner }
 var _ = Outer{}
 `)
