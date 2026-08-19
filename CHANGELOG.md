@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.3.0-dev] — 2026-08-18
+## [1.3.0] — 2026-08-19
 
 ### Added
 
@@ -17,7 +17,7 @@
 ### Changed
 
 - `gon check` remains canonical; `vet` stays a compatibility alias.
-- `gon version` reports `1.3.0-dev` until the release tag.
+- `gon version` reports `1.3.0`.
 
 ### Compatibility
 
