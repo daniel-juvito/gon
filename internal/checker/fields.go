@@ -7,67 +7,10 @@ import (
 	"go/types"
 )
 
-// checkCompositeLitFields implements field-contract construction checks (v1.2).
+// checkCompositeLitFields is retained as a v1.2 compatibility alias.
+// v1.3 construction (keyed + unkeyed + new) lives in construction.go.
 func (c *Checker) checkCompositeLitFields(lit *ast.CompositeLit) {
-	provided := make(map[string]bool)
-	for _, elt := range lit.Elts {
-		kv, ok := elt.(*ast.KeyValueExpr)
-		if !ok {
-			continue
-		}
-		key, ok := kv.Key.(*ast.Ident)
-		if !ok {
-			continue
-		}
-		provided[key.Name] = true
-	}
-
-	switch t := lit.Type.(type) {
-	case *ast.Ident:
-		typeName := t.Name
-		fields, ok := c.structFields[typeName]
-		if ok {
-			for _, elt := range lit.Elts {
-				kv, ok := elt.(*ast.KeyValueExpr)
-				if !ok {
-					continue
-				}
-				key, ok := kv.Key.(*ast.Ident)
-				if !ok {
-					continue
-				}
-				if fields[key.Name] && isNilIdent(kv.Value) {
-					c.addError(kv.Value.Pos(), "GN001", fmt.Sprintf("cannot assign nil to non-nil field %s.%s", typeName, key.Name))
-				}
-			}
-		}
-		c.reportMissingNonNilFields(lit.Pos(), t, provided, typeName)
-	case *ast.StructType:
-		fields := c.fieldsFromStructAST(t)
-		for _, elt := range lit.Elts {
-			kv, ok := elt.(*ast.KeyValueExpr)
-			if !ok {
-				continue
-			}
-			key, ok := kv.Key.(*ast.Ident)
-			if !ok {
-				continue
-			}
-			if fields[key.Name] && isNilIdent(kv.Value) {
-				c.addError(kv.Value.Pos(), "GN001", fmt.Sprintf("cannot assign nil to non-nil field %s", key.Name))
-			}
-		}
-		c.reportMissingFromStructAST(lit.Pos(), t, provided, "")
-	case *ast.ArrayType:
-		if t.Len == nil {
-			return
-		}
-		if len(lit.Elts) == 0 {
-			c.reportMissingNonNilFields(lit.Pos(), t.Elt, nil, "")
-		}
-	case *ast.SelectorExpr:
-		c.reportExternalTypeFields(lit.Pos(), t, provided)
-	}
+	c.checkCompositeLitConstruction(lit)
 }
 
 func (c *Checker) fieldsFromStructAST(st *ast.StructType) map[string]bool {
@@ -218,14 +161,14 @@ func (c *Checker) lookupStructAST(name string) *ast.StructType {
 }
 
 func (c *Checker) reportExternalTypeFields(pos token.Pos, sel *ast.SelectorExpr, provided map[string]bool) {
-	if c.resolver == nil {
+	if c.resolver == nil || sel == nil || sel.X == nil || sel.Sel == nil {
 		return
 	}
-	pkgIdent, ok := sel.X.(*ast.Ident)
+	x, ok := sel.X.(*ast.Ident)
 	if !ok {
 		return
 	}
-	pkgPath, ok := c.imports[pkgIdent.Name]
+	pkgPath, ok := c.imports[x.Name]
 	if !ok {
 		return
 	}

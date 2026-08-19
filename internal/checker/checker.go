@@ -85,21 +85,32 @@ func (c *Checker) isNonNil(typeExpr ast.Expr) bool {
 }
 
 func (c *Checker) addError(pos token.Pos, code, msg string) {
-	p := c.fset.Position(pos)
-	name := c.filename
-	if name == "" {
-		name = p.Filename
-	}
-	c.diagnostics = append(c.diagnostics, &Diagnostic{Severity: SeverityError, Code: code, Message: msg, File: filepath.Base(name), Line: p.Line, Col: p.Column})
+	c.addDiagnostic(SeverityError, pos, code, msg, nil)
 }
 
 func (c *Checker) addWarning(pos token.Pos, code, msg string) {
+	c.addDiagnostic(SeverityWarning, pos, code, msg, nil)
+}
+
+func (c *Checker) addErrorTrace(pos token.Pos, code, msg string, trace *ContractTrace) {
+	c.addDiagnostic(SeverityError, pos, code, msg, trace)
+}
+
+func (c *Checker) addDiagnostic(sev Severity, pos token.Pos, code, msg string, trace *ContractTrace) {
 	p := c.fset.Position(pos)
 	name := c.filename
 	if name == "" {
 		name = p.Filename
 	}
-	c.diagnostics = append(c.diagnostics, &Diagnostic{Severity: SeverityWarning, Code: code, Message: msg, File: filepath.Base(name), Line: p.Line, Col: p.Column})
+	c.diagnostics = append(c.diagnostics, &Diagnostic{
+		Severity: sev,
+		Code:     code,
+		Message:  msg,
+		File:     filepath.Base(name),
+		Line:     p.Line,
+		Col:      p.Column,
+		Trace:    trace,
+	})
 }
 
 func isNilIdent(expr ast.Expr) bool {
@@ -248,8 +259,11 @@ func (c *Checker) checkPackageLevelComposites() {
 			}
 			for _, val := range vs.Values {
 				ast.Inspect(val, func(n ast.Node) bool {
-					if cl, ok := n.(*ast.CompositeLit); ok {
-						c.checkCompositeLit(cl)
+					switch x := n.(type) {
+					case *ast.CompositeLit:
+						c.checkCompositeLit(x)
+					case *ast.CallExpr:
+						c.checkNewConstruction(x)
 					}
 					return true
 				})
@@ -487,6 +501,8 @@ func (c *Checker) checkReturnStmt(ret *ast.ReturnStmt) {
 }
 
 func (c *Checker) checkCallExpr(call *ast.CallExpr) {
+	c.checkNewConstruction(call)
+
 	params, display := c.resolveCallParams(call.Fun)
 	if params == nil {
 		return
@@ -506,7 +522,7 @@ func (c *Checker) checkCallExpr(call *ast.CallExpr) {
 }
 
 func (c *Checker) checkCompositeLit(lit *ast.CompositeLit) {
-	c.checkCompositeLitFields(lit)
+	c.checkCompositeLitConstruction(lit)
 }
 
 func (c *Checker) checkBinaryExpr(expr *ast.BinaryExpr) {
@@ -528,6 +544,8 @@ func (c *Checker) checkExpr(expr ast.Expr) {
 			c.checkCompositeLit(x)
 		case *ast.BinaryExpr:
 			c.checkBinaryExpr(x)
+		case *ast.TypeAssertExpr:
+			c.checkTypeAssert(x)
 		}
 		return true
 	})

@@ -1,5 +1,30 @@
 # Changelog
 
+## [1.3.0-dev] — 2026-08-18
+
+### Added
+
+- **M2a construction completeness**
+  - `new(T)` is a zero-value construction site when `T` is a local struct (GN002).
+  - Unkeyed composite literals use declaration order from the *local* struct AST only.
+  - External (`SelectorExpr`) types remain keyed-only + `.gna` (M4 firewall).
+  - Unified construction entry points in `internal/checker/construction.go`.
+- **ContractTrace** — first-class diagnostic data on GN001/GN002 (wire `String()` unchanged).
+- **GW003** — redundant type-assertion warning on declared `!T` identifiers only.
+- **`gon fmt`** — format Gon source in place.
+- **`gon lsp`** — minimal stdio LSP.
+
+### Changed
+
+- `gon check` remains canonical; `vet` stays a compatibility alias.
+- `gon version` reports `1.3.0-dev` until the release tag.
+
+### Compatibility
+
+- No `.gna` schema bump (schema remains **1**).
+- Existing GN001/GN002/GW001 codes and severities preserved.
+- Scope firewall: no interface `!I`, no type coverage, no generics, no flow-sensitive nilability.
+
 ## [1.2.1] — 2026-08-18
 
 ### Fixed
