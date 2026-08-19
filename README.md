@@ -11,9 +11,9 @@ assignments or infer nilability from implementation details.
 
 `!T` is a **static Gon guarantee** enforced only for the cases covered by the
 checker (literal `nil` into `!T` slots, required struct fields, explicit
-`.gna` contracts, annotated return positions as non-nil sources, and — since
-v1.2 — field storage invariants at construction, mutation, and selector use).
-It is not a runtime non-nil guarantee.
+`.gna` contracts, annotated return positions as non-nil sources, field storage
+invariants, and — since v1.3 — complete local-struct construction including
+`new(T)` and unkeyed literals). It is not a runtime non-nil guarantee.
 
 Architectural rule:
 
@@ -25,7 +25,7 @@ Full scope contract: [docs/v1-scope.md](docs/v1-scope.md)
 ## Install
 
 ```bash
-go install github.com/daniel-juvito/gon/cmd/gon@v1.2.1
+go install github.com/daniel-juvito/gon/cmd/gon@v1.3.0
 ```
 
 Or from source:
@@ -42,11 +42,17 @@ go build -o gon ./cmd/gon
 # check (alias: vet)
 gon check file.gon
 
+# format in place (preserves !)
+gon fmt file.gon
+
 # emit clean Go
 gon transpile file.gon    # writes file.go
 
 # transpile then go build
 gon build file.gon
+
+# minimal stdio language server
+gon lsp
 ```
 
 Exit codes:
@@ -120,6 +126,36 @@ Structural walk covers embedded structs and fixed arrays; stops at every
 indirection (`*T`, `[]T`, `map`, …). External types use `.gna` `types:`.
 See [docs/rfc-field-contracts.md](docs/rfc-field-contracts.md).
 
+**v1.3 — construction completeness.** Local-struct construction is fully
+checked, including `new(T)` and unkeyed literals:
+
+```go
+type Outer struct {
+    Name !*string
+    In   struct{ X !*int }
+}
+
+_ = new(Outer)                 // GN002 — zero-value construction site
+_ = Outer{}                    // GN002
+n, x := "gon", 1
+_ = Outer{&n, struct{ X !*int }{&x}} // OK — unkeyed, declaration order
+
+// External SelectorExpr types stay keyed-only + .gna (M4 firewall)
+```
+
+Diagnostics may carry a `ContractTrace` (origin path) for tooling; the
+printed `String()` wire format is unchanged. Redundant type assertions on
+declared `!T` identifiers emit **GW003**.
+
+Tooling:
+
+- `gon fmt` — `go/format` on the clean form, then word-boundary `!` re-insertion
+- `gon lsp` — minimal stdio LSP (`initialize` / `didOpen` / `didChange` /
+  diagnostics / `shutdown`); same checker pipeline as `gon check`
+
+Examples: [gon-examples](https://github.com/daniel-juvito/gon-examples)
+(`construction/` covers M2a).
+
 ## External packages (`.gna`)
 
 Nilability for imported APIs is described in YAML annotation files:
@@ -148,10 +184,11 @@ Full format: [docs/gna-spec-v1.md](docs/gna-spec-v1.md)
 | Code  | Severity | Meaning |
 |-------|----------|---------|
 | GN001 | error    | literal `nil` assigned / passed / returned where `!T` is required; or `nil` assigned into a `!T` field |
-| GN002 | error    | construction leaves a required non-nil field at zero (including nested / embedded / array) |
+| GN002 | error    | construction leaves a required non-nil field at zero (including nested / embedded / array; includes `new(T)`) |
 | GN003 | error    | malformed or mismatched `.gna` while resolving a package |
 | GW001 | warning  | comparison of a non-nil name or `!T` field selector with `nil` (always true/false) |
 | GW002 | warning  | package has `.gna` but this symbol is not listed |
+| GW003 | warning  | redundant type assertion on a declared `!T` identifier (v1.3) |
 
 ## Scope and limitations
 
@@ -163,6 +200,8 @@ Full format: [docs/gna-spec-v1.md](docs/gna-spec-v1.md)
 - Local, non-flow-sensitive checks only
 - Annotated return positions as non-nil sources at immediate use sites (v1.1)
 - Field storage invariants: construction, mutation, selector (v1.2)
+- Local-struct construction completeness: `new(T)`, keyed/unkeyed, nested (v1.3)
+- `gon fmt` and minimal stdio LSP (v1.3)
 
 **Out of scope**
 
@@ -171,7 +210,10 @@ Full format: [docs/gna-spec-v1.md](docs/gna-spec-v1.md)
 - Automatic nilability inference from bodies
 - Runtime enforcement (annotations are stripped)
 - Generic type contracts
+- Interface `!I` / typed-nil rules (see [docs/rfc-interface-semantics.md](docs/rfc-interface-semantics.md))
+- Cross-package unkeyed / positional construction expansion (M4)
 - Remote annotation registries
+- LSP hover / completion
 
 These are intentional. See [docs/v1-scope.md](docs/v1-scope.md) for the
 authoritative list of guarantees and non-guarantees.
