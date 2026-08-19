@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
-	"strings"
 )
 
-// checkNewConstruction is the M2a entry for new(T).
-// new(T) is treated as a zero-value construction site when T is a local struct.
+// checkNewConstruction treats new(T) as a zero-value construction site when T
+// resolves to a local struct. No general expression inference; non-struct T
+// is ignored. External / selector types are not walked via new (M4 boundary).
 func (c *Checker) checkNewConstruction(call *ast.CallExpr) {
 	if call == nil || len(call.Args) != 1 {
 		return
@@ -18,103 +18,90 @@ func (c *Checker) checkNewConstruction(call *ast.CallExpr) {
 		return
 	}
 	arg := call.Args[0]
-	// Only local named / anonymous structs are in scope for M2a.
-	switch t := arg.(type) {
-	case *ast.Ident, *ast.StructType, *ast.ArrayType:
-		trace := &ContractTrace{Origin: "new(" + formatType(arg) + ")"}
+	switch arg.(type) {
+	case *ast.Ident, *ast.StructType:
+		trace := &ContractTrace{Origin: "new(" + typeExprName(arg) + ")"}
 		c.reportMissingNonNilFieldsTraced(call.Pos(), arg, nil, "", trace)
 	default:
-		// SelectorExpr / pointers / maps: out of M2a scope (M4 firewall).
-		_ = t
+		return
 	}
 }
 
 // checkCompositeLitConstruction is the M2a entry for composite literals.
-// Keyed and unkeyed forms are supported for local structs only.
-// External SelectorExpr types remain keyed-only + .gna (M4).
+// Keyed and unkeyed forms share one semantic model for *local* structs.
+// External types (SelectorExpr) keep the v1.2 keyed-only + .gna path and
+// do not invent positional field order (M4 firewall).
 func (c *Checker) checkCompositeLitConstruction(lit *ast.CompositeLit) {
 	if lit == nil {
 		return
 	}
-	provided := compositeProvided(lit)
-	trace := &ContractTrace{Origin: compositeOrigin(lit)}
+	origin := compositeOrigin(lit)
+	provided := c.providedFieldsFromComposite(lit)
+
 	switch t := lit.Type.(type) {
 	case *ast.Ident:
 		typeName := t.Name
+		fields, ok := c.structFields[typeName]
+		if ok {
+			c.checkExplicitNilInComposite(lit, fields, typeName)
+		}
+		trace := &ContractTrace{Origin: origin}
 		c.reportMissingNonNilFieldsTraced(lit.Pos(), t, provided, typeName, trace)
-		c.checkExplicitNilFields(lit, typeName)
 	case *ast.StructType:
+		fields := c.fieldsFromStructAST(t)
+		c.checkExplicitNilInComposite(lit, fields, "")
+		trace := &ContractTrace{Origin: origin}
 		c.reportMissingFromStructASTTraced(lit.Pos(), t, provided, "", trace)
-		c.checkExplicitNilFields(lit, "")
 	case *ast.ArrayType:
-		if t.Len != nil {
-			// Fixed array: walk element type once (zero-value containment).
+		if t.Len == nil {
+			return
+		}
+		if len(lit.Elts) == 0 {
+			trace := &ContractTrace{Origin: origin}
 			c.reportMissingNonNilFieldsTraced(lit.Pos(), t.Elt, nil, "", trace)
 		}
-		// Slice (Len == nil) is an indirection boundary — not walked.
 	case *ast.SelectorExpr:
-		// M4 firewall: external types stay keyed-only + .gna.
-		c.reportExternalTypeFields(lit.Pos(), t, provided)
-		c.checkExplicitNilFields(lit, formatType(t))
-	default:
-		// map/chan/interface/func literals: not M2a construction sites.
+		c.reportExternalTypeFields(lit.Pos(), t, providedKeyedOnly(lit))
 	}
 }
 
-func compositeOrigin(lit *ast.CompositeLit) string {
-	if lit == nil || lit.Type == nil {
-		return "{}"
-	}
-	return formatType(lit.Type) + "{}"
-}
-
-// compositeProvided returns the set of field names provided by a composite
-// literal. Keyed elements contribute their key name; unkeyed elements are
-// mapped to declaration-order field names for local named structs only.
-func (c *Checker) compositeProvided(lit *ast.CompositeLit) map[string]bool {
+func (c *Checker) providedFieldsFromComposite(lit *ast.CompositeLit) map[string]bool {
 	provided := make(map[string]bool)
 	if lit == nil {
 		return provided
 	}
-	var ordered []string
-	if id, ok := lit.Type.(*ast.Ident); ok {
-		if st := c.lookupStructAST(id.Name); st != nil {
-			for _, field := range st.Fields.List {
-				if len(field.Names) == 0 {
-					if emb, ok := field.Type.(*ast.Ident); ok {
-						ordered = append(ordered, emb.Name)
-					}
-					continue
-				}
-				for _, n := range field.Names {
-					ordered = append(ordered, n.Name)
-				}
-			}
-		}
-	}
-	pos := 0
+	keyed := false
 	for _, elt := range lit.Elts {
 		if kv, ok := elt.(*ast.KeyValueExpr); ok {
+			keyed = true
 			if key, ok := kv.Key.(*ast.Ident); ok {
 				provided[key.Name] = true
 			}
+		}
+	}
+	if keyed {
+		return provided
+	}
+	switch lit.Type.(type) {
+	case *ast.Ident, *ast.StructType:
+	default:
+		return provided
+	}
+	fieldNames := c.structFieldNamesInOrder(lit.Type)
+	pos := 0
+	for _, elt := range lit.Elts {
+		if _, ok := elt.(*ast.KeyValueExpr); ok {
 			continue
 		}
-		// Unkeyed: map by declaration order (local AST only).
-		if pos < len(ordered) {
-			provided[ordered[pos]] = true
+		if pos < len(fieldNames) {
+			provided[fieldNames[pos]] = true
 			pos++
 		}
 	}
 	return provided
 }
 
-// package-level alias used by checkCompositeLitConstruction
-func compositeProvided(lit *ast.CompositeLit) map[string]bool {
-	// Standalone helper cannot access checker state for unkeyed mapping.
-	// Unkeyed mapping is applied inside checkCompositeLitConstruction via
-	// the method form; this free function handles keyed-only extraction
-	// for call sites that do not need unkeyed support.
+func providedKeyedOnly(lit *ast.CompositeLit) map[string]bool {
 	provided := make(map[string]bool)
 	if lit == nil {
 		return provided
@@ -129,33 +116,62 @@ func compositeProvided(lit *ast.CompositeLit) map[string]bool {
 	return provided
 }
 
-func (c *Checker) checkExplicitNilFields(lit *ast.CompositeLit, typeName string) {
-	if lit == nil {
-		return
-	}
-	var fields map[string]bool
-	if id, ok := lit.Type.(*ast.Ident); ok {
-		fields = c.structFields[id.Name]
-	}
-	if fields == nil {
-		// Still catch explicit nil on keyed elements when type is local struct AST.
-		for _, elt := range lit.Elts {
-			kv, ok := elt.(*ast.KeyValueExpr)
-			if !ok {
+func (c *Checker) structFieldNamesInOrder(typ ast.Expr) []string {
+	var names []string
+	switch t := typ.(type) {
+	case *ast.Ident:
+		st := c.lookupStructAST(t.Name)
+		if st == nil {
+			return names
+		}
+		for _, field := range st.Fields.List {
+			if len(field.Names) == 0 {
+				if id, ok := field.Type.(*ast.Ident); ok {
+					names = append(names, id.Name)
+				}
 				continue
 			}
-			key, ok := kv.Key.(*ast.Ident)
-			if !ok {
-				continue
-			}
-			if isNilIdent(kv.Value) {
-				// Without field map we cannot know if the field is !T.
-				_ = key
+			for _, n := range field.Names {
+				names = append(names, n.Name)
 			}
 		}
+	case *ast.StructType:
+		if t.Fields == nil {
+			return names
+		}
+		for _, field := range t.Fields.List {
+			if len(field.Names) == 0 {
+				if id, ok := field.Type.(*ast.Ident); ok {
+					names = append(names, id.Name)
+				}
+				continue
+			}
+			for _, n := range field.Names {
+				names = append(names, n.Name)
+			}
+		}
+	}
+	return names
+}
+
+func (c *Checker) fieldsFromStructAST(st *ast.StructType) map[string]bool {
+	fields := make(map[string]bool)
+	if st == nil || st.Fields == nil {
+		return fields
+	}
+	for _, field := range st.Fields.List {
+		isNN := c.isNonNil(field.Type)
+		for _, name := range field.Names {
+			fields[name.Name] = isNN
+		}
+	}
+	return fields
+}
+
+func (c *Checker) checkExplicitNilInComposite(lit *ast.CompositeLit, fields map[string]bool, typeName string) {
+	if lit == nil || fields == nil {
 		return
 	}
-	// Keyed nils
 	for _, elt := range lit.Elts {
 		kv, ok := elt.(*ast.KeyValueExpr)
 		if !ok {
@@ -181,29 +197,19 @@ func (c *Checker) checkExplicitNilFields(lit *ast.CompositeLit, typeName string)
 			})
 		}
 	}
-	// Unkeyed nils: map by declaration order
-	st := c.lookupStructAST(typeName)
-	if st == nil {
-		return
-	}
-	var ordered []string
-	for _, field := range st.Fields.List {
-		for _, n := range field.Names {
-			ordered = append(ordered, n.Name)
-		}
-	}
+	// Unkeyed explicit nils
+	fieldNames := c.structFieldNamesInOrder(lit.Type)
 	pos := 0
 	for _, elt := range lit.Elts {
 		if _, ok := elt.(*ast.KeyValueExpr); ok {
 			continue
 		}
-		if pos >= len(ordered) {
+		if pos >= len(fieldNames) {
 			break
 		}
-		fieldName := ordered[pos]
+		fieldName := fieldNames[pos]
 		pos++
-		val := elt
-		if fields[fieldName] && isNilIdent(val) {
+		if fields[fieldName] && isNilIdent(elt) {
 			msg := fmt.Sprintf("cannot assign nil to non-nil field %s", fieldName)
 			if typeName != "" {
 				msg = fmt.Sprintf("cannot assign nil to non-nil field %s.%s", typeName, fieldName)
@@ -212,7 +218,7 @@ func (c *Checker) checkExplicitNilFields(lit *ast.CompositeLit, typeName string)
 			if typeName != "" {
 				path = []string{typeName, fieldName}
 			}
-			c.addErrorTrace(val.Pos(), "GN001", msg, &ContractTrace{
+			c.addErrorTrace(elt.Pos(), "GN001", msg, &ContractTrace{
 				Origin: compositeOrigin(lit),
 				Path:   path,
 			})
@@ -359,9 +365,55 @@ func (c *Checker) checkTypeAssert(ta *ast.TypeAssertExpr) {
 	c.addWarning(ta.Pos(), "GW003", fmt.Sprintf("type assertion on non-nil %s is redundant for nilability", id.Name))
 }
 
+func compositeOrigin(lit *ast.CompositeLit) string {
+	if lit == nil {
+		return "{}"
+	}
+	name := typeExprName(lit.Type)
+	if name == "" {
+		return "{}"
+	}
+	return name + "{}"
+}
+
+func typeExprName(expr ast.Expr) string {
+	if expr == nil {
+		return ""
+	}
+	switch t := expr.(type) {
+	case *ast.Ident:
+		return t.Name
+	case *ast.SelectorExpr:
+		return typeExprName(t.X) + "." + t.Sel.Name
+	case *ast.StructType:
+		return "struct"
+	case *ast.StarExpr:
+		return "*" + typeExprName(t.X)
+	default:
+		return ""
+	}
+}
+
 func splitPath(p string) []string {
 	if p == "" {
 		return nil
 	}
-	return strings.Split(p, ".")
+	var out []string
+	cur := ""
+	for i := 0; i < len(p); i++ {
+		if p[i] == '.' {
+			if cur != "" {
+				out = append(out, cur)
+				cur = ""
+			}
+			continue
+		}
+		cur += string(p[i])
+	}
+	if cur != "" {
+		out = append(out, cur)
+	}
+	return out
 }
+
+var _ = token.NoPos
