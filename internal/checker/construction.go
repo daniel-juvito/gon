@@ -154,20 +154,6 @@ func (c *Checker) structFieldNamesInOrder(typ ast.Expr) []string {
 	return names
 }
 
-func (c *Checker) fieldsFromStructAST(st *ast.StructType) map[string]bool {
-	fields := make(map[string]bool)
-	if st == nil || st.Fields == nil {
-		return fields
-	}
-	for _, field := range st.Fields.List {
-		isNN := c.isNonNil(field.Type)
-		for _, name := range field.Names {
-			fields[name.Name] = isNN
-		}
-	}
-	return fields
-}
-
 func (c *Checker) checkExplicitNilInComposite(lit *ast.CompositeLit, fields map[string]bool, typeName string) {
 	if lit == nil || fields == nil {
 		return
