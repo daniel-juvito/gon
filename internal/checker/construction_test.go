@@ -124,7 +124,7 @@ var p = new(S)
 
 func TestM2a_NestedStructKeyed(t *testing.T) {
 	diags := checkSource(t, `package main
-type Inner struct { X !*int }
+type S struct { X !*int }
 type Outer struct { Inner Inner }
 var _ = Outer{}
 `)
@@ -365,4 +365,32 @@ type S struct { A !*int; B !*int }
 var _ = S{A: new(int)}
 `)
 	fcMustHaveGN002(t, diags)
+}
+
+func TestM2a_FixedArrayOfStructMissingGN002(t *testing.T) {
+	diags := checkSource(t, `package main
+type Cell struct { X !*int }
+func f() { _ = [2]Cell{} }
+`)
+	fcMustHaveGN002(t, diags)
+}
+
+func TestM2a_FixedArrayProvidedOK(t *testing.T) {
+	diags := checkSource(t, `package main
+type Cell struct { X !*int }
+func f(x *int) { _ = [1]Cell{{X: x}} }
+`)
+	if hasCode(diags, "GN002") || hasCode(diags, "GN001") {
+		t.Fatalf("unexpected: %v", diags)
+	}
+}
+
+func TestM2a_SliceOfStructSilent(t *testing.T) {
+	diags := checkSource(t, `package main
+type Cell struct { X !*int }
+func f() { _ = []Cell{} }
+`)
+	if hasCode(diags, "GN002") {
+		t.Fatalf("slice must not trigger GN002: %v", diags)
+	}
 }
