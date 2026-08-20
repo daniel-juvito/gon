@@ -234,10 +234,10 @@ The JSON path is a separate serialization / adaptation layer:
 
 ```
 existing checker diagnostic
-        │
-        ├── human formatter → existing behavior (unchanged)
-        │
-        └── JSON formatter  → Protocol v1
+        |
+        +-- human formatter → existing behavior (unchanged)
+        |
+        +-- JSON formatter  → Protocol v1
 ```
 
 Implementations must not refactor the human path solely to make JSON easier.
@@ -264,7 +264,7 @@ testdata/diagnostic-protocol/
 
 ### Required coverage (minimum)
 
-| Concern                         | Fixture area          |
+| Concern                         | Fixture / test area   |
 |---------------------------------|-----------------------|
 | Clean file → empty diagnostics, exit 0 | `clean/`         |
 | Semantic error (GN001 / GN002)  | `errors/`             |
@@ -272,9 +272,16 @@ testdata/diagnostic-protocol/
 | Non-existent / malformed input  | `invocation/`         |
 | Controlled internal failure     | `internal-failure/` (harness-driven) |
 | UTF-8 / emoji before diagnostic position | `positions/utf8/` |
-| Cross-file relatedInformation   | `related/cross-file/` |
 | Symlink path not implicitly resolved | `paths/symlink/` |
 | Multiple input files            | `multiple-files/`     |
+| Optional `relatedInformation` schema round-trip | unit test (no producer) |
+
+`related/cross-file/` is a **reserved** fixture area for a future producer that
+projects `ContractTrace` (or equivalent) into `relatedInformation`. It is
+**not** required coverage for protocol v1: the producer projection is deferred
+(see §6). v1 still requires that the **schema** for `relatedInformation` be
+round-trip tested (construct → `json.Marshal` → `json.Unmarshal` → assert
+`message`, `location.file`, `location.range`).
 
 ### Assertions that must hold for protocol output
 
@@ -288,6 +295,9 @@ testdata/diagnostic-protocol/
 - `file` is absolute and normalized
 - Symlink paths appear as the path that was supplied, not the resolved physical path
 - Exit 0 / 1 / 2 / 3 behave as specified above
+- When `relatedInformation` is present on a Diagnostic, each entry has
+  `message` and `location` with `file` and `range` (schema round-trip; no
+  producer required in v1)
 
 ### Test matrix (codes)
 
