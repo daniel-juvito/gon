@@ -21,7 +21,6 @@ const protocolSchemaVersion = 1
 
 func protocolFixtureRoot(t *testing.T) string {
 	t.Helper()
-	// Tests run with cwd = package dir (cmd/gon).
 	root := filepath.Join("..", "..", "testdata", "diagnostic-protocol")
 	abs, err := filepath.Abs(root)
 	if err != nil {
@@ -33,7 +32,6 @@ func protocolFixtureRoot(t *testing.T) string {
 	return abs
 }
 
-// captureRun redirects os.Stdout and os.Stderr while invoking run.
 func captureRun(args []string) (exit int, stdout, stderr string) {
 	oldOut, oldErr := os.Stdout, os.Stderr
 	or, ow, _ := os.Pipe()
@@ -63,7 +61,6 @@ func mustAbs(t *testing.T, p string) string {
 	return a
 }
 
-// decodeProtocolEnvelope requires valid Protocol v1 JSON on stdout.
 func decodeProtocolEnvelope(t *testing.T, stdout string) protocolEnvelope {
 	t.Helper()
 	stdout = strings.TrimSpace(stdout)
@@ -137,10 +134,8 @@ func hasErrorDiag(env protocolEnvelope) bool {
 func TestProtocol_Clean_Exit0_EmptyDiagnostics(t *testing.T) {
 	root := protocolFixtureRoot(t)
 	path := mustAbs(t, filepath.Join(root, "clean", "ok.gon"))
-
 	exit, stdout, stderr := captureRun([]string{"check", "--json", path})
 	t.Logf("exit=%d stdout=%q stderr=%q", exit, stdout, stderr)
-
 	if exit != 0 {
 		t.Errorf("exit: want 0, got %d", exit)
 	}
@@ -154,10 +149,8 @@ func TestProtocol_Clean_Exit0_EmptyDiagnostics(t *testing.T) {
 func TestProtocol_GN001_Exit1_Shape(t *testing.T) {
 	root := protocolFixtureRoot(t)
 	path := mustAbs(t, filepath.Join(root, "errors", "gn001_assign.gon"))
-
 	exit, stdout, stderr := captureRun([]string{"check", "--json", path})
 	t.Logf("exit=%d stdout=%q stderr=%q", exit, stdout, stderr)
-
 	if exit != 1 {
 		t.Errorf("exit: want 1, got %d", exit)
 	}
@@ -186,10 +179,8 @@ func TestProtocol_GN001_Exit1_Shape(t *testing.T) {
 func TestProtocol_GN002_Exit1_Shape(t *testing.T) {
 	root := protocolFixtureRoot(t)
 	path := mustAbs(t, filepath.Join(root, "errors", "gn002_struct.gon"))
-
 	exit, stdout, stderr := captureRun([]string{"check", "--json", path})
 	t.Logf("exit=%d stdout=%q stderr=%q", exit, stdout, stderr)
-
 	if exit != 1 {
 		t.Errorf("exit: want 1, got %d", exit)
 	}
@@ -210,10 +201,8 @@ func TestProtocol_GN002_Exit1_Shape(t *testing.T) {
 func TestProtocol_GW001_Exit0_WarningOnly(t *testing.T) {
 	root := protocolFixtureRoot(t)
 	path := mustAbs(t, filepath.Join(root, "warnings", "gw001_compare.gon"))
-
 	exit, stdout, stderr := captureRun([]string{"check", "--json", path})
 	t.Logf("exit=%d stdout=%q stderr=%q", exit, stdout, stderr)
-
 	if exit != 0 {
 		t.Errorf("exit: want 0 (warnings do not fail), got %d", exit)
 	}
@@ -240,16 +229,13 @@ const beforeTokenNilColumn = 27
 func TestProtocol_UTF8_BeforeToken_ByteOffset(t *testing.T) {
 	root := protocolFixtureRoot(t)
 	path := mustAbs(t, filepath.Join(root, "positions", "utf8", "before_token.gon"))
-
 	exit, stdout, stderr := captureRun([]string{"check", "--json", path})
 	t.Logf("exit=%d stdout=%q stderr=%q", exit, stdout, stderr)
-
 	if exit != 1 {
 		t.Errorf("exit: want 1, got %d", exit)
 	}
 	env := decodeProtocolEnvelope(t, stdout)
 	assertEnvelopeBasics(t, env)
-
 	var gn001 *protocolDiagnostic
 	for i := range env.Diagnostics {
 		d := &env.Diagnostics[i]
@@ -262,7 +248,6 @@ func TestProtocol_UTF8_BeforeToken_ByteOffset(t *testing.T) {
 	if gn001 == nil {
 		t.Fatalf("expected GN001 diagnostic for nil assignment")
 	}
-
 	if gn001.Range.Start.Line != beforeTokenNilLine {
 		t.Errorf("range.start.line: want %d (0-based), got %d", beforeTokenNilLine, gn001.Range.Start.Line)
 	}
@@ -281,7 +266,6 @@ func TestProtocol_UTF8_BeforeToken_ByteOffset(t *testing.T) {
 func TestProtocol_Symlink_PathNotResolved(t *testing.T) {
 	root := protocolFixtureRoot(t)
 	dir := t.TempDir()
-
 	realDir := filepath.Join(dir, "real")
 	if err := os.MkdirAll(realDir, 0o755); err != nil {
 		t.Fatal(err)
@@ -299,10 +283,8 @@ func TestProtocol_Symlink_PathNotResolved(t *testing.T) {
 		t.Fatalf("symlink: %v", err)
 	}
 	linkAbs := mustAbs(t, linkPath)
-
 	exit, stdout, stderr := captureRun([]string{"check", "--json", linkAbs})
 	t.Logf("exit=%d stdout=%q stderr=%q", exit, stdout, stderr)
-
 	if exit != 1 {
 		t.Errorf("exit: want 1, got %d", exit)
 	}
@@ -330,7 +312,6 @@ func TestProtocol_MissingInput_Exit2(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "does-not-exist.gon")
 	exit, stdout, stderr := captureRun([]string{"check", missing})
 	t.Logf("exit=%d stdout=%q stderr=%q", exit, stdout, stderr)
-
 	if exit != 2 {
 		t.Errorf("exit: want 2 for nonexistent input, got %d (current main returns 1 on ReadFile error)", exit)
 	}
@@ -350,10 +331,8 @@ func TestProtocol_InternalFailure_Exit3(t *testing.T) {
 	t.Setenv("GON_TEST_INJECT_FAILURE", "1")
 	root := protocolFixtureRoot(t)
 	path := mustAbs(t, filepath.Join(root, "clean", "ok.gon"))
-
 	exit, stdout, stderr := captureRun([]string{"check", "--json", path})
 	t.Logf("exit=%d stdout=%q stderr=%q", exit, stdout, stderr)
-
 	if exit != 3 {
 		t.Errorf("exit: want 3 for controlled internal failure, got %d "+
 			"(implement test-only GON_TEST_INJECT_FAILURE; do not expose a public CLI flag)", exit)
@@ -365,10 +344,8 @@ func TestProtocol_MultipleFiles_WhenSupported(t *testing.T) {
 	root := protocolFixtureRoot(t)
 	a := mustAbs(t, filepath.Join(root, "multiple-files", "a.gon"))
 	b := mustAbs(t, filepath.Join(root, "multiple-files", "b.gon"))
-
 	exit, stdout, stderr := captureRun([]string{"check", "--json", a, b})
 	t.Logf("exit=%d stdout=%q stderr=%q", exit, stdout, stderr)
-
 	if exit != 1 {
 		t.Errorf("exit: want 1 when any input has errors, got %d", exit)
 	}
@@ -392,10 +369,8 @@ func TestProtocol_MultipleFiles_WhenSupported(t *testing.T) {
 func TestProtocol_HumanCheck_StillWorksWithoutJSON(t *testing.T) {
 	root := protocolFixtureRoot(t)
 	path := mustAbs(t, filepath.Join(root, "errors", "gn001_assign.gon"))
-
 	exit, stdout, stderr := captureRun([]string{"check", path})
 	t.Logf("exit=%d stdout=%q stderr=%q", exit, stdout, stderr)
-
 	if exit != 1 {
 		t.Errorf("human check exit: want 1, got %d", exit)
 	}
@@ -404,5 +379,58 @@ func TestProtocol_HumanCheck_StillWorksWithoutJSON(t *testing.T) {
 	}
 	if strings.Contains(stdout, `"schemaVersion"`) {
 		t.Errorf("human check must not emit Protocol JSON without --json")
+	}
+}
+
+func TestProtocol_RelatedInformation_SchemaRoundTrip(t *testing.T) {
+	orig := protocolDiagnostic{
+		Code:     "GN001",
+		Severity: "error",
+		Message:  "cannot assign nil to non-nil type !*int",
+		Source:   "gon-check",
+		File:     "/abs/path/to/main.gon",
+		Range: protocolRange{
+			Start: protocolPos{Line: 2, Column: 10},
+			End:   protocolPos{Line: 2, Column: 13},
+		},
+		RelatedInformation: []protocolRelated{
+			{
+				Message: "non-nil contract declared here",
+				Location: protocolLoc{
+					File: "/abs/path/to/config.gna",
+					Range: protocolRange{
+						Start: protocolPos{Line: 4, Column: 8},
+						End:   protocolPos{Line: 4, Column: 16},
+					},
+				},
+			},
+		},
+	}
+	raw, err := json.Marshal(orig)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var got protocolDiagnostic
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(got.RelatedInformation) != 1 {
+		t.Fatalf("relatedInformation: want 1 entry, got %d", len(got.RelatedInformation))
+	}
+	ri := got.RelatedInformation[0]
+	if ri.Message != "non-nil contract declared here" {
+		t.Errorf("relatedInformation[0].message: got %q", ri.Message)
+	}
+	if ri.Location.File != "/abs/path/to/config.gna" {
+		t.Errorf("relatedInformation[0].location.file: got %q", ri.Location.File)
+	}
+	if ri.Location.Range.Start.Line != 4 || ri.Location.Range.Start.Column != 8 {
+		t.Errorf("relatedInformation[0].location.range.start: got %+v", ri.Location.Range.Start)
+	}
+	if ri.Location.Range.End.Line != 4 || ri.Location.Range.End.Column != 16 {
+		t.Errorf("relatedInformation[0].location.range.end: got %+v", ri.Location.Range.End)
+	}
+	if got.Code != orig.Code || got.Severity != orig.Severity || got.Source != orig.Source {
+		t.Errorf("required fields drifted after round-trip: %+v", got)
 	}
 }
