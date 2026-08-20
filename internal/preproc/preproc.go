@@ -13,6 +13,10 @@ type Result struct {
 	Clean []byte
 	// NonNilOffsets is the set of byte offsets in Clean where a !T type begins.
 	NonNilOffsets map[int]bool
+	// CleanToOrig maps each byte offset in Clean to the corresponding byte
+	// offset in the original Gon source. Used by the Protocol v1 adapter to
+	// report positions in Gon space without changing checker internals.
+	CleanToOrig []int
 }
 
 type tokInfo struct {
@@ -87,6 +91,7 @@ func Process(filename string, src []byte) *Result {
 	clean := make([]byte, 0, len(src))
 	nonNilOffsets := make(map[int]bool)
 
+	cleanToOrig := make([]int, 0, len(src))
 	for origOff := 0; origOff < len(src); origOff++ {
 		if typeModifiers[origOff] {
 			// This ! is a type modifier. The next character is the start
@@ -94,12 +99,14 @@ func Process(filename string, src []byte) *Result {
 			nonNilOffsets[len(clean)] = true
 			continue // don't copy ! into clean source
 		}
+		cleanToOrig = append(cleanToOrig, origOff)
 		clean = append(clean, src[origOff])
 	}
 
 	return &Result{
 		Clean:         clean,
 		NonNilOffsets: nonNilOffsets,
+		CleanToOrig:   cleanToOrig,
 	}
 }
 
