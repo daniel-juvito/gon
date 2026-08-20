@@ -1,9 +1,0 @@
-package main
-
-// Structural placeholder for future relatedInformation tests.
-// Real cross-package .gna resolution is exercised by the harness once
-// the discovery path is wired for these fixtures.
-func main() {
-	var x !*int = nil
-	_ = x
-}
