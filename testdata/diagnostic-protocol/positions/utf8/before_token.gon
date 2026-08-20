@@ -1,0 +1,6 @@
+package main
+
+func main() {
+	_ = "😀"; var x !*int = nil
+	_ = x
+}

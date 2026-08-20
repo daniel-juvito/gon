@@ -1,0 +1,6 @@
+package main
+
+func g() {
+	var y !*string = nil
+	_ = y
+}

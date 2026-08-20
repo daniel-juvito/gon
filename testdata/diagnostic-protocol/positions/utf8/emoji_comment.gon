@@ -1,0 +1,7 @@
+package main
+
+func main() {
+	// 😀 on same line as nil, but after the token; weaker for column testing
+	var x !*int = nil // 😀
+	_ = x
+}
