@@ -12,66 +12,12 @@ import (
 
 // Diagnostic Protocol v1 conformance harness.
 //
-// These tests are the TDD driver for `gon check --json`. Against current main
-// (no --json support, exit-3 injection absent, missing-file exit is 1 not 2)
-// the suite is expected to be RED. Do not weaken assertions to make them green
-// without implementing the protocol.
+// Conformance harness for Diagnostic Protocol v1 (`gon check --json`).
 //
 // Spec: docs/diagnostic-protocol-v1.md
 // Fixtures: testdata/diagnostic-protocol/
-//
-// Expected RED gaps on pre-json main (implementation checklist):
-//
-//	1. accept `check --json <file>` (flag, not filename)
-//	2. emit Protocol v1 envelope on stdout (schemaVersion + diagnostics)
-//	3. map internal diagnostics → required fields + absolute file + range
-//	4. zero-based UTF-8 byte columns (before_token.gon: nil at column 27)
-//	5. symlink path reported as supplied path (no implicit realpath)
-//	6. missing input → exit 2 (today: exit 1 on ReadFile error)
-//	7. GON_TEST_INJECT_FAILURE → exit 3 (test-only; no public flag)
-//	8. multi-file inputs (optional stretch; fixtures exist)
-//
-// PASS today (regression anchors):
-//	- TestProtocol_HumanCheck_StillWorksWithoutJSON
-//	- TestProtocol_MalformedInvocation_Exit2 (coincidental until flag parsing lands)
 
 const protocolSchemaVersion = 1
-
-// protocolEnvelope is the minimal JSON shape from Protocol v1.
-type protocolEnvelope struct {
-	SchemaVersion int                  `json:"schemaVersion"`
-	Diagnostics   []protocolDiagnostic `json:"diagnostics"`
-}
-
-type protocolDiagnostic struct {
-	Code               string            `json:"code"`
-	Severity           string            `json:"severity"`
-	Message            string            `json:"message"`
-	Source             string            `json:"source"`
-	File               string            `json:"file"`
-	Range              protocolRange     `json:"range"`
-	RelatedInformation []protocolRelated `json:"relatedInformation"`
-}
-
-type protocolRange struct {
-	Start protocolPos `json:"start"`
-	End   protocolPos `json:"end"`
-}
-
-type protocolPos struct {
-	Line   int `json:"line"`
-	Column int `json:"column"`
-}
-
-type protocolRelated struct {
-	Message  string      `json:"message"`
-	Location protocolLoc `json:"location"`
-}
-
-type protocolLoc struct {
-	File  string        `json:"file"`
-	Range protocolRange `json:"range"`
-}
 
 func protocolFixtureRoot(t *testing.T) string {
 	t.Helper()
