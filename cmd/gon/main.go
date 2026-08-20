@@ -4,7 +4,8 @@
 //
 //	0  success (warnings alone do not fail)
 //	1  checker error, Go type error, or build failure
-//	2  usage / invalid arguments
+//	2  usage / invalid arguments / missing input
+//	3  internal failure (test-only injection)
 package main
 
 import (
@@ -66,6 +67,11 @@ func run(args []string) int {
 		return 0
 	}
 
+	// check / vet: support --json and multiple file operands.
+	if cmd == "check" || cmd == "vet" {
+		return runCheck(cmd, args[1:])
+	}
+
 	if len(args) < 2 {
 		fmt.Fprintf(os.Stderr, "gon: %s requires a .gon file\n", cmd)
 		usage()
@@ -81,6 +87,7 @@ func run(args []string) int {
 	src, err := os.ReadFile(filename)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "gon: read %s: %v\n", filename, err)
+		// Non-check commands keep historical exit 1 on read failure.
 		return 1
 	}
 
@@ -133,12 +140,6 @@ func run(args []string) int {
 	}
 
 	switch cmd {
-	case "check", "vet":
-		if len(diags) == 0 {
-			fmt.Println("ok")
-		}
-		return 0
-
 	case "transpile":
 		outFile := strings.TrimSuffix(filename, ".gon") + ".go"
 		if err := transpiler.TranspileToFile(result.Clean, outFile); err != nil {
@@ -176,8 +177,113 @@ func run(args []string) int {
 	}
 }
 
+// runCheck implements check / vet, including Protocol v1 --json output.
+func runCheck(cmd string, args []string) int {
+	if testInjectFailure() {
+		fmt.Fprintf(os.Stderr, "gon: internal failure (test injection)\n")
+		return 3
+	}
+
+	jsonOut, files, err := parseCheckArgs(args)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "gon: %v\n", err)
+		return 2
+	}
+	if len(files) == 0 {
+		fmt.Fprintf(os.Stderr, "gon: %s requires a .gon file\n", cmd)
+		usage()
+		return 2
+	}
+
+	source := protocolSourceFor(cmd)
+	var allProtocol []protocolDiagnostic
+	hasErrors := false
+	anyDiag := false
+
+	for _, filename := range files {
+		if !strings.HasSuffix(filename, ".gon") {
+			fmt.Fprintf(os.Stderr, "gon: input must be a .gon file, got %s\n", filename)
+			return 2
+		}
+
+		fileAbs, err := protocolFilePath(filename)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "gon: path %s: %v\n", filename, err)
+			return 2
+		}
+
+		src, err := os.ReadFile(filename)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "gon: read %s: %v\n", filename, err)
+			// Protocol: missing / unreadable input → exit 2.
+			return 2
+		}
+
+		result := preproc.Process(filename, src)
+
+		startDir := filepath.Dir(filename)
+		if abs, err := filepath.Abs(startDir); err == nil {
+			startDir = abs
+		}
+		wd, err := os.Getwd()
+		if err != nil {
+			wd = startDir
+		}
+		resolver := gna.DefaultChain(wd, startDir)
+
+		c, err := checker.NewWithAnnotations(filename, result.Clean, result.NonNilOffsets, resolver)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "gon: parse error: %v\n", err)
+			return 1
+		}
+
+		diags := c.Check()
+		for _, d := range diags {
+			anyDiag = true
+			if d.IsError() {
+				hasErrors = true
+			}
+			if jsonOut {
+				allProtocol = append(allProtocol, toProtocolDiagnostic(d, fileAbs, source, src))
+			} else {
+				// Human path: unchanged formatter.
+				fmt.Fprintln(os.Stderr, d.String())
+			}
+		}
+
+		if !jsonOut {
+			if err := validateGo(filename, result.Clean); err != nil {
+				fmt.Fprintf(os.Stderr, "gon: Go type error: %v\n", err)
+				return 1
+			}
+		}
+	}
+
+	if jsonOut {
+		if allProtocol == nil {
+			allProtocol = []protocolDiagnostic{}
+		}
+		if err := writeProtocolJSON(allProtocol); err != nil {
+			fmt.Fprintf(os.Stderr, "gon: write json: %v\n", err)
+			return 3
+		}
+		if hasErrors {
+			return 1
+		}
+		return 0
+	}
+
+	if hasErrors {
+		return 1
+	}
+	if !anyDiag {
+		fmt.Println("ok")
+	}
+	return 0
+}
+
 func usage() {
-	fmt.Fprintln(os.Stderr, `Usage: gon <command> <file.gon>
+	fmt.Fprintln(os.Stderr, `Usage: gon <command> [flags] <file.gon>...
 
 Commands:
   check, vet   check for nil-safety violations (exit 1 on errors)
@@ -188,13 +294,19 @@ Commands:
   version      print version
   help         show this message
 
+Flags (check/vet):
+  --json       emit Diagnostic Protocol v1 JSON on stdout
+
 Exit codes:
   0  success (warnings alone do not fail the process)
   1  checker / type / build failure
-  2  usage error
+  2  usage / invalid arguments / missing input
+  3  internal failure
 
-Diagnostics are printed as:
-  file:line:column: severity CODE: message`)
+Diagnostics (human) are printed as:
+  file:line:column: severity CODE: message
+
+See docs/diagnostic-protocol-v1.md for the JSON contract.`)
 }
 
 func validateGo(filename string, src []byte) error {
