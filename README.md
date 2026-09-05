@@ -12,8 +12,10 @@ assignments or infer nilability from implementation details.
 `!T` is a **static Gon guarantee** enforced only for the cases covered by the
 checker (literal `nil` into `!T` slots, required struct fields, explicit
 `.gna` contracts, annotated return positions as non-nil sources, field storage
-invariants, and — since v1.3 — complete local-struct construction including
-`new(T)` and unkeyed literals). It is not a runtime non-nil guarantee.
+invariants, complete local-struct construction including `new(T)` and unkeyed
+literals since v1.3, and — since v1.4 — interface value contracts (`!I` means
+the interface value is non-nil; the dynamic value is never constrained). It is
+not a runtime non-nil guarantee.
 
 Architectural rule:
 
@@ -25,7 +27,7 @@ Full scope contract: [docs/v1-scope.md](docs/v1-scope.md)
 ## Install
 
 ```bash
-go install github.com/daniel-juvito/gon/cmd/gon@v1.3.0
+go install github.com/daniel-juvito/gon/cmd/gon@v1.4.0
 ```
 
 Or from source:
@@ -156,6 +158,26 @@ Tooling:
 Examples: [gon-examples](https://github.com/daniel-juvito/gon-examples)
 (`construction/` covers M2a).
 
+**v1.4 — interface value contracts.** `!I` guarantees the *interface value*
+is non-nil. It says nothing about the dynamic value, so a typed-nil concrete
+value still satisfies `!I`:
+
+```go
+var p *File            // nil concrete pointer
+var r !io.Reader = p    // OK — the interface value is non-nil (D3a)
+
+var o io.Reader = mk()
+var x !io.Reader = o    // GN001 — an ordinary interface value cannot
+                        // satisfy !I, even after `if o != nil` (D3b)
+
+var y !io.Reader = nil  // GN001 (D3c)
+_ = v.(!io.Reader)      // GN001 — not a type-assertion target (D6a)
+```
+
+An existing `!I` binding, or a result declared `!I`, satisfies `!I`.
+Interface embedding does not propagate `!`.
+See [docs/rfc-interface-semantics.md](docs/rfc-interface-semantics.md).
+
 ## External packages (`.gna`)
 
 Nilability for imported APIs is described in YAML annotation files:
@@ -183,7 +205,7 @@ Full format: [docs/gna-spec-v1.md](docs/gna-spec-v1.md)
 
 | Code  | Severity | Meaning |
 |-------|----------|---------|
-| GN001 | error    | literal `nil` assigned / passed / returned where `!T` is required; or `nil` assigned into a `!T` field |
+| GN001 | error    | literal `nil` assigned / passed / returned where `!T` is required; `nil` assigned into a `!T` field; an ordinary interface value where `!I` is required, or `!I` as a type-assertion target (v1.4) |
 | GN002 | error    | construction leaves a required non-nil field at zero (including nested / embedded / array; includes `new(T)`) |
 | GN003 | error    | malformed or mismatched `.gna` while resolving a package |
 | GW001 | warning  | comparison of a non-nil name or `!T` field selector with `nil` (always true/false) |
@@ -202,6 +224,7 @@ Full format: [docs/gna-spec-v1.md](docs/gna-spec-v1.md)
 - Field storage invariants: construction, mutation, selector (v1.2)
 - Local-struct construction completeness: `new(T)`, keyed/unkeyed, nested (v1.3)
 - `gon fmt` and minimal stdio LSP (v1.3)
+- Interface value contracts: `!I` is interface-value non-nil only (v1.4)
 
 **Out of scope**
 
@@ -210,7 +233,7 @@ Full format: [docs/gna-spec-v1.md](docs/gna-spec-v1.md)
 - Automatic nilability inference from bodies
 - Runtime enforcement (annotations are stripped)
 - Generic type contracts
-- Interface `!I` / typed-nil rules (see [docs/rfc-interface-semantics.md](docs/rfc-interface-semantics.md))
+- Interface **dynamic-value** nilability (`!I` never constrains it — by design)
 - Cross-package unkeyed / positional construction expansion (M4)
 - Remote annotation registries
 - LSP hover / completion

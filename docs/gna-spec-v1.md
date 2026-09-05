@@ -78,6 +78,12 @@ types:                            # optional; field contracts (v1.2)
   the method parameter list.
 - Field contracts under `types:` (v1.2) make `!T` fields storage invariants
   for the named type; see [docs/rfc-field-contracts.md](rfc-field-contracts.md).
+- `"!I"` where `I` is an interface type (v1.4) claims only that the
+  **interface value** is non-nil, never that its dynamic value is. The
+  notation and `Type.NonNil` representation are identical to concrete `!T`;
+  the guarantee differs by the kind of Go value. See
+  [docs/rfc-interface-semantics.md](rfc-interface-semantics.md). No schema
+  bump — `!` on interface types was already valid syntax.
 
 ## Rules
 

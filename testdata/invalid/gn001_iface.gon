@@ -1,0 +1,13 @@
+package main
+
+type R interface{ M() }
+
+func src() R { return nil }
+
+func f() {
+	var r R = src()
+	var x !R = r   // GN001 — ordinary interface value cannot satisfy !R
+	var y !R = nil // GN001 — nil literal
+	_ = x
+	_ = y
+}

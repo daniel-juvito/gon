@@ -17,8 +17,10 @@ Architectural rule (unchanged across v1.x):
 | v1.1.0 | Annotated result positions become **non-nil sources** at immediate use sites |
 | v1.2.0 | Field contracts: `!T` field is a storage invariant; construction GN002, mutation GN001, selector non-nil source; `.gna` `types:` |
 | v1.2.1 | Preprocessor: `!` in local multi-result / signature type lists (bugfix; semantics unchanged) |
+| v1.3.0 | Local-struct construction completeness (`new(T)`, keyed/unkeyed, nested); `ContractTrace`; GW003; `gon fmt`; `gon lsp` |
+| v1.4.0 | Interface value contracts: `!I` is interface-value non-nil only; ordinary `I` → `!I` is GN001 (M1a) |
 
-`.gna` schema remains **1**. v1.1 and v1.2 are checker-semantics changes, not format breaks. v1.2.1 is a patch only.
+`.gna` schema remains **1**. v1.1–v1.4 are checker-semantics changes, not format breaks. v1.2.1 is a patch only.
 
 ## Guaranteed
 
@@ -40,6 +42,10 @@ Static checks only. Enforced at `gon check` / `gon vet` time.
 | Explicit `nil` assigned to a `!T` field (`s.Client = nil`) | GN001 | **v1.2** |
 | Selector of a `!T` field is a non-nil source (GW001 on nil comparison; assign/arg to `!U`) | GW001 | **v1.2** |
 | External type field contracts via `.gna` `types:` | GN002 / GN001 | **v1.2** |
+| Zero-value construction site via `new(T)` / unkeyed literal leaving a `!T` field at zero | GN002 | **v1.3** |
+| Redundant type assertion on a declared `!T` identifier | GW003 (warning) | **v1.3** |
+| Ordinary interface-typed value assigned / passed / returned where `!I` is required (incl. after `!= nil`, and explicit `I(x)` conversions) | GN001 | **v1.4** |
+| `!I` used as a type-assertion target (`x.(!I)`) | GN001 | **v1.4** |
 
 Warnings alone do **not** fail the process (exit 0). Errors do (exit 1).
 
@@ -122,6 +128,8 @@ Spec: [docs/rfc-field-contracts.md](rfc-field-contracts.md).
 | Area | Why |
 |------|-----|
 | Ordinary (unannotated) return into `!T` | Still accepted — no flow analysis; monotonic with v1.0 |
+| Ordinary interface value into `!I` (v1.4) | **Rejected (GN001)** — `!I` requires a concrete operand or an existing `!I` source; this is not flow analysis, it is the absence of a contract |
+| Interface **dynamic-value** nilability | Never tracked — `!I` constrains only the interface value (v1.4) |
 | Values held in variables after assignment from another name | No flow-sensitive propagation |
 | Conditional contracts (`non-nil when err == nil`) | No path-sensitive analysis |
 | Runtime enforcement | Annotations are stripped; emitted Go has ordinary types |
@@ -186,7 +194,7 @@ file.gon:12:7: warning GW001: x is non-nil; comparison with nil is always false
 
 Positions refer to the **Gon source** (`.gon`), not generated `.go`.
 
-## After v1.2
+## After v1.4
 
 Candidate topics for later RFCs (not part of this release):
 

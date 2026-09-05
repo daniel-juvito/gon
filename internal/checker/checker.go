@@ -234,8 +234,13 @@ func (c *Checker) registerPackageVars() {
 			}
 			if nn {
 				for i, val := range vs.Values {
-					if i < len(vs.Names) && isNilIdent(val) {
+					if i >= len(vs.Names) {
+						continue
+					}
+					if isNilIdent(val) {
 						c.addError(val.Pos(), "GN001", fmt.Sprintf("cannot assign nil to non-nil type !%s", formatType(vs.Type)))
+					} else if c.ordinaryInterfaceValue(val) {
+						c.addError(val.Pos(), "GN001", fmt.Sprintf("cannot assign ordinary interface value to non-nil type !%s", formatType(vs.Type)))
 					}
 				}
 			}
@@ -384,8 +389,12 @@ func (c *Checker) checkLocalVarDecl(d *ast.GenDecl) {
 			nn := c.isNonNil(vs.Type)
 			for i, name := range vs.Names {
 				c.define(name.Name, nn)
-				if nn && i < len(vs.Values) && isNilIdent(vs.Values[i]) {
-					c.addError(vs.Values[i].Pos(), "GN001", fmt.Sprintf("cannot assign nil to non-nil type !%s", formatType(vs.Type)))
+				if nn && i < len(vs.Values) {
+					if isNilIdent(vs.Values[i]) {
+						c.addError(vs.Values[i].Pos(), "GN001", fmt.Sprintf("cannot assign nil to non-nil type !%s", formatType(vs.Type)))
+					} else if c.ordinaryInterfaceValue(vs.Values[i]) {
+						c.addError(vs.Values[i].Pos(), "GN001", fmt.Sprintf("cannot assign ordinary interface value to non-nil type !%s", formatType(vs.Type)))
+					}
 				}
 			}
 			if len(vs.Values) == 0 {
@@ -429,8 +438,14 @@ func (c *Checker) checkAssignStmt(assign *ast.AssignStmt) {
 			break
 		}
 		if id, ok := lhs.(*ast.Ident); ok {
-			if nn, exists := c.lookup(id.Name); exists && nn && isNilIdent(assign.Rhs[i]) {
-				c.addError(assign.Rhs[i].Pos(), "GN001", fmt.Sprintf("cannot assign nil to non-nil variable !%s", id.Name))
+			if nn, exists := c.lookup(id.Name); exists && nn {
+				if isNilIdent(assign.Rhs[i]) {
+					c.addError(assign.Rhs[i].Pos(), "GN001", fmt.Sprintf("cannot assign nil to non-nil variable !%s", id.Name))
+				} else if assign.Tok != token.DEFINE && c.ordinaryInterfaceValue(assign.Rhs[i]) {
+					// `:=` creates a fresh (shadowing) binding, so a value flows
+					// into an existing `!I` only on plain assignment (D3b).
+					c.addError(assign.Rhs[i].Pos(), "GN001", fmt.Sprintf("cannot assign ordinary interface value to non-nil variable !%s", id.Name))
+				}
 			}
 		}
 		if sel, ok := lhs.(*ast.SelectorExpr); ok {
@@ -494,8 +509,13 @@ func (c *Checker) defineFromCallResults(assign *ast.AssignStmt) {
 
 func (c *Checker) checkReturnStmt(ret *ast.ReturnStmt) {
 	for i, result := range ret.Results {
-		if i < len(c.currentFuncReturns) && c.currentFuncReturns[i] && isNilIdent(result) {
+		if i >= len(c.currentFuncReturns) || !c.currentFuncReturns[i] {
+			continue
+		}
+		if isNilIdent(result) {
 			c.addError(result.Pos(), "GN001", "cannot return nil from function with non-nil return type")
+		} else if c.ordinaryInterfaceValue(result) {
+			c.addError(result.Pos(), "GN001", "cannot return ordinary interface value from function with non-nil return type")
 		}
 	}
 }
@@ -515,8 +535,13 @@ func (c *Checker) checkCallExpr(call *ast.CallExpr) {
 	}
 	for i, arg := range call.Args {
 		pi := i - argOffset
-		if pi >= 0 && pi < len(params) && params[pi] && isNilIdent(arg) {
+		if pi < 0 || pi >= len(params) || !params[pi] {
+			continue
+		}
+		if isNilIdent(arg) {
 			c.addError(arg.Pos(), "GN001", fmt.Sprintf("cannot pass nil as non-nil argument %d to %s", pi+1, display))
+		} else if c.ordinaryInterfaceValue(arg) {
+			c.addError(arg.Pos(), "GN001", fmt.Sprintf("cannot pass ordinary interface value as non-nil argument %d to %s", pi+1, display))
 		}
 	}
 }

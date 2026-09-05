@@ -340,6 +340,14 @@ func (c *Checker) checkTypeAssert(ta *ast.TypeAssertExpr) {
 	if ta == nil || ta.Type == nil {
 		return
 	}
+	// RFC "Interface Semantics" D6a / §3.8: `x.(!T)` is not a Gon mechanism.
+	// A type assertion never establishes a non-nil contract, so a `!` on the
+	// asserted type is rejected outright.
+	if c.isNonNil(ta.Type) {
+		c.addError(ta.Type.Pos(), "GN001",
+			"type assertion target cannot carry a non-nil contract (!T); assertions do not establish !T")
+		return
+	}
 	id, ok := ta.X.(*ast.Ident)
 	if !ok {
 		return

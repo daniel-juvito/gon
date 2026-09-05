@@ -1,6 +1,6 @@
 # RFC: Interface Semantics for Non-Nil Contracts
 
-**Status:** Draft  
+**Status:** Accepted — implemented in Gon v1.4 (2026-09-05)  
 **Target:** Gon v1.4  
 **Related:** `docs/gna-spec-v1.md`, `docs/v1-scope.md`, `docs/roadmap-v1.3-plus.md`, `docs/rfc-return-value-contracts.md`, `docs/rfc-field-contracts.md`  
 **Date:** 2026-08-18
@@ -755,6 +755,32 @@ Minimum regression suite:
 ## 9. Open Questions
 
 None that affect the locked decisions in §2. Implementation details (diagnostic wording, exact interaction with type aliases of interfaces) can be finalised during review.
+
+## 10. Implementation Notes (v1.4)
+
+- The D3b check lives in `internal/checker/interface_contracts.go`
+  (`ordinaryInterfaceValue`) and is invoked from the four value-in sites in
+  `internal/checker/checker.go`: local/package `var` init, plain assignment
+  (`:=` excluded — it creates a fresh binding), `return`, and `!I` call
+  arguments. It reads only `go/types`' record of the **immediate**
+  expression's static type, so an explicit conversion `I(x)` is seen as
+  interface-typed (D6c) without recovering the concrete operand.
+- A value is treated as an existing `!I` source only when it is a
+  `!`-bound identifier or an immediate call whose first result is annotated
+  `!T` — the same machinery as return-value contracts. Nothing else
+  (conversion, assertion, arbitrary expression) qualifies.
+- `x.(!T)`: the preprocessor recognises `!` after `.(` as a type modifier,
+  strips it, and records the offset; `checkTypeAssert` then emits GN001.
+  This replaces the pre-v1.4 parse error.
+- The checks degrade to silent when type information is unavailable, like
+  the rest of the checker. In production every entry point constructs the
+  checker with `NewWithAnnotations`, which type-checks.
+- Diagnostic wording (GN001): "cannot assign ordinary interface value to
+  non-nil type `!I`" / "…to non-nil variable `!x`" / "cannot return ordinary
+  interface value from function with non-nil return type" / "cannot pass
+  ordinary interface value as non-nil argument N to F" / "type assertion
+  target cannot carry a non-nil contract (`!T`); assertions do not
+  establish `!T`".
 
 ---
 
