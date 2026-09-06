@@ -1,5 +1,34 @@
 # Changelog
 
+## [1.4.1] — 2026-09-06
+
+### Fixed
+
+- **`gon fmt` mis-placed `!` on re-insertion.** The formatter stripped `!`,
+  ran `go/format`, then re-inserted `!` before the *Nth textual occurrence*
+  of each type name. When one type appeared as both `!T` and `T` in the same
+  file (common with v1.4 interface contracts — an ordinary `I` value flowing
+  into `!I`), every `!` landed on the wrong occurrence: a silent semantic
+  corruption of the source.
+- Re-insertion now walks the clean and formatted **token streams** in
+  lockstep (comments and semicolons dropped; a `go/format` trailing-comma
+  change is resynced), so the Nth marked type token maps to its exact
+  counterpart regardless of textual repetition. If the streams cannot be
+  aligned, `gon fmt` returns an error and leaves the file untouched instead
+  of writing a corrupted result.
+
+### Changed
+
+- `gon version` reports `1.4.1`.
+
+### Compatibility
+
+- No semantic change. Diagnostic codes, severities, checker behaviour, and
+  Diagnostic Protocol v1 are all unchanged from v1.4.0.
+- `.gna` schema remains **1**.
+- A file that `go/format` leaves byte-identical now round-trips through
+  `gon fmt` unchanged.
+
 ## [1.4.0] — 2026-09-05
 
 ### Added

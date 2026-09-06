@@ -19,6 +19,7 @@ Architectural rule (unchanged across v1.x):
 | v1.2.1 | Preprocessor: `!` in local multi-result / signature type lists (bugfix; semantics unchanged) |
 | v1.3.0 | Local-struct construction completeness (`new(T)`, keyed/unkeyed, nested); `ContractTrace`; GW003; `gon fmt`; `gon lsp` |
 | v1.4.0 | Interface value contracts: `!I` is interface-value non-nil only; ordinary `I` → `!I` is GN001 (M1a) |
+| v1.4.1 | `gon fmt` `!` re-insertion fix (token-lockstep, no more mis-placement when a type is used as both `!T` and `T`); no semantic change |
 
 `.gna` schema remains **1**. v1.1–v1.4 are checker-semantics changes, not format breaks. v1.2.1 is a patch only.
 
