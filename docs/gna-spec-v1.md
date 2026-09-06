@@ -90,15 +90,31 @@ types:                            # optional; field contracts (v1.2)
 1. `schema: 1` is required. An unknown schema version is a hard error.
 2. One package ↔ one `.gna` file. Splitting is forbidden.
 3. Duplicate function or method keys in the same file → error.
-4. An annotation that names a function/method absent from the real
-   package → warning (or error under a strict/CI mode).
+4. An annotation that names a `functions:` / `methods:` / `types:` symbol
+   absent from the real package → **GW004** (warning). Since **v1.5** the
+   checker validates this against `go/types` for every resolved package;
+   `methods:` resolution uses the full method set, so a method promoted
+   from an embedded field is accepted. (A future strict/CI mode may
+   promote GW004 to an error.)
 5. If a package is imported but has no `.gna` → every member is treated
    as ordinary. Missing annotation is **not** an error.
-6. Signature shape mismatch (wrong number of params/results compared
-   with `go/types`) → annotation conflict error.
+6. Signature shape mismatch (the `params` / `results` count disagrees with
+   `go/types`; a variadic final parameter counts as one) → **GN003**
+   (error). Since **v1.5** the offending entry is also **dropped**: none of
+   its `!` flags are applied, so a stale annotation cannot shift a claim
+   onto the wrong argument. Type *strings* after `!` are never compared —
+   arity is the only shape property checked.
 7. No flow-sensitive semantics.
 8. No conditional contracts (“non-nil when err == nil”).
 9. No generic / type-parameter support in v1.
+10. Since **v1.5**, `types:` field contracts are enforced across the
+    package boundary at the same three sites as local field contracts —
+    construction (`pkg.T{…}` keyed, `new(pkg.T)`, `&pkg.T{}`, `pkg.T{}`;
+    one hop into embedded external types), mutation (`x.F = nil`), and use
+    (`x.F` is a non-nil source). Unkeyed `pkg.T{a, b}` stays unchecked
+    (external field order is not reconstructed). A `!` position whose Go
+    type is an interface carries interface-value semantics
+    (`docs/rfc-interface-semantics.md`).
 
 ## Authoring principle
 

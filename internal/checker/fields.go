@@ -228,6 +228,13 @@ func (c *Checker) selectorFieldIsNonNil(sel *ast.SelectorExpr) bool {
 	fieldName := sel.Sel.Name
 	if c.info != nil {
 		if tv, ok := c.info.Types[sel.X]; ok && tv.Type != nil {
+			// E3: an external named type is resolved exactly against its
+			// `.gna` `types:` entry (own + one-hop embedded). No fall-through
+			// to the local name-only heuristic across the boundary.
+			if named := namedOf(tv.Type); named != nil && named.Obj() != nil &&
+				named.Obj().Pkg() != nil && !c.isLocalStructName(named.Obj().Name()) {
+				return c.externalFieldNonNil(named, fieldName)
+			}
 			if c.namedTypeFieldNonNil(tv.Type, fieldName) {
 				return true
 			}

@@ -44,6 +44,16 @@ type Checker struct {
 	resolved map[string]*gna.File
 	// resolvedMiss caches import paths known to be unannotated.
 	resolvedMiss map[string]bool
+	// importPkgs maps import path -> *types.Package for the file's direct
+	// imports, when go/types resolved them. Used by validateAnnotations (M5a).
+	importPkgs map[string]*types.Package
+	// importPos maps import path -> the position of its import spec, for
+	// anchoring .gna validation diagnostics.
+	importPos map[string]token.Pos
+	// droppedContracts[pkgPath][symbol] is set when M5a arity validation
+	// discards an entry (GN003); resolveCall{Params,Results} then treat that
+	// symbol as ordinary.
+	droppedContracts map[string]map[string]bool
 
 	diagnostics []*Diagnostic
 }
@@ -68,6 +78,7 @@ func New(filename string, cleanSrc []byte, nonNilOffsets map[int]bool) (*Checker
 
 func (c *Checker) Check() []*Diagnostic {
 	c.collectDecls()
+	c.validateAnnotations()
 	c.pushScope() // package scope
 	c.registerPackageVars()
 	c.checkPackageLevelComposites()
@@ -477,8 +488,13 @@ func (c *Checker) checkAssignStmt(assign *ast.AssignStmt) {
 			}
 		}
 		if sel, ok := lhs.(*ast.SelectorExpr); ok {
-			if c.selectorFieldIsNonNil(sel) && isNilIdent(assign.Rhs[i]) {
-				c.addError(assign.Rhs[i].Pos(), "GN001", fmt.Sprintf("cannot assign nil to non-nil field %s", sel.Sel.Name))
+			if c.selectorFieldIsNonNil(sel) {
+				if isNilIdent(assign.Rhs[i]) {
+					c.addError(assign.Rhs[i].Pos(), "GN001", fmt.Sprintf("cannot assign nil to non-nil field %s", sel.Sel.Name))
+				} else if ft := c.selectorFieldType(sel); isInterfaceType(ft) && c.cannotSatisfyBangInterface(assign.Rhs[i], ft) {
+					// M4b E8/§4.5: ordinary interface value into a `!I` field.
+					c.addError(assign.Rhs[i].Pos(), "GN001", fmt.Sprintf("cannot assign ordinary interface value to non-nil field %s", sel.Sel.Name))
+				}
 			}
 		}
 	}

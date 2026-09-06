@@ -18,10 +18,15 @@ func (c *Checker) checkNewConstruction(call *ast.CallExpr) {
 		return
 	}
 	arg := call.Args[0]
-	switch arg.(type) {
+	switch a := arg.(type) {
 	case *ast.Ident, *ast.StructType:
 		trace := &ContractTrace{Origin: "new(" + typeExprName(arg) + ")"}
 		c.reportMissingNonNilFieldsTraced(call.Pos(), arg, nil, "", trace)
+	case *ast.SelectorExpr:
+		// E6: new(pkg.T) is a zero-value construction site for external
+		// `.gna` `types:` field contracts (own fields + one-hop embedded).
+		c.reportExternalTypeFields(call.Pos(), a, nil)
+		c.reportExternalEmbeddedFields(call.Pos(), a, nil)
 	default:
 		return
 	}
@@ -61,8 +66,31 @@ func (c *Checker) checkCompositeLitConstruction(lit *ast.CompositeLit) {
 			c.reportMissingNonNilFieldsTraced(lit.Pos(), t.Elt, nil, "", trace)
 		}
 	case *ast.SelectorExpr:
-		c.reportExternalTypeFields(lit.Pos(), t, providedKeyedOnly(lit))
+		// E2 firewall: an unkeyed external literal with elements is not a
+		// construction site — Gon does not reconstruct external field order.
+		// `pkg.T{}` (empty) and keyed forms are still checked.
+		if isUnkeyedWithElts(lit) {
+			return
+		}
+		provided := providedKeyedOnly(lit)
+		c.reportExternalTypeFields(lit.Pos(), t, provided)
+		c.reportExternalEmbeddedFields(lit.Pos(), t, provided)
+		c.checkExternalKeyedFieldValues(lit, t)
 	}
+}
+
+// isUnkeyedWithElts reports whether lit has elements, none of which are
+// key:value pairs (a positional external literal).
+func isUnkeyedWithElts(lit *ast.CompositeLit) bool {
+	if lit == nil || len(lit.Elts) == 0 {
+		return false
+	}
+	for _, elt := range lit.Elts {
+		if _, ok := elt.(*ast.KeyValueExpr); ok {
+			return false
+		}
+	}
+	return true
 }
 
 func (c *Checker) providedFieldsFromComposite(lit *ast.CompositeLit) map[string]bool {

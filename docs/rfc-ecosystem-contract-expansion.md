@@ -1,6 +1,7 @@
 # RFC: Ecosystem Contract Expansion (Gon v1.5)
 
-**Status:** Accepted — decision matrix (E1–E14) locked 2026-09-06; §10 resolved  
+**Status:** Implemented — shipped in Gon v1.5.0 (2026-09-06). Decision matrix
+(E1–E14) locked 2026-09-06; §10 resolved.  
 **Target:** Gon v1.5  
 **Related:** `docs/gna-spec-v1.md`, `docs/v1-scope.md`, `docs/roadmap-v1.3-plus.md`, `docs/rfc-field-contracts.md`, `docs/rfc-return-value-contracts.md`, `docs/rfc-interface-semantics.md`  
 **Date:** 2026-09-05

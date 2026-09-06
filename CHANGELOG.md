@@ -1,5 +1,66 @@
 # Changelog
 
+## [1.5.0] — 2026-09-06
+
+### Added
+
+- **Ecosystem Contract Expansion** — M4a + M4b + M5a
+  (`docs/rfc-ecosystem-contract-expansion.md`). External `.gna` `types:`
+  field contracts are now applied across the package boundary at the same
+  three sites as local field contracts.
+  - **M4a — non-interface application.**
+    - A keyed `pkg.T{…}` literal that writes an explicit `nil` for a `!`
+      field is **GN001** (previously silent; GN002 for a *missing* `!` field
+      was already emitted).
+    - `new(pkg.T)`, `&pkg.T{}`, and `pkg.T{}` are zero-value construction
+      sites: a `!` field left at zero is **GN002**, including a `!` field
+      **promoted from an embedded external type** (one hop).
+    - A selector `x.F` where `x` has external type `pkg.T` and `.gna` marks
+      `T.F` as `!` is a **non-nil source**: `x.F == nil` → **GW001**; `x.F`
+      into a `!U` target is accepted. The non-nil-source recogniser now also
+      accepts `!`-field selectors for local types (previously a gap).
+    - `x.F = nil` into an external `!` field is **GN001**.
+    - Unkeyed `pkg.T{a, b}` stays behind the firewall — no diagnostic in
+      either direction (Gon does not reconstruct external field order).
+    - External `types:` resolution is **exact** (import path + type + field);
+      the local name-only field heuristic is never used across the boundary.
+  - **M4b — interface-typed application.** An external contract position
+    (param, result, or `types:` field) whose Go type is an interface carries
+    `docs/rfc-interface-semantics.md` semantics: `!I` = interface value
+    non-nil; an ordinary interface-typed value into that position is
+    **GN001** (D3b); a concrete/typed-nil operand is accepted (D3a).
+  - **M5a — `.gna` validation against the real package.**
+    - **GN003** — the `.gna` `params`/`results` count for a resolved
+      function or method must equal the Go signature's (a variadic final
+      parameter counts as one). On mismatch the entry is **dropped** (its
+      `!` flags no longer apply) so a stale annotation cannot shift a claim
+      onto the wrong argument.
+    - **GW004 (new code, warning)** — a `.gna` key under `functions:`,
+      `methods:`, or `types:` that names a symbol the package does not
+      provide. `methods:` validation uses the full `go/types` method set, so
+      methods promoted from an embedded field are accepted.
+    - Validation is best-effort (only for packages `go/types` resolved) and
+      reports each condition **once per annotated symbol per run**.
+
+### Changed
+
+- `gon version` reports `1.5.0`.
+
+### Compatibility
+
+- `.gna` schema remains **1** — no file-format change.
+- One new diagnostic code: **GW004** (warning; contributes exit 0).
+- **Possibly breaking** in three narrow ways, each surfacing a
+  previously-silent defect: a `.gna` with the wrong arity now emits GN003
+  (was: silently shifted contract); a `.gna` naming a missing symbol now
+  emits GW004; code that writes explicit `nil` into — or relies on flow
+  reasoning about — an external `!` field now emits GN001/GW001.
+- Code importing only unannotated packages, or correct `.gna` files used
+  correctly, is unaffected.
+- Still no type coverage, no generics, no flow-sensitive nilability, no
+  dynamic-value tracking. `receivers:` remains parsed and reserved (no
+  call-site effect). `--strict` is deferred to a follow-on.
+
 ## [1.4.1] — 2026-09-06
 
 ### Fixed

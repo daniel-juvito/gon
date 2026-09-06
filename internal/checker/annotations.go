@@ -30,6 +30,8 @@ func NewWithAnnotations(filename string, cleanSrc []byte, nonNilOffsets map[int]
 	c.imports = make(map[string]string)
 	c.resolved = make(map[string]*gna.File)
 	c.resolvedMiss = make(map[string]bool)
+	c.importPkgs = make(map[string]*types.Package)
+	c.importPos = make(map[string]token.Pos)
 	c.typeCheck()
 	// Imports from the (possibly replaced) AST.
 	c.collectImports()
@@ -38,11 +40,15 @@ func NewWithAnnotations(filename string, cleanSrc []byte, nonNilOffsets map[int]
 
 func (c *Checker) collectImports() {
 	c.imports = make(map[string]string)
+	if c.importPos == nil {
+		c.importPos = make(map[string]token.Pos)
+	}
 	if c.file == nil {
 		return
 	}
 	for _, imp := range c.file.Imports {
 		path := strings.Trim(imp.Path.Value, `"`)
+		c.importPos[path] = imp.Pos()
 		name := ""
 		if imp.Name != nil {
 			name = imp.Name.Name
@@ -100,7 +106,8 @@ func (c *Checker) typeCheckPackages() bool {
 			packages.NeedTypes |
 			packages.NeedTypesInfo |
 			packages.NeedSyntax |
-			packages.NeedImports,
+			packages.NeedImports |
+			packages.NeedDeps,
 		Fset: c.fset,
 		Dir:  root,
 		Overlay: map[string][]byte{
@@ -129,7 +136,24 @@ func (c *Checker) typeCheckPackages() bool {
 	}
 	c.file = file
 	c.info = pkg.TypesInfo
+	c.collectImportPkgs(pkg.Types)
 	return true
+}
+
+// collectImportPkgs records the direct imports of the checked package for M5a
+// validation. Best-effort: an import go/types could not resolve is skipped.
+func (c *Checker) collectImportPkgs(tpkg *types.Package) {
+	if tpkg == nil {
+		return
+	}
+	if c.importPkgs == nil {
+		c.importPkgs = make(map[string]*types.Package)
+	}
+	for _, imp := range tpkg.Imports() {
+		if imp != nil {
+			c.importPkgs[imp.Path()] = imp
+		}
+	}
 }
 
 func (c *Checker) typeCheckFallback() {
@@ -158,12 +182,14 @@ func (c *Checker) typeCheckFallback() {
 	if c.file.Name != nil {
 		pkgPath = c.file.Name.Name
 	}
-	if _, err := conf.Check(pkgPath, c.fset, []*ast.File{c.file}, info); err != nil {
+	tpkg, err := conf.Check(pkgPath, c.fset, []*ast.File{c.file}, info)
+	if err != nil {
 		if len(info.Selections) == 0 {
 			return
 		}
 	}
 	c.info = info
+	c.collectImportPkgs(tpkg)
 }
 
 func findModuleRoot(start string) string {
@@ -257,6 +283,9 @@ func (c *Checker) resolveCallParams(fun ast.Expr) ([]bool, string) {
 			c.addWarning(f.Pos(), "GW002", "no .gna annotation for "+pkgPath+"."+f.Sel.Name+"; treating as ordinary")
 			return nil, ""
 		}
+		if c.contractDropped(pkgPath, f.Sel.Name) {
+			return nil, "" // M5a: arity mismatch — treat as ordinary
+		}
 		return sig.Params, pkgPath + "." + f.Sel.Name
 
 	default:
@@ -296,6 +325,9 @@ func (c *Checker) resolveCallResults(fun ast.Expr) []bool {
 		sig, ok := file.Functions[f.Sel.Name]
 		if !ok || sig == nil {
 			return nil
+		}
+		if c.contractDropped(pkgPath, f.Sel.Name) {
+			return nil // M5a: arity mismatch — treat as ordinary
 		}
 		return sig.Results
 
@@ -362,6 +394,9 @@ func (c *Checker) resolveMethodResults(selExpr *ast.SelectorExpr) (results []boo
 	msig, found := file.Methods[typeName+"."+methodName]
 	if !found || msig == nil {
 		return nil, true
+	}
+	if c.contractDropped(pkgPath, typeName+"."+methodName) {
+		return nil, true // M5a: arity mismatch — treat as ordinary
 	}
 	return msig.Results, true
 }
@@ -438,6 +473,9 @@ func (c *Checker) resolveMethodParams(selExpr *ast.SelectorExpr) (params []bool,
 		c.addWarning(selExpr.Pos(), "GW002",
 			fmt.Sprintf("no .gna annotation for %s.%s.%s; treating as ordinary", resolvedAs, typeName, methodName))
 		return nil, "", true
+	}
+	if c.contractDropped(resolvedAs, typeName+"."+methodName) {
+		return nil, "", true // M5a: arity mismatch — treat as ordinary
 	}
 	display = resolvedAs + "." + typeName + "." + methodName
 	return msig.Params, display, true
