@@ -26,6 +26,7 @@ import (
 	"github.com/daniel-juvito/gon/internal/lsp"
 	"github.com/daniel-juvito/gon/internal/preproc"
 	"github.com/daniel-juvito/gon/transpiler"
+	"golang.org/x/tools/go/packages"
 )
 
 func main() {
@@ -45,7 +46,7 @@ func run(args []string) int {
 		usage()
 		return 0
 	case "version", "-version", "--version":
-		fmt.Println("gon version 1.5.0")
+		fmt.Println("gon version 1.5.1")
 		return 0
 	}
 
@@ -309,7 +310,14 @@ Diagnostics (human) are printed as:
 See docs/diagnostic-protocol-v1.md for the JSON contract.`)
 }
 
+// validateGo type-checks the clean Go form of a .gon file. When the file
+// lives in a module it is checked against the real module graph (so
+// module-local and third-party imports resolve); otherwise it falls back to
+// the GOPATH/GOROOT importer for standalone single-file inputs.
 func validateGo(filename string, src []byte) error {
+	if err, ok := validateGoModule(filename, src); ok {
+		return err
+	}
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, filename, src, parser.AllErrors)
 	if err != nil {
@@ -318,4 +326,54 @@ func validateGo(filename string, src []byte) error {
 	conf := types.Config{Importer: importer.Default()}
 	_, err = conf.Check(file.Name.Name, fset, []*ast.File{file}, nil)
 	return err
+}
+
+// validateGoModule type-checks src as an overlay package inside the module
+// that contains filename. ok is false when there is no enclosing module (the
+// caller then uses the standalone importer). A non-nil error is a genuine
+// parse or type error in the source.
+func validateGoModule(filename string, src []byte) (err error, ok bool) {
+	start := filepath.Dir(filename)
+	if abs, aerr := filepath.Abs(start); aerr == nil {
+		start = abs
+	}
+	root := findGoModRoot(start)
+	if root == "" {
+		return nil, false
+	}
+
+	overlayPath := filepath.Join(root, "__gon_validate__", "check.go")
+	cfg := &packages.Config{
+		Mode: packages.NeedName | packages.NeedTypes | packages.NeedSyntax |
+			packages.NeedImports | packages.NeedDeps,
+		Dir:     root,
+		Overlay: map[string][]byte{overlayPath: src},
+		Tests:   false,
+	}
+	pkgs, lerr := packages.Load(cfg, "file="+overlayPath)
+	if lerr != nil || len(pkgs) == 0 {
+		return nil, false // load machinery failed — let the fallback try
+	}
+	for _, pkg := range pkgs {
+		for _, e := range pkg.Errors {
+			if e.Kind == packages.TypeError || e.Kind == packages.ParseError {
+				return fmt.Errorf("%s", e), true
+			}
+		}
+	}
+	return nil, true
+}
+
+func findGoModRoot(start string) string {
+	dir := start
+	for {
+		if fi, serr := os.Stat(filepath.Join(dir, "go.mod")); serr == nil && !fi.IsDir() {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return ""
+		}
+		dir = parent
+	}
 }

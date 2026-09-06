@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.5.1] — 2026-09-06
+
+### Fixed
+
+- **`gon check` / `gon vet` — spurious "Go type error: could not import" for
+  module-local imports.** The post-check Go re-validation used the
+  GOPATH/GOROOT importer, which cannot resolve a package that only exists in
+  the enclosing module. A `.gon` file that imported a sibling package in its
+  own module (the normal shape for v1.5 external `.gna` contracts) always
+  failed with `could not import <pkg>` and exit 1, even when the code was
+  well-typed. Re-validation is now module-aware: when the file lives in a
+  module it is type-checked against the real module graph (matching the
+  checker's own resolution); standalone single-file inputs keep using the
+  GOPATH/GOROOT importer.
+
+### Changed
+
+- `gon version` reports `1.5.1`.
+
+### Compatibility
+
+- No semantic change. Checker behaviour, diagnostic codes, severities, and
+  Diagnostic Protocol v1 are unchanged from v1.5.0. `.gna` schema remains **1**.
+
 ## [1.5.0] — 2026-09-06
 
 ### Added
