@@ -340,12 +340,13 @@ func (c *Checker) checkTypeAssert(ta *ast.TypeAssertExpr) {
 	if ta == nil || ta.Type == nil {
 		return
 	}
-	// RFC "Interface Semantics" D6a / §3.8: `x.(!T)` is not a Gon mechanism.
-	// A type assertion never establishes a non-nil contract, so a `!` on the
-	// asserted type is rejected outright.
-	if c.isNonNil(ta.Type) {
+	// RFC "Interface Semantics" D6a / §3.8: `x.(!I)` is not a Gon mechanism.
+	// Locked decision applies to interface targets; a type assertion never
+	// establishes a non-nil interface contract. Concrete `!T` assertion
+	// targets are left for a possible future explicit RFC amendment.
+	if c.isNonNil(ta.Type) && c.staticTypeIsInterface(ta.Type) {
 		c.addError(ta.Type.Pos(), "GN001",
-			"type assertion target cannot carry a non-nil contract (!T); assertions do not establish !T")
+			"type assertion target cannot carry a non-nil contract (!I); assertions do not establish !I")
 		return
 	}
 	id, ok := ta.X.(*ast.Ident)

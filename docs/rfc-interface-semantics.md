@@ -266,7 +266,8 @@ var r !io.Reader = nil // GN001
 
 ### 3.5 Existing Non-Nil Interface Contracts
 
-An existing `!I` value satisfies another compatible `!I` contract directly:
+An existing `!I` value satisfies another `!I` contract of the **same
+interface type** directly:
 
 ```go
 func Open() !io.Reader {
@@ -278,6 +279,14 @@ var x !io.Reader = r
 ```
 
 No additional proof is required.
+
+"Same interface type" means Go type identity (`types.Identical`). The `!`
+contract is attached to the specific interface type in which it is written
+and does not transfer to an embedded or embedding interface (§3.7):
+`!ReadCloser` is not a `!Reader` source, and `!Reader` is not a
+`!ReadCloser` source, even though the underlying interface values are
+assignable in Go. Such an assignment is GN001 (D3b applies: the source is
+an interface value with no `!` contract *for the target type*).
 
 ### 3.6 Return and Method Results
 
@@ -758,20 +767,33 @@ None that affect the locked decisions in §2. Implementation details (diagnostic
 
 ## 10. Implementation Notes (v1.4)
 
-- The D3b check lives in `internal/checker/interface_contracts.go`
-  (`ordinaryInterfaceValue`) and is invoked from the four value-in sites in
-  `internal/checker/checker.go`: local/package `var` init, plain assignment
-  (`:=` excluded — it creates a fresh binding), `return`, and `!I` call
-  arguments. It reads only `go/types`' record of the **immediate**
-  expression's static type, so an explicit conversion `I(x)` is seen as
-  interface-typed (D6c) without recovering the concrete operand.
+- The check lives in `internal/checker/interface_contracts.go`
+  (`cannotSatisfyBangInterface(expr, target)`) and is invoked from the four
+  value-in sites in `internal/checker/checker.go`: local/package `var` init,
+  plain assignment (`:=` excluded — it creates a fresh binding), `return`,
+  and `!I` call arguments. It reads only `go/types`' record of the
+  **immediate** expression's static type, so an explicit conversion `I(x)`
+  is seen as interface-typed (D6c) without recovering the concrete operand.
+- The rule set: nil literal is handled by the existing GN001 path (D3c); a
+  concrete / non-interface static type is accepted (D3a, even typed-nil); an
+  ordinary interface value with no `!` source is rejected (D3b); a `!` source
+  is accepted only when its static interface type is `types.Identical` to the
+  target (D3d + §3.7 — embedding does not propagate). When the target type is
+  unavailable (call-argument site, or missing type info) the check falls back
+  to the target-agnostic form: any non-nil `!` interface source is accepted.
+  Tightening the call-argument site to the same-type rule is a follow-up.
 - A value is treated as an existing `!I` source only when it is a
   `!`-bound identifier or an immediate call whose first result is annotated
   `!T` — the same machinery as return-value contracts. Nothing else
   (conversion, assertion, arbitrary expression) qualifies.
-- `x.(!T)`: the preprocessor recognises `!` after `.(` as a type modifier,
-  strips it, and records the offset; `checkTypeAssert` then emits GN001.
-  This replaces the pre-v1.4 parse error.
+- Return sites compare against the function's Go result types, captured in
+  `currentFuncResultTypes` from `c.info.Defs` at `checkFuncDecl`. The
+  `go/types` fallback now populates `Defs` for this reason.
+- `x.(!I)`: the preprocessor recognises `!` after `.(` as a type modifier,
+  strips it, and records the offset; `checkTypeAssert` emits GN001 when the
+  asserted type is an interface. A `!` on a concrete assertion target
+  (`x.(!*T)`) is not rejected in v1.4 — left for a possible future RFC
+  amendment. This replaces the pre-v1.4 parse error for the interface case.
 - The checks degrade to silent when type information is unavailable, like
   the rest of the checker. In production every entry point constructs the
   checker with `NewWithAnnotations`, which type-checks.
@@ -779,8 +801,8 @@ None that affect the locked decisions in §2. Implementation details (diagnostic
   non-nil type `!I`" / "…to non-nil variable `!x`" / "cannot return ordinary
   interface value from function with non-nil return type" / "cannot pass
   ordinary interface value as non-nil argument N to F" / "type assertion
-  target cannot carry a non-nil contract (`!T`); assertions do not
-  establish `!T`".
+  target cannot carry a non-nil contract (`!I`); assertions do not
+  establish `!I`".
 
 ---
 
@@ -792,6 +814,7 @@ None that affect the locked decisions in §2. Implementation details (diagnostic
 | Typed-nil dynamic value violates `!I` | No |
 | Concrete → `!I` | Accepted (even if concrete is nil) |
 | Ordinary `I` → `!I` | Rejected (unconditional) |
+| `!J` → `!I` where `J` ≠ `I` (embedding) | Rejected — `!` does not propagate across interface types (§3.7) |
 | Flow-sensitive narrowing | No |
 | Assertion / conversion creates `!I` | No |
 | Schema bump | No (remain 1) |

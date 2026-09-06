@@ -322,3 +322,61 @@ func f(ord io.Reader) {
 }`)
 	mustGN001(t, diags, 1) // only the `ord` line
 }
+
+// §3.7 / D3d: embedding does not propagate !. !ReadCloser is not a !Reader
+// source even though Go assignability allows the underlying value conversion.
+func TestIface_EmbeddedBangDoesNotSatisfyBase(t *testing.T) {
+	diags := checkTyped(t, `package main
+type Reader interface{ Read() }
+type ReadCloser interface {
+	Reader
+	Close()
+}
+func f(rc !ReadCloser) {
+	var r !Reader = rc
+	_ = r
+}`)
+	mustGN001(t, diags, 1)
+}
+
+// Reverse direction: !Reader is not a !ReadCloser source.
+func TestIface_BaseBangDoesNotSatisfyEmbedded(t *testing.T) {
+	diags := checkTyped(t, `package main
+type Reader interface{ Read() }
+type ReadCloser interface {
+	Reader
+	Close()
+}
+func f(r !Reader) {
+	var rc !ReadCloser = r
+	_ = rc
+}`)
+	mustGN001(t, diags, 1)
+}
+
+// Same interface type (D3d) still accepted.
+func TestIface_SameInterfaceBangToBangAccepted(t *testing.T) {
+	diags := checkTyped(t, `package main
+type Reader interface{ Read() }
+func f(r !Reader) {
+	var x !Reader = r
+	_ = x
+}`)
+	mustNoGN001Iface(t, diags)
+}
+
+// Plain assignment of mismatched !I contracts is also rejected.
+func TestIface_AssignMismatchedBangRejected(t *testing.T) {
+	diags := checkTyped(t, `package main
+type Reader interface{ Read() }
+type ReadCloser interface {
+	Reader
+	Close()
+}
+func f(rc !ReadCloser) {
+	var r !Reader
+	r = rc
+	_ = r
+}`)
+	mustGN001(t, diags, 1)
+}

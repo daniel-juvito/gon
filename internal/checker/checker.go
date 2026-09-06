@@ -27,6 +27,10 @@ type Checker struct {
 	// false is also stored so a nullable shadowing declaration hides an outer !T.
 	scopes             []map[string]bool
 	currentFuncReturns []bool
+	// currentFuncResultTypes holds Go types of the current function's results
+	// (parallel to currentFuncReturns). Used by interface contracts for D3d
+	// same-type identity checks on !I returns.
+	currentFuncResultTypes []types.Type
 
 	// resolver supplies external package nilability contracts from .gna files.
 	// Set via NewWithAnnotations; nil means no external annotations.
@@ -239,7 +243,7 @@ func (c *Checker) registerPackageVars() {
 					}
 					if isNilIdent(val) {
 						c.addError(val.Pos(), "GN001", fmt.Sprintf("cannot assign nil to non-nil type !%s", formatType(vs.Type)))
-					} else if c.ordinaryInterfaceValue(val) {
+					} else if c.cannotSatisfyBangInterface(val, c.staticTypeOf(vs.Type)) {
 						c.addError(val.Pos(), "GN001", fmt.Sprintf("cannot assign ordinary interface value to non-nil type !%s", formatType(vs.Type)))
 					}
 				}
@@ -279,7 +283,22 @@ func (c *Checker) checkPackageLevelComposites() {
 
 func (c *Checker) checkFuncDecl(d *ast.FuncDecl) {
 	prev := c.currentFuncReturns
+	prevTypes := c.currentFuncResultTypes
 	c.currentFuncReturns = c.funcReturns[d.Name.Name]
+	c.currentFuncResultTypes = nil
+	if c.info != nil && d.Name != nil {
+		if obj := c.info.Defs[d.Name]; obj != nil {
+			if fn, ok := obj.(*types.Func); ok {
+				if sig, ok := fn.Type().(*types.Signature); ok {
+					res := sig.Results()
+					c.currentFuncResultTypes = make([]types.Type, res.Len())
+					for i := 0; i < res.Len(); i++ {
+						c.currentFuncResultTypes[i] = res.At(i).Type()
+					}
+				}
+			}
+		}
+	}
 	c.pushScope()
 
 	if d.Recv != nil {
@@ -305,6 +324,7 @@ func (c *Checker) checkFuncDecl(d *ast.FuncDecl) {
 
 	c.popScope()
 	c.currentFuncReturns = prev
+	c.currentFuncResultTypes = prevTypes
 }
 
 func (c *Checker) checkBlockScope(block *ast.BlockStmt) {
@@ -392,7 +412,7 @@ func (c *Checker) checkLocalVarDecl(d *ast.GenDecl) {
 				if nn && i < len(vs.Values) {
 					if isNilIdent(vs.Values[i]) {
 						c.addError(vs.Values[i].Pos(), "GN001", fmt.Sprintf("cannot assign nil to non-nil type !%s", formatType(vs.Type)))
-					} else if c.ordinaryInterfaceValue(vs.Values[i]) {
+					} else if c.cannotSatisfyBangInterface(vs.Values[i], c.staticTypeOf(vs.Type)) {
 						c.addError(vs.Values[i].Pos(), "GN001", fmt.Sprintf("cannot assign ordinary interface value to non-nil type !%s", formatType(vs.Type)))
 					}
 				}
@@ -441,10 +461,18 @@ func (c *Checker) checkAssignStmt(assign *ast.AssignStmt) {
 			if nn, exists := c.lookup(id.Name); exists && nn {
 				if isNilIdent(assign.Rhs[i]) {
 					c.addError(assign.Rhs[i].Pos(), "GN001", fmt.Sprintf("cannot assign nil to non-nil variable !%s", id.Name))
-				} else if assign.Tok != token.DEFINE && c.ordinaryInterfaceValue(assign.Rhs[i]) {
+				} else if assign.Tok != token.DEFINE {
 					// `:=` creates a fresh (shadowing) binding, so a value flows
 					// into an existing `!I` only on plain assignment (D3b).
-					c.addError(assign.Rhs[i].Pos(), "GN001", fmt.Sprintf("cannot assign ordinary interface value to non-nil variable !%s", id.Name))
+					var target types.Type
+					if c.info != nil {
+						if obj := c.info.ObjectOf(id); obj != nil {
+							target = obj.Type()
+						}
+					}
+					if c.cannotSatisfyBangInterface(assign.Rhs[i], target) {
+						c.addError(assign.Rhs[i].Pos(), "GN001", fmt.Sprintf("cannot assign ordinary interface value to non-nil variable !%s", id.Name))
+					}
 				}
 			}
 		}
@@ -514,8 +542,14 @@ func (c *Checker) checkReturnStmt(ret *ast.ReturnStmt) {
 		}
 		if isNilIdent(result) {
 			c.addError(result.Pos(), "GN001", "cannot return nil from function with non-nil return type")
-		} else if c.ordinaryInterfaceValue(result) {
-			c.addError(result.Pos(), "GN001", "cannot return ordinary interface value from function with non-nil return type")
+		} else {
+			var target types.Type
+			if i < len(c.currentFuncResultTypes) {
+				target = c.currentFuncResultTypes[i]
+			}
+			if c.cannotSatisfyBangInterface(result, target) {
+				c.addError(result.Pos(), "GN001", "cannot return ordinary interface value from function with non-nil return type")
+			}
 		}
 	}
 }

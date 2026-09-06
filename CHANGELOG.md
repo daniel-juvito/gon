@@ -15,13 +15,18 @@
     `!I` call arguments.
   - **D3c** — `nil` literal → `!I` is GN001 (unchanged path).
   - **D3d / D4** — an existing `!I` binding, or a result declared `!I`,
-    satisfies `!I` and is a non-nil source at the call site.
-  - **D6a** — `x.(!T)` is rejected with GN001 instead of a parse error; the
-    preprocessor now recognises the `!` in a type-assertion target.
+    satisfies `!I` and is a non-nil source at the call site — but only for
+    the **same** interface type (`types.Identical`). `!ReadCloser` is not a
+    `!Reader` source and vice versa: `!` does not propagate across an
+    embedded/embedding interface (§3.7). Checked at `var` init, plain
+    assignment, and `return`; the call-argument site keeps the
+    target-agnostic form for now.
+  - **D6a** — `x.(!I)` (interface assertion target) is rejected with GN001
+    instead of a parse error; the preprocessor now recognises the `!` in a
+    type-assertion target. `x.(!*T)` (concrete) is left for a later RFC.
   - **D6c** — an explicit conversion `I(x)` has interface static type and
     cannot satisfy `!I`; the checker does not look through the conversion to
     the concrete operand.
-  - Interface embedding does not propagate `!`.
 
 ### Changed
 

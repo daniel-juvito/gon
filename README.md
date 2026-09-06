@@ -174,8 +174,9 @@ var y !io.Reader = nil  // GN001 (D3c)
 _ = v.(!io.Reader)      // GN001 — not a type-assertion target (D6a)
 ```
 
-An existing `!I` binding, or a result declared `!I`, satisfies `!I`.
-Interface embedding does not propagate `!`.
+An existing `!I` binding, or a result declared `!I`, satisfies `!I` — but
+only for the *same* interface type. `!` does not propagate across an
+embedded/embedding interface: `!ReadCloser` is not a `!Reader` source.
 See [docs/rfc-interface-semantics.md](docs/rfc-interface-semantics.md).
 
 ## External packages (`.gna`)
