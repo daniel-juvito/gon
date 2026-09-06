@@ -98,6 +98,40 @@ func (c *Checker) cannotSatisfyBangInterface(expr ast.Expr, target types.Type) b
 	return !types.Identical(srcType, target)
 }
 
+// callParamTypes returns the Go types of the formal parameters of the function
+// or method denoted by fun, or nil when type information is unavailable.
+// Receiver is not included (matches resolveCallParams / MethodVal indexing;
+// MethodExpr uses argOffset in checkCallExpr to skip the leading receiver arg).
+func (c *Checker) callParamTypes(fun ast.Expr) []types.Type {
+	if c.info == nil || fun == nil {
+		return nil
+	}
+	var sig *types.Signature
+	if sel, ok := fun.(*ast.SelectorExpr); ok {
+		if s, found := c.info.Selections[sel]; found {
+			if fn, ok := s.Obj().(*types.Func); ok {
+				sig, _ = fn.Type().(*types.Signature)
+			}
+		}
+	}
+	if sig == nil {
+		tv, ok := c.info.Types[fun]
+		if !ok || tv.Type == nil {
+			return nil
+		}
+		sig, _ = tv.Type.Underlying().(*types.Signature)
+	}
+	if sig == nil {
+		return nil
+	}
+	ps := sig.Params()
+	out := make([]types.Type, ps.Len())
+	for i := 0; i < ps.Len(); i++ {
+		out[i] = ps.At(i).Type()
+	}
+	return out
+}
+
 // ordinaryInterfaceValue is the target-agnostic form used when the caller
 // cannot supply a target type (legacy call sites / degrade path). Prefer
 // cannotSatisfyBangInterface when the target type is known.
