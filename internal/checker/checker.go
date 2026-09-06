@@ -574,7 +574,7 @@ func (c *Checker) checkCallExpr(call *ast.CallExpr) {
 		}
 		if isNilIdent(arg) {
 			c.addError(arg.Pos(), "GN001", fmt.Sprintf("cannot pass nil as non-nil argument %d to %s", pi+1, display))
-		} else if c.ordinaryInterfaceValue(arg) {
+		} else if c.cannotSatisfyBangInterface(arg, c.callArgParamType(call.Fun, pi)) {
 			c.addError(arg.Pos(), "GN001", fmt.Sprintf("cannot pass ordinary interface value as non-nil argument %d to %s", pi+1, display))
 		}
 	}

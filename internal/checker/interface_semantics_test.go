@@ -380,3 +380,56 @@ func f(rc !ReadCloser) {
 }`)
 	mustGN001(t, diags, 1)
 }
+
+// §3.7 / D3d at the call-argument site: passing a !ReadCloser where a !Reader
+// parameter is required is rejected — the contract does not transfer across
+// the embedded interface.
+func TestIface_CallArgMismatchedBangRejected(t *testing.T) {
+	diags := checkTyped(t, `package main
+type Reader interface{ Read() }
+type ReadCloser interface {
+	Reader
+	Close()
+}
+func want(r !Reader) {}
+func f(rc !ReadCloser) {
+	want(rc)
+}`)
+	mustGN001(t, diags, 1)
+}
+
+// Same-type !I argument, and a concrete operand, both satisfy a !I parameter.
+func TestIface_CallArgSameTypeAndConcreteAccepted(t *testing.T) {
+	diags := checkTyped(t, `package main
+type Reader interface{ Read() }
+type T struct{}
+func (t *T) Read() {}
+func want(r !Reader) {}
+func f(r !Reader) {
+	var p *T
+	want(r) // D3d: same interface type
+	want(p) // D3a: concrete operand
+}`)
+	mustNoGN001Iface(t, diags)
+}
+
+// External .gna !I parameter still enforces D3b at the call-argument site.
+func TestIface_GNACallArgOrdinaryRejected(t *testing.T) {
+	gnaSrc := `
+schema: 1
+package: demo
+functions:
+  Want:
+    params:
+      - "!R"
+`
+	gonSrc := `package main
+import "demo"
+type R interface{ M() }
+func f(ord R) {
+	demo.Want(ord)
+}
+`
+	diags := checkWithGNA(t, gnaSrc, gonSrc)
+	mustGN001(t, diags, 1)
+}

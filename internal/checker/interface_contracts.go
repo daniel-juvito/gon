@@ -98,12 +98,19 @@ func (c *Checker) cannotSatisfyBangInterface(expr ast.Expr, target types.Type) b
 	return !types.Identical(srcType, target)
 }
 
-// callParamTypes returns the Go types of the formal parameters of the function
-// or method denoted by fun, or nil when type information is unavailable.
-// Receiver is not included (matches resolveCallParams / MethodVal indexing;
-// MethodExpr uses argOffset in checkCallExpr to skip the leading receiver arg).
-func (c *Checker) callParamTypes(fun ast.Expr) []types.Type {
-	if c.info == nil || fun == nil {
+// ordinaryInterfaceValue is the target-agnostic form used when no target type
+// is available. Prefer cannotSatisfyBangInterface when the target type is known.
+func (c *Checker) ordinaryInterfaceValue(expr ast.Expr) bool {
+	return c.cannotSatisfyBangInterface(expr, nil)
+}
+
+// callArgParamType returns the Go type of the formal parameter at position
+// paramIndex (receiver excluded, matching resolveCallParams indexing) for a
+// call whose function expression is fun, or nil when it cannot be determined.
+// A variadic final parameter contributes its element type for every trailing
+// argument.
+func (c *Checker) callArgParamType(fun ast.Expr, paramIndex int) types.Type {
+	if c.info == nil || fun == nil || paramIndex < 0 {
 		return nil
 	}
 	var sig *types.Signature
@@ -115,26 +122,39 @@ func (c *Checker) callParamTypes(fun ast.Expr) []types.Type {
 		}
 	}
 	if sig == nil {
-		tv, ok := c.info.Types[fun]
-		if !ok || tv.Type == nil {
-			return nil
+		if tv, ok := c.info.Types[fun]; ok && tv.Type != nil {
+			sig, _ = tv.Type.Underlying().(*types.Signature)
 		}
-		sig, _ = tv.Type.Underlying().(*types.Signature)
+	}
+	if sig == nil {
+		var obj types.Object
+		switch f := fun.(type) {
+		case *ast.Ident:
+			obj = c.info.ObjectOf(f)
+		case *ast.SelectorExpr:
+			obj = c.info.ObjectOf(f.Sel)
+		}
+		if obj != nil {
+			sig, _ = obj.Type().Underlying().(*types.Signature)
+		}
 	}
 	if sig == nil {
 		return nil
 	}
-	ps := sig.Params()
-	out := make([]types.Type, ps.Len())
-	for i := 0; i < ps.Len(); i++ {
-		out[i] = ps.At(i).Type()
+	params := sig.Params()
+	n := params.Len()
+	if n == 0 {
+		return nil
 	}
-	return out
-}
-
-// ordinaryInterfaceValue is the target-agnostic form used when the caller
-// cannot supply a target type (legacy call sites / degrade path). Prefer
-// cannotSatisfyBangInterface when the target type is known.
-func (c *Checker) ordinaryInterfaceValue(expr ast.Expr) bool {
-	return c.cannotSatisfyBangInterface(expr, nil)
+	if sig.Variadic() && paramIndex >= n-1 {
+		last := params.At(n - 1).Type()
+		if s, ok := last.(*types.Slice); ok {
+			return s.Elem()
+		}
+		return last
+	}
+	if paramIndex < n {
+		return params.At(paramIndex).Type()
+	}
+	return nil
 }

@@ -757,7 +757,9 @@ Minimum regression suite:
 - Return of `!I` is a non-nil source at the call site.
 - Explicit conversion `I(concrete)` produces ordinary `I` and cannot satisfy `!I`.
 - Type assertion target cannot be `!I`.
-- Interface embedding does not propagate `!`.
+- Interface embedding does not propagate `!`: `!ReadCloser` is not a
+  `!Reader` source (nor the reverse) at `var` init, assignment, `return`,
+  or as a `!Reader` call argument; same-type `!I` → `!I` still accepted.
 - Dynamic-value nilness is never reported as a violation of `!I`.
 - Existing concrete, field, and return-value contract tests remain green.
 
@@ -778,10 +780,14 @@ None that affect the locked decisions in §2. Implementation details (diagnostic
   concrete / non-interface static type is accepted (D3a, even typed-nil); an
   ordinary interface value with no `!` source is rejected (D3b); a `!` source
   is accepted only when its static interface type is `types.Identical` to the
-  target (D3d + §3.7 — embedding does not propagate). When the target type is
-  unavailable (call-argument site, or missing type info) the check falls back
-  to the target-agnostic form: any non-nil `!` interface source is accepted.
-  Tightening the call-argument site to the same-type rule is a follow-up.
+  target (D3d + §3.7 — embedding does not propagate).
+- All four sites supply the target type: `var`/assignment from the declared
+  variable's type, `return` from `currentFuncResultTypes`, and the
+  call-argument site from the resolved parameter type
+  (`callArgTargetType`, which unwraps a variadic `...T` to `T` and, for a
+  method-expression call, aligns the receiver at index 0). When the target
+  type is genuinely unavailable the check degrades to the target-agnostic
+  form: any non-nil `!` interface source is accepted.
 - A value is treated as an existing `!I` source only when it is a
   `!`-bound identifier or an immediate call whose first result is annotated
   `!T` — the same machinery as return-value contracts. Nothing else
