@@ -1,6 +1,6 @@
 # RFC: Ecosystem Contract Expansion (Gon v1.5)
 
-**Status:** Draft — decision matrix (E1–E14) proposed, awaiting owner sign-off  
+**Status:** Accepted — decision matrix (E1–E14) locked 2026-09-06; §10 resolved  
 **Target:** Gon v1.5  
 **Related:** `docs/gna-spec-v1.md`, `docs/v1-scope.md`, `docs/roadmap-v1.3-plus.md`, `docs/rfc-field-contracts.md`, `docs/rfc-return-value-contracts.md`, `docs/rfc-interface-semantics.md`  
 **Date:** 2026-09-05
@@ -153,6 +153,7 @@ knowledge. Positional literals (E2) stay behind the firewall.
 | Option | Decision |
 |--------|----------|
 | A `.gna` key under `functions:`, `methods:`, or `types:` that does not correspond to an exported symbol of the real package is **GW004** (warning). Non-fatal; other contracts in the file still apply. | **LOCKED** |
+| `methods: T.M` validation resolves `M` against `T`'s **full `go/types` method set**, accepting methods promoted from embedded fields. | **LOCKED** (§10 Q3) |
 
 GW004 is distinct from GW002. GW002 means *"the package has a `.gna` file
 but this call target is not annotated"* (silence would hide an
@@ -207,10 +208,15 @@ a named type `pkg.T` for which the resolver supplies a `types:` entry:
 4. Unkeyed `pkg.T{a, b, …}` is **not** a construction site for external
    field contracts (E2). No diagnostic, in either direction.
 5. The zero-value containment walk (`rfc-field-contracts.md`) applies across
-   the boundary using `go/types` structure: it descends into embedded and
-   fixed-array-contained external types that themselves carry `.gna` field
-   contracts, and stops at every indirection boundary (`*T`, `[]T`, `map`,
-   `chan`, `interface`, `func`).
+   the boundary using `go/types` structure, **one hop deep** for v1.5: the
+   directly-constructed `pkg.T`'s own `!` fields are checked, **including `!`
+   fields promoted from an embedded (external or local) type** — `go/types`
+   supplies the promoted set. It stops at every indirection boundary (`*T`,
+   `[]T`, `map`, `chan`, `interface`, `func`). It does **not** recurse into a
+   non-embedded external struct field that itself carries `.gna` field
+   contracts (external→external→… multi-hop traversal is deferred to a
+   follow-on; §6). A fixed-array-contained external type is treated as the
+   one contained hop, not a recursion root.
 
 ### 4.2 External field contracts — mutation (E4)
 
@@ -230,7 +236,15 @@ marks `T.F` as `!` is a **non-nil source**:
 - `x.F == nil` / `x.F != nil` → **GW001** (comparison is always
   false / true).
 - `x.F` used to initialise or assign a `!U` target, or passed as a `!U`
-  argument, at the immediate site → accepted with no diagnostic.
+  argument, at the immediate site → accepted with no diagnostic. This
+  requires the non-nil-source recogniser to accept a `!`-field selector,
+  not only a `!`-bound identifier or a `!T`-result call; the same
+  extension applies to local `!`-field selectors (previously a latent gap).
+
+External `types:`-field resolution is **exact**: it matches on the
+resolved `*types.Named`'s package path, type name, and field name. There
+is no field-name-only fallback (the local path's name-only heuristic is
+not carried across the boundary).
 
 If `T.F` has an interface type, the source is an **interface-value** non-nil
 source (§4.5): it does not certify the dynamic value.
@@ -242,10 +256,11 @@ When the resolver supplies a `.gna` file for an imported package and
 
 1. For each `functions: N` entry, `N` must be an exported function of the
    package. For each `methods: T.M` entry, `T` must be an exported named
-   type and `M` a method in its method set. For each `types: T` entry, `T`
-   must be an exported named type. A key with no corresponding symbol →
-   **GW004 — `.gna` for `pkg` annotates `X`, which the package does not
-   provide**.
+   type and `M` a method in its **full `go/types` method set** —
+   **methods promoted from an embedded field are accepted** (§10 Q3). For
+   each `types: T` entry, `T` must be an exported named type. A key with no
+   corresponding symbol → **GW004 — `.gna` for `pkg` annotates `X`, which
+   the package does not provide**.
 2. For a resolved function or method, `len(params)` must equal the Go
    parameter count and `len(results)` the Go result count (a variadic
    final parameter counts as one). Otherwise → **GN003 — `.gna` for `pkg`:
@@ -256,7 +271,9 @@ When the resolver supplies a `.gna` file for an imported package and
    resolved. A package that fails to load is treated as before (contracts
    applied unvalidated, method resolution simply unavailable). Validation
    never blocks the local checks.
-4. Each distinct GW004 / GN003 condition is reported once per check run.
+4. Each distinct GW004 / GN003 condition is reported **once per annotated
+   symbol per check run**, not once per call site: a drifted `.gna` entry
+   invoked twenty times yields one diagnostic.
 
 ### 4.5 Interface-typed external positions (E8, E9)
 
@@ -369,6 +386,10 @@ c := demo.Conn{db, lg} // no diagnostic — Gon does not reconstruct
 - **Generic external contracts.** Deferred to v1.8 / v1.9 (M5b).
 - **Cross-package embedded-field promotion beyond the zero-value walk.**
   Unchanged from `rfc-field-contracts.md` §Q4.
+- **Multi-hop external structural traversal.** The zero-value walk is one
+  hop across the boundary (§4.1.5). An external struct field whose own
+  external type carries `.gna` field contracts is not recursed into.
+  Deferred to a follow-on.
 - **Any dynamic-value tracking for interfaces.** Excluded by
   `rfc-interface-semantics.md` §5.
 
@@ -445,15 +466,25 @@ Minimum regression suite:
 - All existing local, field, return-value, and interface tests remain
   green.
 
-## 10. Open Questions
+## 10. Resolved Questions
 
-- **GW004 vs. GW002 numbering.** GW004 is proposed to keep the two
-  annotation/package-disagreement directions distinguishable. If the
-  project prefers a single code, GW002's message can be widened instead.
-- **`--strict`.** Whether to land the flag in v1.5 or a v1.5.x follow-on.
-- **Method-set scope for E11.** Whether `methods: T.M` validation should
-  accept promoted methods from embedded fields (proposed: yes — use the
-  full method set from `go/types`).
+- **GW004 vs. GW002 numbering.** **Resolved: new code GW004.** The two
+  directions are distinct — GW002 fires per call site ("you called an
+  un-annotated symbol"), GW004 fires once per `.gna` load ("the file names
+  a symbol the package lacks"). Keeping them separate lets consumers
+  filter and keeps each message precise.
+- **`--strict`.** **Resolved: v1.5.x follow-on**, not v1.5. It stays a §6
+  non-goal; the M4a+M4b+M5a bundle is already large.
+- **Method-set scope for E11.** **Resolved: accept promoted methods.**
+  `methods: T.M` validation uses the full `go/types` method set of `T`,
+  including methods promoted from embedded fields. A caller's `x.M()` is
+  an ordinary call regardless of where `M` is declared; requiring the
+  `.gna` author to track the dependency's embedding layout would be
+  hostile.
+- **Arity-mismatch severity (E10).** **Resolved: GN003 (error).**
+  Consistent with the existing "malformed `.gna` → GN003" behaviour. The
+  contract is still dropped and the rest of the check proceeds
+  (§4.4.2), so the blast radius is one exit code, not a halted check.
 
 ---
 
@@ -464,7 +495,7 @@ Minimum regression suite:
 | External keyed ctor: missing `!` field | GN002 |
 | External keyed ctor: explicit `nil` in `!` field | GN001 |
 | External unkeyed ctor | unchecked (firewall stays) |
-| `new(pkg.T)` / `&pkg.T{}` / `pkg.T{}` zero-value walk | GN002 on `!` fields |
+| `new(pkg.T)` / `&pkg.T{}` / `pkg.T{}` zero-value walk | GN002 on `!` fields (one hop; promoted-from-embedded included) |
 | External `!` field selector | non-nil source (GW001 / usable) |
 | External `!` field `= nil` | GN001 |
 | External result `!T` | non-nil source (unchanged) |
@@ -472,7 +503,8 @@ Minimum regression suite:
 | Interface external positions | Interface-RFC semantics (D1–D6) |
 | `.gna` classifies interface vs concrete | No — `go/types` does |
 | `.gna` arity ≠ Go arity | GN003, contract dropped |
-| `.gna` names absent symbol | GW004 (warning) |
+| `.gna` names absent symbol | GW004 (warning, new code) |
+| `.gna` `methods:` key vs. promoted methods | accepted (full method set) |
 | Duplicate keys / one file per package | hard load error (unchanged) |
 | Schema bump | No (remain 1) |
 | Generic external contracts | out of scope |
