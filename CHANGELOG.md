@@ -19,8 +19,7 @@
     the **same** interface type (`types.Identical`). `!ReadCloser` is not a
     `!Reader` source and vice versa: `!` does not propagate across an
     embedded/embedding interface (§3.7). Checked at `var` init, plain
-    assignment, and `return`; the call-argument site keeps the
-    target-agnostic form for now.
+    assignment, `return`, and `!I` call arguments.
   - **D6a** — `x.(!I)` (interface assertion target) is rejected with GN001
     instead of a parse error; the preprocessor now recognises the `!` in a
     type-assertion target. `x.(!*T)` (concrete) is left for a later RFC.
