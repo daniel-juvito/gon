@@ -1,8 +1,9 @@
 # RFC: Type Coverage for Non-Nil Contracts (Gon v1.6 / M1b)
 
 **Status:** Accepted — decision matrix C1–C14 + §10 (O1–O7) locked
-2026-09-06 (owner: all "no preference" → drafted recommendations taken,
-same protocol as the v1.5 RFC §10). Implementation target Gon v1.6.
+2026-09-06. Owner explicitly confirmed all drafted recommendations
+(O1→P, O2→fold-in, O3→no exception, O4→GN003, O5–O7→proposals).
+Implementation target Gon v1.6.
 **Target:** Gon v1.6
 **Related:** `docs/gna-spec-v1.md`, `docs/v1-scope.md`, `docs/roadmap-v1.3-plus.md`,
 `docs/rfc-interface-semantics.md`, `docs/rfc-field-contracts.md`,
@@ -71,11 +72,10 @@ and any form of flow analysis remain out of scope.
 ## 3. Decision Matrix
 
 Each row records the **locked** decision and the alternative(s) considered.
-The owner returned "no preference" on every open question (2026-09-06), so
-the drafted recommendation is the locked answer in each case (same protocol
-as the v1.5 RFC §10). The normative rules in §4 MUST NOT introduce
-semantics beyond these decisions. Historical note: rows below still read
-"Proposed:" — that word now means **locked as stated**.
+The owner reviewed and confirmed every drafted recommendation (2026-09-06).
+The normative rules in §4 MUST NOT introduce semantics beyond these
+decisions. Historical note: rows below still read "Proposed:" — that word
+now means **locked as stated**.
 
 ### C1 — Meaning of `!` per kind
 
@@ -353,8 +353,15 @@ construction site. If `S` is a nilable kind, the reference value is nil at
 the zero value, and the checker reports **GN002** at the declaration.
 
 This applies uniformly to `!*T`, `![]T`, `!map[K]V`, `!chan T`, `!func(…)`,
-and named / alias types whose underlying kind is nilable. It closes the
-pre-existing gap in which `var p !*T` was silent.
+and named / alias types whose underlying kind is one of those. It closes
+the pre-existing gap in which `var p !*T` was silent.
+
+**Interface types are excluded from §4.4.** `var r !I` with no initializer
+is *not* GN002 — interface-value construction semantics are owned by M1a
+(`docs/rfc-interface-semantics.md`) and unchanged here. A bare interface
+`var` remains silent, consistent with v1.4. (Rationale: M1b is "cover the
+*reference-value* kinds"; the interface case is a separate contract already
+shipped, and widening it is out of this milestone's charter.)
 
 An initializer that is not the zero value is evaluated under §4.2–§4.3.
 
@@ -593,8 +600,8 @@ Mechanical, one-time, and localised to code that has *opted in* by writing
 
 ## 10. Open Questions for the Owner — RESOLVED 2026-09-06
 
-The owner returned **"no preference" on all seven**, so each §3 proposal is
-the locked answer (same protocol as the v1.5 RFC §10). Resolutions:
+The owner reviewed all seven and **confirmed every drafted recommendation**.
+Resolutions:
 
 - **O1 → option P.** Bare `var x !S` (no non-nil initializer) → GN002,
   uniform across nilable kinds, closes the `!*T` gap. v1.6 stays solo.
