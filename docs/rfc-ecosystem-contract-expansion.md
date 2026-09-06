@@ -219,6 +219,14 @@ a named type `pkg.T` for which the resolver supplies a `types:` entry:
    follow-on; §6). A fixed-array-contained external type is treated as the
    one contained hop, not a recursion root.
 
+   The distinction is **depth, not lookup count**. "One hop" covers the
+   constructed `pkg.T` and any type *embedded directly in `pkg.T`* — an
+   embedded type's own `types:` entry is consulted for its `!` fields
+   (those fields are promoted onto `pkg.T` by `go/types`). It does **not**
+   cover a type reached through a *named, non-embedded* field of `pkg.T`:
+   that would be a second structural hop into an unrelated external
+   contract, and is deferred.
+
 ### 4.2 External field contracts — mutation (E4)
 
 An assignment statement whose left-hand side is a selector `x.F` where the
@@ -226,6 +234,9 @@ static type of `x` resolves to `pkg.T` and `.gna` marks `T.F` as `!`:
 
 - right-hand side is the literal `nil` → **GN001 — cannot assign nil to
   non-nil field `F`**.
+- `T.F` has an interface type and the right-hand side is an ordinary
+  interface-typed expression → **GN001** (§4.5 / D3b) — the same rule as
+  a `!I` local variable on plain assignment.
 - any other right-hand side → no diagnostic (monotonic with local field
   contracts; Gon does not analyse the assigned value).
 
@@ -275,6 +286,10 @@ When the resolver supplies a `.gna` file for an imported package and
 4. Each distinct GW004 / GN003 condition is reported **once per annotated
    symbol per check run**, not once per call site: a drifted `.gna` entry
    invoked twenty times yields one diagnostic.
+5. Validation runs **after `go/types` type-checking and before any contract
+   is consumed by call/field resolution**: it is a single pass at the start
+   of the check, so the "dropped" set (point 2) is already populated when
+   parameter, result, and field flags are looked up.
 
 ### 4.5 Interface-typed external positions (E8, E9)
 
