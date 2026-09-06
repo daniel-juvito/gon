@@ -21,8 +21,9 @@ Architectural rule (unchanged across v1.x):
 | v1.4.0 | Interface value contracts: `!I` is interface-value non-nil only; ordinary `I` → `!I` is GN001 (M1a) |
 | v1.4.1 | `gon fmt` `!` re-insertion fix (token-lockstep, no more mis-placement when a type is used as both `!T` and `T`); no semantic change |
 | v1.5.0 | Ecosystem contract expansion (M4a+M4b+M5a): external `.gna` `types:` field contracts applied at construction/mutation/use across the package boundary; interface-typed external positions; `.gna` validated against `go/types` (arity → GN003 + drop, unknown symbol → new **GW004**) |
+| v1.6.0 | Type Coverage (M1b): `!` uniformly means "the reference value is non-nil" across slice / map / chan / func / pointer and named types + aliases thereof. Bare `var x !S` (no initializer) → GN002 (closes the silent `!*T` gap); `!` on a non-nilable type → GN003; `x.(!T)` for any target → GN001; `.gna` leading `!` binds outermost only |
 
-`.gna` schema remains **1**. v1.1–v1.5 are checker-semantics changes, not format breaks. v1.2.1 is a patch only.
+`.gna` schema remains **1**. v1.1–v1.6 are checker-semantics changes, not format breaks. v1.2.1 is a patch only.
 
 ## Guaranteed
 
@@ -54,8 +55,23 @@ Static checks only. Enforced at `gon check` / `gon vet` time.
 | Ordinary interface-typed value written into / assigned to an external `!I` field | GN001 | **v1.5** |
 | `.gna` `params`/`results` count disagrees with the resolved Go signature (variadic counts as one) — contract dropped | GN003 (error) | **v1.5** |
 | `.gna` names a `functions:` / `methods:` / `types:` symbol the package does not provide (method set incl. promoted) | GW004 (warning) | **v1.5** |
+| Bare `var x !S` (S is `![]T` / `!map` / `!chan` / `!func` / `!*T` or a named type / alias thereof) with no initializer | GN002 | **v1.6** |
+| `!` written on a non-nilable type (struct, array, basic — directly or through a named type / alias) | GN003 | **v1.6** |
+| `x.(!T)` — `!` on any type-assertion target, interface or concrete | GN001 | **v1.6** |
+| Literal `nil` into a `![]T` / `!map` / `!chan` / `!func` position (var, arg, return, `!` field literal) | GN001 | **v1.6** (specified; partly emitted since v1.0) |
+| `![]T` / `!map` / `!chan` / `!func` **field** left at zero on construction; `f = nil`; selector is a non-nil source | GN002 / GN001 / GW001 | **v1.6** (specified; emitted since v1.2) |
 
 Warnings alone do **not** fail the process (exit 0). Errors do (exit 1).
+
+`!` on a slice / map / channel / function guarantees only that the
+**reference value** is non-nil. It is **not** a length, non-emptiness, or
+channel-state (open / buffered) contract. `append`, reslice, conversion, and
+type assertion produce ordinary values and never carry `!`. The zero-value
+containment walk still stops at every `*T` / `[]T` / `map` / `chan` /
+`interface` / `func` boundary — `!` on a field of one of those kinds is
+checked, but values reachable *through* it are not. Element-position
+contracts (`[]!T`, `map[K]!V`) are reserved for M2b (v1.7).
+Spec: [docs/rfc-type-coverage.md](rfc-type-coverage.md).
 
 ### Return-value contracts (v1.1)
 

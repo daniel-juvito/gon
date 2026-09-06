@@ -51,8 +51,8 @@ analysis (see v1.6, §4).
 
 | ID | Scope | Dependency / Gate |
 |---|---|---|
-| M1a | Interface semantics + method-set contracts | Core |
-| M1b | Type Coverage semantics | Core |
+| M1a | Interface semantics + method-set contracts | Core — **shipped v1.4** |
+| M1b | Type Coverage semantics | Core — **shipped v1.6** |
 | M2a | Struct-only construction + diagnostics + warnings | Core |
 | M2b | Element-contract construction subcases | M1b — element-level semantics |
 | M3 | Generic `!T` + instantiated generic contracts | M1a (full) + M1b named-type nilability semantics |
@@ -110,15 +110,22 @@ readiness-driven bundling. M4a was deliberately not pulled into v1.3
 despite being dependency-eligible from Core alone, to preserve each
 release's single clear character.
 
-### v1.6 — Type Coverage (provisional isolation)
+### v1.6 — Type Coverage — SHIPPED (2026-09-06)
 **Scope:** M1b — Type Coverage RFC (`!func`, `!map[K]V`, `![]T`,
 `!chan T`, named nilable types, aliases).
+**RFC:** `docs/rfc-type-coverage.md` (Status: Accepted — decision matrix
+C1–C14 + §10 O1–O7 locked 2026-09-06, owner confirmed all recommendations).
 **Dependency:** Core.
-**Breaking risk:** TBD after RFC compatibility analysis.
-**Rationale:** Defaults to solo per R1, but this is provisional. The RFC's
-own compatibility analysis will classify each sub-feature; fully
-backward-compatible portions may be eligible for bundling with M2b in a
-later release, while any genuinely breaking portion remains isolated.
+**Breaking risk:** One materially breaking sub-feature (C5 option P: bare
+`var x !S` with no initializer → GN002, uniform across nilable kinds,
+closes the pre-existing silent `!*T` gap). Every other sub-feature (C3,
+C6, C7, C9, C11) is non-breaking in practice.
+**Rationale:** Defaults to solo per R1, and the RFC's §13 recommendation is
+to keep it solo: C5(P) is the isolation-worthy change; the non-breaking
+rows ride along as the coherent "`!` means the same thing on every nilable
+type" story (R2). If the owner takes C5 option Q (status quo) the release
+becomes fully non-breaking and folding M1b into v1.7 with M2b is on the
+table (RFC O1/O7).
 
 ### v1.7 — Element-Contract Construction
 **Scope:** M2b — element-contract construction subcases.

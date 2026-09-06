@@ -79,6 +79,7 @@ func New(filename string, cleanSrc []byte, nonNilOffsets map[int]bool) (*Checker
 func (c *Checker) Check() []*Diagnostic {
 	c.collectDecls()
 	c.validateAnnotations()
+	c.checkNonNilTypeKinds()
 	c.pushScope() // package scope
 	c.registerPackageVars()
 	c.checkPackageLevelComposites()
@@ -261,6 +262,9 @@ func (c *Checker) registerPackageVars() {
 			}
 			if vs.Type != nil && len(vs.Values) == 0 {
 				c.reportMissingNonNilFields(vs.Type.Pos(), vs.Type, nil, "")
+				if nn {
+					c.reportZeroValueNilableVar(vs.Names, vs.Type)
+				}
 			}
 		}
 	}
@@ -430,6 +434,9 @@ func (c *Checker) checkLocalVarDecl(d *ast.GenDecl) {
 			}
 			if len(vs.Values) == 0 {
 				c.reportMissingNonNilFields(vs.Type.Pos(), vs.Type, nil, "")
+				if nn {
+					c.reportZeroValueNilableVar(vs.Names, vs.Type)
+				}
 			}
 			for _, val := range vs.Values {
 				c.checkExpr(val)

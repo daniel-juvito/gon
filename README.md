@@ -17,7 +17,10 @@ literals since v1.3, since v1.4 interface value contracts (`!I` means the
 interface value is non-nil; the dynamic value is never constrained), and —
 since v1.5 — external `.gna` `types:` field contracts enforced across the
 package boundary plus `.gna` validation against `go/types` (arity → GN003,
-unknown symbol → GW004). It is not a runtime non-nil guarantee.
+unknown symbol → GW004), and — since v1.6 — a uniform meaning for `!` on
+every nilable kind (`![]T` / `!map` / `!chan` / `!func` and named types /
+aliases): the reference value is non-nil, nothing more. It is not a runtime
+non-nil guarantee.
 
 Architectural rule:
 
@@ -29,7 +32,7 @@ Full scope contract: [docs/v1-scope.md](docs/v1-scope.md)
 ## Install
 
 ```bash
-go install github.com/daniel-juvito/gon/cmd/gon@v1.5.1
+go install github.com/daniel-juvito/gon/cmd/gon@v1.6.0
 ```
 
 Or from source:
@@ -213,9 +216,9 @@ Full format: [docs/gna-spec-v1.md](docs/gna-spec-v1.md)
 
 | Code  | Severity | Meaning |
 |-------|----------|---------|
-| GN001 | error    | literal `nil` assigned / passed / returned where `!T` is required; `nil` assigned into a `!T` field (local or external, v1.5); an ordinary interface value where `!I` is required (incl. an external `!I` field, v1.5), or `!I` as a type-assertion target (v1.4) |
-| GN002 | error    | construction leaves a required non-nil field at zero (including nested / embedded / array; includes `new(T)`; external `pkg.T` incl. one-hop embedded promotion, v1.5) |
-| GN003 | error    | malformed `.gna`, or (v1.5) a `params`/`results` arity mismatch vs `go/types` — the entry is dropped |
+| GN001 | error    | literal `nil` assigned / passed / returned where `!T` is required; `nil` assigned into a `!T` field (local or external, v1.5); an ordinary interface value where `!I` is required (incl. an external `!I` field, v1.5); `!T` as a type-assertion target — interface (v1.4) or any kind (v1.6) |
+| GN002 | error    | construction leaves a required non-nil field at zero (including nested / embedded / array; includes `new(T)`; external `pkg.T` incl. one-hop embedded promotion, v1.5); bare `var x !S` of a nilable reference kind with no initializer (v1.6) |
+| GN003 | error    | malformed `.gna`, or (v1.5) a `params`/`results` arity mismatch vs `go/types` — the entry is dropped; `!` on a non-nilable type or an element-position `!` in a `.gna` string (v1.6) |
 | GW001 | warning  | comparison of a non-nil name or `!T` field selector (local or external, v1.5) with `nil` (always true/false) |
 | GW002 | warning  | calling an un-annotated symbol of an annotated package |
 | GW003 | warning  | redundant type assertion on a declared `!T` identifier (v1.3) |
@@ -236,6 +239,9 @@ Full format: [docs/gna-spec-v1.md](docs/gna-spec-v1.md)
 - Interface value contracts: `!I` is interface-value non-nil only (v1.4)
 - External `.gna` `types:` field contracts across the package boundary, and
   `.gna` validation against `go/types` — GN003 arity, GW004 unknown symbol (v1.5)
+- Type coverage: `!` on slice / map / chan / func / pointer and named types /
+  aliases means the reference value is non-nil (not length / emptiness /
+  channel state); bare `var x !S` needs an initializer (v1.6)
 
 **Out of scope**
 

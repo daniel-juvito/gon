@@ -171,17 +171,28 @@ func convertSig(file, label string, rs *rawSignature) (*Signature, error) {
 }
 
 // parseTypeAnn accepts "T" or "!T". Returns whether non-nil was claimed.
+//
+// A leading "!" binds only the outermost type constructor
+// (rfc-type-coverage.md C10 / §4.9). An "!" anywhere else in the string is an
+// element-position contract ("[]!*T", "map[string]!V") — reserved for M2b and
+// rejected here so a stale or premature annotation cannot be silently ignored.
 func parseTypeAnn(file, label, s string) (bool, error) {
 	if s == "" {
 		return false, fmt.Errorf("%s: %s: empty type annotation", file, label)
 	}
+	nn := false
+	rest := s
 	if strings.HasPrefix(s, "!") {
 		if len(s) == 1 {
 			return false, fmt.Errorf("%s: %s: invalid type annotation %q", file, label, s)
 		}
-		return true, nil
+		nn = true
+		rest = s[1:]
 	}
-	return false, nil
+	if strings.Contains(rest, "!") {
+		return false, fmt.Errorf("%s: %s: non-nil marker %q is only valid at the outermost position; element-level contracts are not supported in v1", file, label, s)
+	}
+	return nn, nil
 }
 
 func parseReceiver(file, typeName, s string) (bool, error) {
