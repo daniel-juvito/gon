@@ -101,11 +101,61 @@ func (c *Checker) checkNonNilTypeKinds() {
 		switch x := n.(type) {
 		case *ast.ValueSpec:
 			c.validateNonNilKind(x.Type)
+			c.validateElementContracts(x.Type)
 		case *ast.Field:
 			c.validateNonNilKind(x.Type)
+			c.validateElementContracts(x.Type)
+		case *ast.TypeSpec:
+			// `type Slots [4]!*Slot` — element `!` on a named type / alias.
+			c.validateElementContracts(x.Type)
 		}
 		return true
 	})
+}
+
+// validateElementContracts walks the element / value / key positions of a type
+// expression and rejects malformed element `!` placements (v1.7 / M2b):
+//
+//   - `!` on a channel element type (`chan !*T`)      → GN003 (E11)
+//   - `!` on a map key type (`map[!*K]V`)             → GN003 (O1 deferred)
+//   - `!` on a non-nilable element kind (`[]!int`)    → GN003 (O4 rule)
+//
+// It recurses only through type-composition nodes that are not independently
+// visited by checkNonNilTypeKinds (array/slice/map/chan element positions,
+// pointer, parens). Struct fields and function parameters are `*ast.Field`
+// and are validated directly by the visitor.
+func (c *Checker) validateElementContracts(typeExpr ast.Expr) {
+	switch t := typeExpr.(type) {
+	case *ast.ParenExpr:
+		c.validateElementContracts(t.X)
+	case *ast.StarExpr:
+		c.validateElementContracts(t.X)
+	case *ast.ArrayType:
+		if t.Elt != nil && c.isNonNil(t.Elt) && !c.nonNilKindMeaningful(t.Elt) {
+			c.addError(t.Elt.Pos(), "GN003", fmt.Sprintf(
+				"non-nil modifier ! is not valid on element type %s; ! applies only to pointer, slice, map, channel, function, and interface types",
+				formatType(t.Elt)))
+		}
+		c.validateElementContracts(t.Elt)
+	case *ast.MapType:
+		if t.Key != nil && c.isNonNil(t.Key) {
+			c.addError(t.Key.Pos(), "GN003",
+				"non-nil modifier ! is not valid on a map key type; map key contracts are not supported in v1")
+		}
+		if t.Value != nil && c.isNonNil(t.Value) && !c.nonNilKindMeaningful(t.Value) {
+			c.addError(t.Value.Pos(), "GN003", fmt.Sprintf(
+				"non-nil modifier ! is not valid on element type %s; ! applies only to pointer, slice, map, channel, function, and interface types",
+				formatType(t.Value)))
+		}
+		c.validateElementContracts(t.Key)
+		c.validateElementContracts(t.Value)
+	case *ast.ChanType:
+		if t.Value != nil && c.isNonNil(t.Value) {
+			c.addError(t.Value.Pos(), "GN003",
+				"non-nil modifier ! is not valid on a channel element type; channel elements are runtime sends with no construction site")
+		}
+		c.validateElementContracts(t.Value)
+	}
 }
 
 func (c *Checker) validateNonNilKind(typeExpr ast.Expr) {

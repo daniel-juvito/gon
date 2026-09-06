@@ -17,10 +17,11 @@ literals since v1.3, since v1.4 interface value contracts (`!I` means the
 interface value is non-nil; the dynamic value is never constrained), and —
 since v1.5 — external `.gna` `types:` field contracts enforced across the
 package boundary plus `.gna` validation against `go/types` (arity → GN003,
-unknown symbol → GW004), and — since v1.6 — a uniform meaning for `!` on
+unknown symbol → GW004), since v1.6 a uniform meaning for `!` on
 every nilable kind (`![]T` / `!map` / `!chan` / `!func` and named types /
-aliases): the reference value is non-nil, nothing more. It is not a runtime
-non-nil guarantee.
+aliases): the reference value is non-nil, nothing more, and — since v1.7 —
+element contracts (`[]!*T`, `[N]!*T`, `map[K]!*V`, `[]!I`) checked at the
+composite-literal construction site. It is not a runtime non-nil guarantee.
 
 Architectural rule:
 
@@ -32,7 +33,7 @@ Full scope contract: [docs/v1-scope.md](docs/v1-scope.md)
 ## Install
 
 ```bash
-go install github.com/daniel-juvito/gon/cmd/gon@v1.6.0
+go install github.com/daniel-juvito/gon/cmd/gon@v1.7.0
 ```
 
 Or from source:
@@ -216,9 +217,9 @@ Full format: [docs/gna-spec-v1.md](docs/gna-spec-v1.md)
 
 | Code  | Severity | Meaning |
 |-------|----------|---------|
-| GN001 | error    | literal `nil` assigned / passed / returned where `!T` is required; `nil` assigned into a `!T` field (local or external, v1.5); an ordinary interface value where `!I` is required (incl. an external `!I` field, v1.5); `!T` as a type-assertion target — interface (v1.4) or any kind (v1.6) |
-| GN002 | error    | construction leaves a required non-nil field at zero (including nested / embedded / array; includes `new(T)`; external `pkg.T` incl. one-hop embedded promotion, v1.5); bare `var x !S` of a nilable reference kind with no initializer (v1.6) |
-| GN003 | error    | malformed `.gna`, or (v1.5) a `params`/`results` arity mismatch vs `go/types` — the entry is dropped; `!` on a non-nilable type or an element-position `!` in a `.gna` string (v1.6) |
+| GN001 | error    | literal `nil` assigned / passed / returned where `!T` is required; `nil` assigned into a `!T` field (local or external, v1.5); an ordinary interface value where `!I` is required (incl. an external `!I` field, v1.5); `!T` as a type-assertion target — interface (v1.4) or any kind (v1.6); `nil` as an element / map value under an element contract (v1.7) |
+| GN002 | error    | construction leaves a required non-nil field at zero (including nested / embedded / array; includes `new(T)`; external `pkg.T` incl. one-hop embedded promotion, v1.5); bare `var x !S` of a nilable reference kind with no initializer (v1.6); fixed-array literal leaves a `!` nilable element index at zero (v1.7) |
+| GN003 | error    | malformed `.gna`, or (v1.5) a `params`/`results` arity mismatch vs `go/types` — the entry is dropped; `!` on a non-nilable type (v1.6); element `!` on a channel element, map key, or non-nilable element kind (v1.7) |
 | GW001 | warning  | comparison of a non-nil name or `!T` field selector (local or external, v1.5) with `nil` (always true/false) |
 | GW002 | warning  | calling an un-annotated symbol of an annotated package |
 | GW003 | warning  | redundant type assertion on a declared `!T` identifier (v1.3) |
@@ -242,6 +243,10 @@ Full format: [docs/gna-spec-v1.md](docs/gna-spec-v1.md)
 - Type coverage: `!` on slice / map / chan / func / pointer and named types /
   aliases means the reference value is non-nil (not length / emptiness /
   channel state); bare `var x !S` needs an initializer (v1.6)
+- Element contracts: `[]!*T` / `[N]!*T` / `map[K]!*V` / `[]!I` checked at the
+  composite-literal construction site — explicit-nil element (GN001) and
+  fixed-array element zero-fill (GN002); construction-time only, not a
+  lifetime invariant (v1.7)
 
 **Out of scope**
 

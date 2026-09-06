@@ -173,9 +173,12 @@ func convertSig(file, label string, rs *rawSignature) (*Signature, error) {
 // parseTypeAnn accepts "T" or "!T". Returns whether non-nil was claimed.
 //
 // A leading "!" binds only the outermost type constructor
-// (rfc-type-coverage.md C10 / §4.9). An "!" anywhere else in the string is an
-// element-position contract ("[]!*T", "map[string]!V") — reserved for M2b and
-// rejected here so a stale or premature annotation cannot be silently ignored.
+// (rfc-type-coverage.md C10 / §4.9). Since v1.7 (M2b,
+// rfc-element-contract-construction.md E8) an "!" in element / value position
+// ("[]!*T", "map[string]!V", "[8]!*Slot") is also legal; the returned flag
+// still reflects only the outermost "!" — element nilability is not enforced
+// across the `.gna` boundary (O5). An "!" on a channel element ("chan !*T")
+// remains a load error (E11).
 func parseTypeAnn(file, label, s string) (bool, error) {
 	if s == "" {
 		return false, fmt.Errorf("%s: %s: empty type annotation", file, label)
@@ -189,8 +192,20 @@ func parseTypeAnn(file, label, s string) (bool, error) {
 		nn = true
 		rest = s[1:]
 	}
-	if strings.Contains(rest, "!") {
-		return false, fmt.Errorf("%s: %s: non-nil marker %q is only valid at the outermost position; element-level contracts are not supported in v1", file, label, s)
+	for i := 0; i < len(rest); i++ {
+		if rest[i] != '!' {
+			continue
+		}
+		// An element / value-position "!" follows the "]" that closes a slice,
+		// array, or map-key bracket. Anywhere else (channel element, map key)
+		// is not a construction site and is rejected.
+		j := i - 1
+		for j >= 0 && (rest[j] == ' ' || rest[j] == '\t') {
+			j--
+		}
+		if j < 0 || rest[j] != ']' {
+			return false, fmt.Errorf("%s: %s: non-nil marker %q is only valid at the outermost position or on a slice/array/map element; channel-element and map-key contracts are not supported", file, label, s)
+		}
 	}
 	return nn, nil
 }

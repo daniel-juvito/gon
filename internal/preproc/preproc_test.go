@@ -89,6 +89,54 @@ func G(!*int, !*string) !*int {
 	}
 }
 
+func TestElementPositionBangStripped(t *testing.T) {
+	// v1.7 / M2b: element `!` is a type modifier after `]` (slice/array/map
+	// value) and after `chan` / a channel direction arrow.
+	cases := map[string]struct {
+		src   string
+		clean string
+		offs  int
+	}{
+		"slice":    {"package p\nvar x []!*T\n", "package p\nvar x []*T\n", 1},
+		"array":    {"package p\nvar x [3]!*T\n", "package p\nvar x [3]*T\n", 1},
+		"ellipsis": {"package p\nvar x = [...]!*T{}\n", "package p\nvar x = [...]*T{}\n", 1},
+		"mapval":   {"package p\nvar x map[string]!*T\n", "package p\nvar x map[string]*T\n", 1},
+		"mapkey":   {"package p\nvar x map[!*K]V\n", "package p\nvar x map[*K]V\n", 1},
+		"chan":     {"package p\nvar x chan !*T\n", "package p\nvar x chan *T\n", 1},
+		"recvchan": {"package p\nvar x <-chan !*T\n", "package p\nvar x <-chan *T\n", 1},
+		"sendchan": {"package p\nvar x chan<- !*T\n", "package p\nvar x chan<- *T\n", 1},
+		"outer":    {"package p\nvar x ![]!*T\n", "package p\nvar x []*T\n", 2},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			r := Process("t.gon", []byte(tc.src))
+			if string(r.Clean) != tc.clean {
+				t.Fatalf("clean mismatch:\n got %q\nwant %q", string(r.Clean), tc.clean)
+			}
+			if len(r.NonNilOffsets) != tc.offs {
+				t.Fatalf("want %d offsets, got %d", tc.offs, len(r.NonNilOffsets))
+			}
+		})
+	}
+}
+
+func TestElementPositionBangDoesNotTouchExpressions(t *testing.T) {
+	// `ch <- !flag` (send) and `m[!ok]` (index) are ordinary unary NOT.
+	src := `package main
+func f(ch chan bool, m map[bool]int, flag bool, ok bool) {
+	ch <- !flag
+	_ = m[!ok]
+}
+`
+	r := Process("t.gon", []byte(src))
+	if len(r.NonNilOffsets) != 0 {
+		t.Fatalf("unary ! in expressions must not be recorded: %v", r.NonNilOffsets)
+	}
+	if !strings.Contains(string(r.Clean), "!flag") || !strings.Contains(string(r.Clean), "m[!ok]") {
+		t.Fatalf("unary ! was stripped:\n%s", string(r.Clean))
+	}
+}
+
 func TestUnaryNotNotStripped(t *testing.T) {
 	src := `package main
 func f(a bool, b bool) bool {

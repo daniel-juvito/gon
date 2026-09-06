@@ -1,0 +1,17 @@
+package main
+
+import "fmt"
+
+type T struct{}
+
+func mk() *T { return &T{} }
+
+// Element contracts satisfied at every construction site (v1.7 / M2b).
+func main() {
+	s := []!*T{mk(), mk()}
+	m := map[string]!*T{"a": mk()}
+	a := [2]!*T{mk(), mk()}
+	g := [...]!*T{mk()}
+	var both ![]!*T = []!*T{mk()}
+	fmt.Println(s, m, a, g, both)
+}

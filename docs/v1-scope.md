@@ -60,6 +60,9 @@ Static checks only. Enforced at `gon check` / `gon vet` time.
 | `x.(!T)` — `!` on any type-assertion target, interface or concrete | GN001 | **v1.6** |
 | Literal `nil` into a `![]T` / `!map` / `!chan` / `!func` position (var, arg, return, `!` field literal) | GN001 | **v1.6** (specified; partly emitted since v1.0) |
 | `![]T` / `!map` / `!chan` / `!func` **field** left at zero on construction; `f = nil`; selector is a non-nil source | GN002 / GN001 / GW001 | **v1.6** (specified; emitted since v1.2) |
+| Explicit `nil` as an element / map value under an element contract (`[]!*T{nil}`, `map[K]!*V{k: nil}`, `[]!I{nil}`) at a composite literal | GN001 | **v1.7** |
+| Fixed-array literal leaving a `!` nilable element index at zero (`[3]!*T{x}`, `[3]!*T{2: x}`) — one per literal; `[...]!*T` exempt | GN002 | **v1.7** |
+| Element `!` on a channel element (`chan !*T`), a map key (`map[!*K]V`), or a non-nilable element kind (`[]!int`) | GN003 | **v1.7** |
 
 Warnings alone do **not** fail the process (exit 0). Errors do (exit 1).
 
@@ -69,9 +72,16 @@ channel-state (open / buffered) contract. `append`, reslice, conversion, and
 type assertion produce ordinary values and never carry `!`. The zero-value
 containment walk still stops at every `*T` / `[]T` / `map` / `chan` /
 `interface` / `func` boundary — `!` on a field of one of those kinds is
-checked, but values reachable *through* it are not. Element-position
-contracts (`[]!T`, `map[K]!V`) are reserved for M2b (v1.7).
-Spec: [docs/rfc-type-coverage.md](rfc-type-coverage.md).
+checked, but values reachable *through* it are not.
+
+Element-position contracts (`[]!*T`, `[N]!*T`, `map[K]!*V`, `[]!I`) are
+**construction-time** obligations since **v1.7 (M2b)**: they check the
+elements written into a composite literal (and the zero-fill of a fixed
+array) at the construction site only. They are not lifetime invariants —
+`s[i] = nil`, `append`, and map assignment after construction are ordinary
+Go and are not tracked. `!` on a channel element or map key is GN003.
+Spec: [docs/rfc-type-coverage.md](rfc-type-coverage.md),
+[docs/rfc-element-contract-construction.md](rfc-element-contract-construction.md).
 
 ### Return-value contracts (v1.1)
 

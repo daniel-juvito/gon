@@ -85,6 +85,30 @@ func Process(filename string, src []byte) *Result {
 						// report it cleanly (RFC D6a) instead of a parse error.
 						typeModifiers[t.offset] = true
 					}
+				case token.RBRACK:
+					// Element position: []!E, [N]!E, [...]!E, map[K]!V (v1.7 /
+					// M2b). A ']' is never immediately followed by unary ! in a
+					// valid expression (NOT is prefix-only; `a[i]!b` is a syntax
+					// error), so this is unambiguously a type modifier.
+					typeModifiers[t.offset] = true
+				case token.CHAN:
+					// chan !E, <-chan !E — channel element position. Stripped so
+					// the checker can report GN003 (E11) instead of a parse error.
+					typeModifiers[t.offset] = true
+				case token.ARROW:
+					// chan<- !E: the arrow is a channel direction only when it
+					// follows 'chan'. A send statement (`ch <- !flag`) has an
+					// expression before the arrow and is left untouched.
+					if p := prevNonComment(tokens, prevIdx-1); p >= 0 && tokens[p].kind == token.CHAN {
+						typeModifiers[t.offset] = true
+					}
+				case token.LBRACK:
+					// map[!K]V — map key position (checker reports GN003; key
+					// contracts are deferred, RFC O1). Guarded by a preceding
+					// 'map' keyword so `m[!ok]` indexing is left untouched.
+					if p := prevNonComment(tokens, prevIdx-1); p >= 0 && tokens[p].kind == token.MAP {
+						typeModifiers[t.offset] = true
+					}
 				}
 			}
 		}
@@ -237,6 +261,15 @@ func markBalancedList(tokens []tokInfo, mask []bool, lparenIdx int) int {
 func nextNonComment(tokens []tokInfo, i int) int {
 	for i < len(tokens) && tokens[i].kind == token.COMMENT {
 		i++
+	}
+	return i
+}
+
+// prevNonComment returns the index of the nearest non-comment token at or
+// before i, or -1 if there is none.
+func prevNonComment(tokens []tokInfo, i int) int {
+	for i >= 0 && tokens[i].kind == token.COMMENT {
+		i--
 	}
 	return i
 }
