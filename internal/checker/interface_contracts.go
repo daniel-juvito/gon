@@ -16,9 +16,11 @@ import (
 // are accepted. Embedding does not propagate contracts (§3.7).
 
 // isNonNilSource reports whether expr is already an established non-nil source
-// under existing Gon contract rules: a `!`-bound identifier (D3d) or an
-// immediate call whose first result position is annotated `!T` (D4). No other
-// form — conversion, assertion, arbitrary expression — qualifies (D6).
+// under existing Gon contract rules: a `!`-bound identifier (D3d), an immediate
+// call whose first result position is annotated `!T` (D4), or a selector of a
+// `!` struct field — local or external (`.gna` `types:`), per
+// rfc-ecosystem-contract-expansion.md E3. No other form — conversion,
+// assertion, arbitrary expression — qualifies (D6).
 func (c *Checker) isNonNilSource(expr ast.Expr) bool {
 	switch e := expr.(type) {
 	case *ast.ParenExpr:
@@ -29,6 +31,8 @@ func (c *Checker) isNonNilSource(expr ast.Expr) bool {
 	case *ast.CallExpr:
 		results := c.resolveCallResults(e.Fun)
 		return len(results) > 0 && results[0]
+	case *ast.SelectorExpr:
+		return c.selectorFieldIsNonNil(e)
 	default:
 		return false
 	}

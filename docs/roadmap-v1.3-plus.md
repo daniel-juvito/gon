@@ -56,9 +56,9 @@ analysis (see v1.6, §4).
 | M2a | Struct-only construction + diagnostics + warnings | Core |
 | M2b | Element-contract construction subcases | M1b — element-level semantics |
 | M3 | Generic `!T` + instantiated generic contracts | M1a (full) + M1b named-type nilability semantics |
-| M4a | Cross-package / External resolution + non-interface application | Core + basic `.gna` model |
-| M4b | Interface-typed contract application | M1a + M4a application model |
-| M5a | `.gna` validation + external contract boundary | M4a |
+| M4a | Cross-package / External resolution + non-interface application | Core + basic `.gna` model — **shipped v1.5** |
+| M4b | Interface-typed contract application | M1a + M4a application model — **shipped v1.5** |
+| M5a | `.gna` validation + external contract boundary | M4a — **shipped v1.5** |
 | M5b | Generic `.gna` + generic contract application | M3 + M5a infrastructure |
 | M6a | `gon fmt` + `gon check` | Core |
 | M6b | LSP / editor support | M2a — contract tracing |
@@ -91,11 +91,15 @@ type with `!`.
 and downstream ecosystem work; its compatibility impact must be observable
 in isolation before anything is built on top of it.
 
-### v1.5 — Ecosystem Contract Expansion
+### v1.5 — Ecosystem Contract Expansion — SHIPPED (2026-09-06)
 **Scope:** M4a + M4b + M5a — cross-package and external `.gna`
 resolution/application (non-interface, then interface-typed), plus `.gna`
-conflict/duplicate validation and external contract boundary.
-**Dependency:** M4a: Core + basic `.gna` model. M4b: M1a (v1.4). M5a: M4a.
+validation against `go/types` (arity → GN003 + contract drop; unknown
+symbol → new **GW004**) and the external contract boundary.
+**RFC:** `docs/rfc-ecosystem-contract-expansion.md` (Status: Accepted —
+E1–E14 + §10 locked 2026-09-06). One-hop external structural traversal;
+`--strict` deferred to a follow-on; `receivers:` still reserved.
+**Dependency:** M4a: Core + basic `.gna` model. M4b: M1a (v1.4, shipped). M5a: M4a.
 **Breaking risk:** M4a/M4b: Possibly Yes (ecosystem compatibility
 exposure). M5a: non-breaking.
 **Rationale (R1, applied correctly):** M4b is *application* of a semantic

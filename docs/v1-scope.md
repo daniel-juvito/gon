@@ -20,8 +20,9 @@ Architectural rule (unchanged across v1.x):
 | v1.3.0 | Local-struct construction completeness (`new(T)`, keyed/unkeyed, nested); `ContractTrace`; GW003; `gon fmt`; `gon lsp` |
 | v1.4.0 | Interface value contracts: `!I` is interface-value non-nil only; ordinary `I` → `!I` is GN001 (M1a) |
 | v1.4.1 | `gon fmt` `!` re-insertion fix (token-lockstep, no more mis-placement when a type is used as both `!T` and `T`); no semantic change |
+| v1.5.0 | Ecosystem contract expansion (M4a+M4b+M5a): external `.gna` `types:` field contracts applied at construction/mutation/use across the package boundary; interface-typed external positions; `.gna` validated against `go/types` (arity → GN003 + drop, unknown symbol → new **GW004**) |
 
-`.gna` schema remains **1**. v1.1–v1.4 are checker-semantics changes, not format breaks. v1.2.1 is a patch only.
+`.gna` schema remains **1**. v1.1–v1.5 are checker-semantics changes, not format breaks. v1.2.1 is a patch only.
 
 ## Guaranteed
 
@@ -47,6 +48,12 @@ Static checks only. Enforced at `gon check` / `gon vet` time.
 | Redundant type assertion on a declared `!T` identifier | GW003 (warning) | **v1.3** |
 | Ordinary interface-typed value assigned / passed / returned where `!I` is required (incl. after `!= nil`, and explicit `I(x)` conversions) | GN001 | **v1.4** |
 | `!I` used as a type-assertion target (`x.(!I)`) | GN001 | **v1.4** |
+| Explicit `nil` written for a `!` field of an external type in a keyed `pkg.T{…}` literal | GN001 | **v1.5** |
+| `new(pkg.T)` / `&pkg.T{}` / `pkg.T{}` leaving an external `!` field (incl. promoted from an embedded external type, one hop) at zero | GN002 | **v1.5** |
+| Selector `x.F` of an external `!` field (`.gna` `types:`) is a non-nil source; `x.F = nil` is GN001 | GW001 / GN001 | **v1.5** |
+| Ordinary interface-typed value written into / assigned to an external `!I` field | GN001 | **v1.5** |
+| `.gna` `params`/`results` count disagrees with the resolved Go signature (variadic counts as one) — contract dropped | GN003 (error) | **v1.5** |
+| `.gna` names a `functions:` / `methods:` / `types:` symbol the package does not provide (method set incl. promoted) | GW004 (warning) | **v1.5** |
 
 Warnings alone do **not** fail the process (exit 0). Errors do (exit 1).
 

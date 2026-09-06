@@ -13,9 +13,11 @@ assignments or infer nilability from implementation details.
 checker (literal `nil` into `!T` slots, required struct fields, explicit
 `.gna` contracts, annotated return positions as non-nil sources, field storage
 invariants, complete local-struct construction including `new(T)` and unkeyed
-literals since v1.3, and — since v1.4 — interface value contracts (`!I` means
-the interface value is non-nil; the dynamic value is never constrained). It is
-not a runtime non-nil guarantee.
+literals since v1.3, since v1.4 interface value contracts (`!I` means the
+interface value is non-nil; the dynamic value is never constrained), and —
+since v1.5 — external `.gna` `types:` field contracts enforced across the
+package boundary plus `.gna` validation against `go/types` (arity → GN003,
+unknown symbol → GW004). It is not a runtime non-nil guarantee.
 
 Architectural rule:
 
@@ -27,7 +29,7 @@ Full scope contract: [docs/v1-scope.md](docs/v1-scope.md)
 ## Install
 
 ```bash
-go install github.com/daniel-juvito/gon/cmd/gon@v1.4.1
+go install github.com/daniel-juvito/gon/cmd/gon@v1.5.0
 ```
 
 Or from source:
@@ -142,7 +144,8 @@ _ = Outer{}                    // GN002
 n, x := "gon", 1
 _ = Outer{&n, struct{ X !*int }{&x}} // OK — unkeyed, declaration order
 
-// External SelectorExpr types stay keyed-only + .gna (M4 firewall)
+// Unkeyed external SelectorExpr literals stay behind the firewall;
+// keyed pkg.T{…}, new(pkg.T), &pkg.T{} and pkg.T{} are checked (v1.5)
 ```
 
 Diagnostics may carry a `ContractTrace` (origin path) for tooling; the
@@ -196,9 +199,13 @@ Rules:
 - `"T"` (or omitted) is ordinary — no non-nil claim
 - Missing annotation → ordinary (not an error)
 - Malformed annotation → hard error
-- Unknown symbol in an annotated package → `GW002`
+- Calling an un-annotated symbol of an annotated package → `GW002`
 - Annotations may only **strengthen** nilability under a real API contract
-- Field contracts for external types live under `types:` (v1.2)
+- Field contracts for external types live under `types:` (v1.2); since v1.5
+  they are enforced at construction, mutation, and use across the boundary
+- Since v1.5 the `.gna` is validated against `go/types`: a `params`/`results`
+  arity mismatch → `GN003` (and the entry is dropped); a `functions:` /
+  `methods:` / `types:` key the package does not provide → `GW004`
 
 Full format: [docs/gna-spec-v1.md](docs/gna-spec-v1.md)
 
@@ -206,12 +213,13 @@ Full format: [docs/gna-spec-v1.md](docs/gna-spec-v1.md)
 
 | Code  | Severity | Meaning |
 |-------|----------|---------|
-| GN001 | error    | literal `nil` assigned / passed / returned where `!T` is required; `nil` assigned into a `!T` field; an ordinary interface value where `!I` is required, or `!I` as a type-assertion target (v1.4) |
-| GN002 | error    | construction leaves a required non-nil field at zero (including nested / embedded / array; includes `new(T)`) |
-| GN003 | error    | malformed or mismatched `.gna` while resolving a package |
-| GW001 | warning  | comparison of a non-nil name or `!T` field selector with `nil` (always true/false) |
-| GW002 | warning  | package has `.gna` but this symbol is not listed |
+| GN001 | error    | literal `nil` assigned / passed / returned where `!T` is required; `nil` assigned into a `!T` field (local or external, v1.5); an ordinary interface value where `!I` is required (incl. an external `!I` field, v1.5), or `!I` as a type-assertion target (v1.4) |
+| GN002 | error    | construction leaves a required non-nil field at zero (including nested / embedded / array; includes `new(T)`; external `pkg.T` incl. one-hop embedded promotion, v1.5) |
+| GN003 | error    | malformed `.gna`, or (v1.5) a `params`/`results` arity mismatch vs `go/types` — the entry is dropped |
+| GW001 | warning  | comparison of a non-nil name or `!T` field selector (local or external, v1.5) with `nil` (always true/false) |
+| GW002 | warning  | calling an un-annotated symbol of an annotated package |
 | GW003 | warning  | redundant type assertion on a declared `!T` identifier (v1.3) |
+| GW004 | warning  | `.gna` names a `functions:` / `methods:` / `types:` symbol the package does not provide (v1.5) |
 
 ## Scope and limitations
 
@@ -226,6 +234,8 @@ Full format: [docs/gna-spec-v1.md](docs/gna-spec-v1.md)
 - Local-struct construction completeness: `new(T)`, keyed/unkeyed, nested (v1.3)
 - `gon fmt` and minimal stdio LSP (v1.3)
 - Interface value contracts: `!I` is interface-value non-nil only (v1.4)
+- External `.gna` `types:` field contracts across the package boundary, and
+  `.gna` validation against `go/types` — GN003 arity, GW004 unknown symbol (v1.5)
 
 **Out of scope**
 

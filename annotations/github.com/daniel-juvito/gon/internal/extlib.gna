@@ -15,9 +15,26 @@ functions:
     results:
       - "string"
 
+  Open:
+    results:
+      - "!io.Reader"
+
 methods:
   Handle.Put:
     params:
       - "![]byte"
     results:
       - "error"
+
+types:
+  Conn:
+    fields:
+      DB: "!*Handle"
+      Log: "!*Handle"
+      W: "!io.Writer"
+  Base:
+    fields:
+      Root: "!*Handle"
+  Wrapped:
+    fields:
+      Name: "!*Handle"
