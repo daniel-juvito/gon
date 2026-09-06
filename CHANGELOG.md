@@ -1,5 +1,48 @@
 # Changelog
 
+## [1.4.0] — 2026-09-05
+
+### Added
+
+- **M1a — Interface non-nil contracts** (`docs/rfc-interface-semantics.md`).
+  `!I` means the *interface value* is non-nil; it never constrains the
+  interface's dynamic value.
+  - **D3a** — a concrete/typed value assignable to `I` satisfies `!I`, even
+    when it is itself typed-nil.
+  - **D3b (new rejection)** — an ordinary interface-typed value cannot
+    satisfy `!I` (GN001), unconditionally. An explicit `!= nil` check does
+    not narrow it. Enforced at `var` init, plain assignment, `return`, and
+    `!I` call arguments.
+  - **D3c** — `nil` literal → `!I` is GN001 (unchanged path).
+  - **D3d / D4** — an existing `!I` binding, or a result declared `!I`,
+    satisfies `!I` and is a non-nil source at the call site — but only for
+    the **same** interface type (`types.Identical`). `!ReadCloser` is not a
+    `!Reader` source and vice versa: `!` does not propagate across an
+    embedded/embedding interface (§3.7). Enforced with the resolved target
+    type at all four sites: `var` init, plain assignment, `return`, and
+    `!I` call arguments.
+  - **D6a** — `x.(!I)` (interface assertion target) is rejected with GN001
+    instead of a parse error; the preprocessor now recognises the `!` in a
+    type-assertion target. `x.(!*T)` (concrete) is left for a later RFC.
+  - **D6c** — an explicit conversion `I(x)` has interface static type and
+    cannot satisfy `!I`; the checker does not look through the conversion to
+    the concrete operand.
+
+### Changed
+
+- `gon version` reports `1.4.0`.
+
+### Compatibility
+
+- No `.gna` schema bump (schema remains **1**). `!` on interface types was
+  already valid syntax; this release only defines its semantics.
+- Existing GN001/GN002/GW001/GW002/GW003 codes and severities preserved.
+- The only new rejection is ordinary `I` → `!I` (and `nil`/`x.(!I)` in the
+  same position). Code that does not put a `!` on an interface type is
+  unchanged.
+- Still no type coverage, no generics, no flow-sensitive nilability, no
+  dynamic-value tracking.
+
 ## [1.3.0] — 2026-08-19
 
 ### Added

@@ -79,6 +79,11 @@ func Process(filename string, src []byte) *Result {
 					// Only when this LPAREN/COMMA is inside a signature type list.
 					if inTypeList[prevIdx] {
 						typeModifiers[t.offset] = true
+					} else if prev.kind == token.LPAREN && isTypeAssertLParen(tokens, prevIdx) {
+						// Type-assertion target: x.(!T). Not a Gon mechanism, but
+						// strip the ! and record the offset so the checker can
+						// report it cleanly (RFC D6a) instead of a parse error.
+						typeModifiers[t.offset] = true
 					}
 				}
 			}
@@ -234,4 +239,15 @@ func nextNonComment(tokens []tokInfo, i int) int {
 		i++
 	}
 	return i
+}
+
+// isTypeAssertLParen reports whether the LPAREN at lparenIdx opens a type
+// assertion — i.e. it is immediately preceded by a PERIOD (`x.(`). Used to
+// recognize `x.(!T)` where the `!` is a type modifier, not unary NOT.
+func isTypeAssertLParen(tokens []tokInfo, lparenIdx int) bool {
+	j := lparenIdx - 1
+	for j >= 0 && tokens[j].kind == token.COMMENT {
+		j--
+	}
+	return j >= 0 && tokens[j].kind == token.PERIOD
 }

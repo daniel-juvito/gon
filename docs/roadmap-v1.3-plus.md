@@ -78,9 +78,13 @@ warnings, CLI (`gon fmt`, `gon check`), and LSP/editor support.
 into separate releases — this is a coherent "strengthen the existing
 checker/toolchain" story.
 
-### v1.4 — Interface Semantic Gate
+### v1.4 — Interface Semantic Gate — SHIPPED (2026-09-05)
 **Scope:** M1a — Interface RFC (`!I` semantics, typed-nil behavior,
-method-set contracts).
+method-set contracts). Implemented per `docs/rfc-interface-semantics.md`
+(Status: Accepted). Observed compatibility impact: one new rejection —
+ordinary `I` → `!I` (with `nil` and `x.(!I)` in the same position). No
+`.gna` schema bump. No change to code that does not annotate an interface
+type with `!`.
 **Dependency:** Core.
 **Breaking risk:** Possibly Yes — highest fan-out of any pending RFC.
 **Rationale (R1):** Solo release, mandatory. This decision gates M3, M4b,

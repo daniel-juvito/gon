@@ -135,6 +135,7 @@ func (c *Checker) typeCheckPackages() bool {
 func (c *Checker) typeCheckFallback() {
 	info := &types.Info{
 		Selections: make(map[*ast.SelectorExpr]*types.Selection),
+		Defs:       make(map[*ast.Ident]types.Object),
 		Uses:       make(map[*ast.Ident]types.Object),
 		Types:      make(map[ast.Expr]types.TypeAndValue),
 	}

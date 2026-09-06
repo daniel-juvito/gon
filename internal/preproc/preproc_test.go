@@ -106,6 +106,43 @@ func f(a bool, b bool) bool {
 	}
 }
 
+func TestTypeAssertBangStripped(t *testing.T) {
+	// x.(!T) is not a Gon mechanism, but the ! is a type modifier there:
+	// strip it and record the offset so the checker reports it cleanly
+	// instead of the parser choking (RFC interface-semantics D6a).
+	src := `package main
+func f(x any) {
+	r := x.(!T)
+	v, ok := x.(!T)
+	_, _, _ = r, v, ok
+}
+`
+	r := Process("t.gon", []byte(src))
+	clean := string(r.Clean)
+	if strings.Contains(clean, "!T") {
+		t.Fatalf("! not stripped from type-assertion target:\n%s", clean)
+	}
+	if strings.Count(clean, "x.(T)") != 2 {
+		t.Fatalf("expected two stripped assertions:\n%s", clean)
+	}
+	if len(r.NonNilOffsets) != 2 {
+		t.Fatalf("expected 2 recorded non-nil offsets, got %d", len(r.NonNilOffsets))
+	}
+}
+
+func TestUnaryNotAfterParenNotStripped(t *testing.T) {
+	// A LPAREN that is not `.(` must not trigger type-assertion stripping.
+	src := `package main
+func f(a bool) bool {
+	return (!a)
+}
+`
+	r := Process("t.gon", []byte(src))
+	if !strings.Contains(string(r.Clean), "(!a)") {
+		t.Fatalf("unary ! after plain ( was stripped:\n%s", string(r.Clean))
+	}
+}
+
 func TestClassicStillWorks(t *testing.T) {
 	src := `package main
 type S struct { X !*int }

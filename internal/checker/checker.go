@@ -27,6 +27,10 @@ type Checker struct {
 	// false is also stored so a nullable shadowing declaration hides an outer !T.
 	scopes             []map[string]bool
 	currentFuncReturns []bool
+	// currentFuncResultTypes holds Go types of the current function's results
+	// (parallel to currentFuncReturns). Used by interface contracts for D3d
+	// same-type identity checks on !I returns.
+	currentFuncResultTypes []types.Type
 
 	// resolver supplies external package nilability contracts from .gna files.
 	// Set via NewWithAnnotations; nil means no external annotations.
@@ -234,8 +238,13 @@ func (c *Checker) registerPackageVars() {
 			}
 			if nn {
 				for i, val := range vs.Values {
-					if i < len(vs.Names) && isNilIdent(val) {
+					if i >= len(vs.Names) {
+						continue
+					}
+					if isNilIdent(val) {
 						c.addError(val.Pos(), "GN001", fmt.Sprintf("cannot assign nil to non-nil type !%s", formatType(vs.Type)))
+					} else if c.cannotSatisfyBangInterface(val, c.staticTypeOf(vs.Type)) {
+						c.addError(val.Pos(), "GN001", fmt.Sprintf("cannot assign ordinary interface value to non-nil type !%s", formatType(vs.Type)))
 					}
 				}
 			}
@@ -274,7 +283,22 @@ func (c *Checker) checkPackageLevelComposites() {
 
 func (c *Checker) checkFuncDecl(d *ast.FuncDecl) {
 	prev := c.currentFuncReturns
+	prevTypes := c.currentFuncResultTypes
 	c.currentFuncReturns = c.funcReturns[d.Name.Name]
+	c.currentFuncResultTypes = nil
+	if c.info != nil && d.Name != nil {
+		if obj := c.info.Defs[d.Name]; obj != nil {
+			if fn, ok := obj.(*types.Func); ok {
+				if sig, ok := fn.Type().(*types.Signature); ok {
+					res := sig.Results()
+					c.currentFuncResultTypes = make([]types.Type, res.Len())
+					for i := 0; i < res.Len(); i++ {
+						c.currentFuncResultTypes[i] = res.At(i).Type()
+					}
+				}
+			}
+		}
+	}
 	c.pushScope()
 
 	if d.Recv != nil {
@@ -300,6 +324,7 @@ func (c *Checker) checkFuncDecl(d *ast.FuncDecl) {
 
 	c.popScope()
 	c.currentFuncReturns = prev
+	c.currentFuncResultTypes = prevTypes
 }
 
 func (c *Checker) checkBlockScope(block *ast.BlockStmt) {
@@ -384,8 +409,12 @@ func (c *Checker) checkLocalVarDecl(d *ast.GenDecl) {
 			nn := c.isNonNil(vs.Type)
 			for i, name := range vs.Names {
 				c.define(name.Name, nn)
-				if nn && i < len(vs.Values) && isNilIdent(vs.Values[i]) {
-					c.addError(vs.Values[i].Pos(), "GN001", fmt.Sprintf("cannot assign nil to non-nil type !%s", formatType(vs.Type)))
+				if nn && i < len(vs.Values) {
+					if isNilIdent(vs.Values[i]) {
+						c.addError(vs.Values[i].Pos(), "GN001", fmt.Sprintf("cannot assign nil to non-nil type !%s", formatType(vs.Type)))
+					} else if c.cannotSatisfyBangInterface(vs.Values[i], c.staticTypeOf(vs.Type)) {
+						c.addError(vs.Values[i].Pos(), "GN001", fmt.Sprintf("cannot assign ordinary interface value to non-nil type !%s", formatType(vs.Type)))
+					}
 				}
 			}
 			if len(vs.Values) == 0 {
@@ -429,8 +458,22 @@ func (c *Checker) checkAssignStmt(assign *ast.AssignStmt) {
 			break
 		}
 		if id, ok := lhs.(*ast.Ident); ok {
-			if nn, exists := c.lookup(id.Name); exists && nn && isNilIdent(assign.Rhs[i]) {
-				c.addError(assign.Rhs[i].Pos(), "GN001", fmt.Sprintf("cannot assign nil to non-nil variable !%s", id.Name))
+			if nn, exists := c.lookup(id.Name); exists && nn {
+				if isNilIdent(assign.Rhs[i]) {
+					c.addError(assign.Rhs[i].Pos(), "GN001", fmt.Sprintf("cannot assign nil to non-nil variable !%s", id.Name))
+				} else if assign.Tok != token.DEFINE {
+					// `:=` creates a fresh (shadowing) binding, so a value flows
+					// into an existing `!I` only on plain assignment (D3b).
+					var target types.Type
+					if c.info != nil {
+						if obj := c.info.ObjectOf(id); obj != nil {
+							target = obj.Type()
+						}
+					}
+					if c.cannotSatisfyBangInterface(assign.Rhs[i], target) {
+						c.addError(assign.Rhs[i].Pos(), "GN001", fmt.Sprintf("cannot assign ordinary interface value to non-nil variable !%s", id.Name))
+					}
+				}
 			}
 		}
 		if sel, ok := lhs.(*ast.SelectorExpr); ok {
@@ -494,8 +537,19 @@ func (c *Checker) defineFromCallResults(assign *ast.AssignStmt) {
 
 func (c *Checker) checkReturnStmt(ret *ast.ReturnStmt) {
 	for i, result := range ret.Results {
-		if i < len(c.currentFuncReturns) && c.currentFuncReturns[i] && isNilIdent(result) {
+		if i >= len(c.currentFuncReturns) || !c.currentFuncReturns[i] {
+			continue
+		}
+		if isNilIdent(result) {
 			c.addError(result.Pos(), "GN001", "cannot return nil from function with non-nil return type")
+		} else {
+			var target types.Type
+			if i < len(c.currentFuncResultTypes) {
+				target = c.currentFuncResultTypes[i]
+			}
+			if c.cannotSatisfyBangInterface(result, target) {
+				c.addError(result.Pos(), "GN001", "cannot return ordinary interface value from function with non-nil return type")
+			}
 		}
 	}
 }
@@ -515,8 +569,13 @@ func (c *Checker) checkCallExpr(call *ast.CallExpr) {
 	}
 	for i, arg := range call.Args {
 		pi := i - argOffset
-		if pi >= 0 && pi < len(params) && params[pi] && isNilIdent(arg) {
+		if pi < 0 || pi >= len(params) || !params[pi] {
+			continue
+		}
+		if isNilIdent(arg) {
 			c.addError(arg.Pos(), "GN001", fmt.Sprintf("cannot pass nil as non-nil argument %d to %s", pi+1, display))
+		} else if c.cannotSatisfyBangInterface(arg, c.callArgParamType(call.Fun, pi)) {
+			c.addError(arg.Pos(), "GN001", fmt.Sprintf("cannot pass ordinary interface value as non-nil argument %d to %s", pi+1, display))
 		}
 	}
 }
