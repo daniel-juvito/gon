@@ -95,7 +95,9 @@ in isolation before anything is built on top of it.
 **Scope:** M4a + M4b + M5a — cross-package and external `.gna`
 resolution/application (non-interface, then interface-typed), plus `.gna`
 conflict/duplicate validation and external contract boundary.
-**Dependency:** M4a: Core + basic `.gna` model. M4b: M1a (v1.4). M5a: M4a.
+**RFC:** `docs/rfc-ecosystem-contract-expansion.md` (Draft — decision matrix
+E1–E14 proposed, pending owner review; §10 open questions).
+**Dependency:** M4a: Core + basic `.gna` model. M4b: M1a (v1.4, shipped). M5a: M4a.
 **Breaking risk:** M4a/M4b: Possibly Yes (ecosystem compatibility
 exposure). M5a: non-breaking.
 **Rationale (R1, applied correctly):** M4b is *application* of a semantic
