@@ -22,6 +22,24 @@ func TestFormatPreservesBang(t *testing.T) {
 	}
 }
 
+func TestFormatPreservesElementBang(t *testing.T) {
+	// v1.7 / M2b: element `!` must survive the strip / go-format / re-insert
+	// round-trip in place.
+	src := "package main\n" +
+		"func a() []!*T { return nil }\n" +
+		"func b(m map[string]!*T) {}\n" +
+		"func c() [3]!*T { return [3]!*T{} }\n"
+	out := mustFormat(t, src)
+	for _, want := range []string{"[]!*T", "map[string]!*T", "[3]!*T"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("element ! not preserved (want %q):\n%s", want, out)
+		}
+	}
+	if out != mustFormat(t, out) {
+		t.Fatalf("not idempotent:\n%s", out)
+	}
+}
+
 func TestFormatIdempotentBang(t *testing.T) {
 	src := "package main\nfunc f(x !*int) {}\n"
 	out1 := mustFormat(t, src)

@@ -54,7 +54,7 @@ analysis (see v1.6, §4).
 | M1a | Interface semantics + method-set contracts | Core — **shipped v1.4** |
 | M1b | Type Coverage semantics | Core — **shipped v1.6** |
 | M2a | Struct-only construction + diagnostics + warnings | Core |
-| M2b | Element-contract construction subcases | M1b — element-level semantics |
+| M2b | Element-contract construction subcases | M1b — **shipped v1.7** |
 | M3 | Generic `!T` + instantiated generic contracts | M1a (full) + M1b named-type nilability semantics |
 | M4a | Cross-package / External resolution + non-interface application | Core + basic `.gna` model — **shipped v1.5** |
 | M4b | Interface-typed contract application | M1a + M4a application model — **shipped v1.5** |
@@ -127,10 +127,14 @@ type" story (R2). If the owner takes C5 option Q (status quo) the release
 becomes fully non-breaking and folding M1b into v1.7 with M2b is on the
 table (RFC O1/O7).
 
-### v1.7 — Element-Contract Construction
+### v1.7 — Element-Contract Construction — SHIPPED (2026-09-07)
 **Scope:** M2b — element-contract construction subcases.
+**RFC:** `docs/rfc-element-contract-construction.md` (Status: Accepted —
+E1–E12 locked, O1/O4/O5 deferred, 2026-09-07).
 **Dependency:** M1b element-level semantics (v1.6).
-**Breaking risk:** Non-breaking, assuming M1b semantics are unchanged.
+**Breaking risk:** Non-breaking — every new diagnostic (GN001 nil element,
+GN002 fixed-array element zero-fill, GN003 malformed element `!`) fires
+only on syntax v1.6 rejected. `.gna` schema stays 1.
 **Rationale (R2):** Follow-on extension; semantic risk was already
 absorbed in v1.6, so no isolation needed here.
 

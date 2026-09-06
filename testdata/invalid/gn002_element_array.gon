@@ -1,0 +1,6 @@
+package main
+
+type T struct{}
+
+// Fixed-array literal leaves a !*T index at its zero value (v1.7 / M2b).
+var slots [3]!*T = [3]!*T{2: &T{}}

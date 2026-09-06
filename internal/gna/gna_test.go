@@ -81,18 +81,42 @@ functions:
 	}
 }
 
-func TestElementPositionBangRejected(t *testing.T) {
+// v1.7 / M2b (rfc-element-contract-construction.md E8): element-position "!"
+// is legal in .gna type strings for slices, arrays, and map values. The
+// returned flag still reflects only the outermost "!".
+func TestElementPositionBangAccepted(t *testing.T) {
 	src := `
 schema: 1
 package: example
 functions:
   Build:
+    params:
+      - "map[string]!*Service"
+      - "[8]!*Slot"
     results:
       - "[]!*T"
+      - "![]!*T"
 `
-	_, err := LoadBytes("example.gna", []byte(src))
-	if err == nil || !strings.Contains(err.Error(), "outermost position") {
-		t.Fatalf("element-position ! must be rejected, got: %v", err)
+	f, err := LoadBytes("example.gna", []byte(src))
+	if err != nil {
+		t.Fatalf("element-position ! must load: %v", err)
+	}
+	sig := f.Functions["Build"]
+	if sig.Params[0] || sig.Params[1] || sig.Results[0] {
+		t.Fatalf("element-only ! must not set the outermost flag: %v %v", sig.Params, sig.Results)
+	}
+	if !sig.Results[1] {
+		t.Fatalf("leading ! in \"![]!*T\" must set the outermost flag: %v", sig.Results)
+	}
+}
+
+// E11 / O1: an "!" on a channel element or a map key remains a load error.
+func TestChannelElementBangRejected(t *testing.T) {
+	for _, ann := range []string{"chan !*T", "chan<- !T", "<-chan !*T", "map[!*K]V"} {
+		src := "schema: 1\npackage: example\nfunctions:\n  Build:\n    results:\n      - \"" + ann + "\"\n"
+		if _, err := LoadBytes("example.gna", []byte(src)); err == nil {
+			t.Fatalf("channel element ! (%q) must be rejected", ann)
+		}
 	}
 }
 

@@ -1,0 +1,8 @@
+package main
+
+type T struct{}
+
+// Explicit nil written as an element under an element contract (v1.7 / M2b).
+func handlers() []!*T {
+	return []!*T{nil}
+}

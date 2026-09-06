@@ -3,7 +3,9 @@ package checker
 import (
 	"fmt"
 	"go/ast"
+	"go/constant"
 	"go/token"
+	"strconv"
 )
 
 // checkNewConstruction treats new(T) as a zero-value construction site when T
@@ -58,13 +60,20 @@ func (c *Checker) checkCompositeLitConstruction(lit *ast.CompositeLit) {
 		trace := &ContractTrace{Origin: origin}
 		c.reportMissingFromStructASTTraced(lit.Pos(), t, provided, "", trace)
 	case *ast.ArrayType:
+		// v1.7 / M2b: element `!` contracts (GN001 explicit-nil, GN002
+		// fixed-array zero-fill).
+		c.checkElementContracts(lit, nil)
 		if t.Len == nil {
-			return
+			return // slice: no element zero-fill
 		}
+		c.checkFixedArrayElementShortfall(lit, t)
 		if len(lit.Elts) == 0 {
 			trace := &ContractTrace{Origin: origin}
 			c.reportMissingNonNilFieldsTraced(lit.Pos(), t.Elt, nil, "", trace)
 		}
+	case *ast.MapType:
+		// v1.7 / M2b: map value `!` contract (GN001 explicit-nil).
+		c.checkElementContracts(lit, nil)
 	case *ast.SelectorExpr:
 		// E2 firewall: an unkeyed external literal with elements is not a
 		// construction site — Gon does not reconstruct external field order.
@@ -77,6 +86,155 @@ func (c *Checker) checkCompositeLitConstruction(lit *ast.CompositeLit) {
 		c.reportExternalEmbeddedFields(lit.Pos(), t, provided)
 		c.checkExternalKeyedFieldValues(lit, t)
 	}
+}
+
+// checkElementContracts enforces element `!` contracts at a composite-literal
+// construction site (v1.7 / M2b, RFC E4 / E12): an explicitly written element
+// (or map value) that is the untyped nil literal is GN001. Non-literal
+// expressions — including ordinary calls that may return nil — are accepted
+// (conservative, mirrors Type Coverage C4).
+//
+// elemTypeAST is the element / value type expression to check against; when nil
+// it is derived from lit.Type. It is passed explicitly when recursing into an
+// elided nested composite literal (`[][]!*T{{nil}}`).
+func (c *Checker) checkElementContracts(lit *ast.CompositeLit, elemTypeAST ast.Expr) {
+	if lit == nil {
+		return
+	}
+	isMap := false
+	if elemTypeAST == nil {
+		switch t := lit.Type.(type) {
+		case *ast.ArrayType:
+			elemTypeAST = t.Elt
+		case *ast.MapType:
+			elemTypeAST = t.Value
+			isMap = true
+		default:
+			return
+		}
+	}
+	if elemTypeAST == nil {
+		return
+	}
+	elemCarriesBang := c.isNonNil(elemTypeAST)
+
+	// When the element type is itself an array/map, an elided child literal is
+	// a nested construction site: recurse with the element's own element type,
+	// and (for a fixed array) re-run the zero-fill check against the element
+	// type itself.
+	var innerElemType ast.Expr
+	var childArrayType *ast.ArrayType
+	switch et := elemTypeAST.(type) {
+	case *ast.ArrayType:
+		innerElemType = et.Elt
+		if et.Len != nil {
+			childArrayType = et
+		}
+	case *ast.MapType:
+		innerElemType = et.Value
+	}
+
+	kind := "element"
+	if isMap {
+		kind = "map value"
+	}
+	for _, elt := range lit.Elts {
+		val := elt
+		if kv, ok := elt.(*ast.KeyValueExpr); ok {
+			val = kv.Value
+		}
+		if elemCarriesBang && isNilIdent(val) {
+			c.addErrorTrace(val.Pos(), "GN001", fmt.Sprintf(
+				"cannot use nil as non-nil %s %s", kind, formatType(elemTypeAST)),
+				&ContractTrace{Origin: compositeOrigin(lit)})
+			continue
+		}
+		if innerElemType != nil {
+			if child, ok := val.(*ast.CompositeLit); ok && child.Type == nil {
+				c.checkElementContracts(child, innerElemType)
+				if childArrayType != nil {
+					c.checkFixedArrayElementShortfall(child, childArrayType)
+				}
+			}
+		}
+	}
+}
+
+// checkFixedArrayElementShortfall emits one GN002 when a fixed-array composite
+// literal leaves at least one index at its zero value and the element type is a
+// nilable kind carrying `!` (v1.7 / M2b, RFC E5). Coverage is by index, not by
+// element count: keyed entries cover their key, unkeyed entries cover the
+// running position. `[...]E` never reaches here (length == element count).
+func (c *Checker) checkFixedArrayElementShortfall(lit *ast.CompositeLit, t *ast.ArrayType) {
+	if lit == nil || t == nil || t.Len == nil {
+		return
+	}
+	if _, ok := t.Len.(*ast.Ellipsis); ok {
+		return
+	}
+	if !c.isNonNil(t.Elt) || !c.elemTypeIsNilable(t.Elt) {
+		return
+	}
+	n, ok := c.constIntValue(t.Len)
+	if !ok || n <= 0 {
+		return
+	}
+	covered := make(map[int64]bool)
+	next := int64(0)
+	for _, elt := range lit.Elts {
+		if kv, ok := elt.(*ast.KeyValueExpr); ok {
+			if k, ok := c.constIntValue(kv.Key); ok {
+				covered[k] = true
+				next = k + 1
+			}
+			continue
+		}
+		covered[next] = true
+		next++
+	}
+	for i := int64(0); i < n; i++ {
+		if !covered[i] {
+			c.addErrorTrace(lit.Pos(), "GN002", fmt.Sprintf(
+				"fixed-array literal leaves non-nil element index %d at its zero value", i),
+				&ContractTrace{Origin: compositeOrigin(lit)})
+			return
+		}
+	}
+}
+
+// elemTypeIsNilable reports whether an element type expression names a kind
+// whose zero value is nil (pointer, slice, map, chan, func, interface, or a
+// named/alias of those).
+func (c *Checker) elemTypeIsNilable(e ast.Expr) bool {
+	if e == nil {
+		return false
+	}
+	if p, ok := e.(*ast.ParenExpr); ok {
+		return c.elemTypeIsNilable(p.X)
+	}
+	if _, ok := e.(*ast.InterfaceType); ok {
+		return true
+	}
+	return c.nilableRefKind(e) || c.staticTypeIsInterface(e)
+}
+
+// constIntValue extracts a non-negative constant integer value from an
+// expression (array length or composite-literal key). Prefers go/types
+// constant folding; falls back to a literal INT.
+func (c *Checker) constIntValue(e ast.Expr) (int64, bool) {
+	if c.info != nil {
+		if tv, ok := c.info.Types[e]; ok && tv.Value != nil {
+			if i, ok := constant.Int64Val(tv.Value); ok {
+				return i, true
+			}
+		}
+	}
+	if bl, ok := e.(*ast.BasicLit); ok && bl.Kind == token.INT {
+		if i, err := strconv.ParseInt(bl.Value, 0, 64); err == nil {
+			return i, true
+		}
+	}
+	return 0, false
 }
 
 // isUnkeyedWithElts reports whether lit has elements, none of which are

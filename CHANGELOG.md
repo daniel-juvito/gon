@@ -1,5 +1,51 @@
 # Changelog
 
+## [1.7.0] — 2026-09-07
+
+### Added
+
+- **Element-Contract Construction** — M2b
+  (`docs/rfc-element-contract-construction.md`). `!` in **element / value
+  position** is now activated: `[]!*T`, `[N]!*T`, `map[K]!*V`, `[]!I` — "a
+  slice/array/map whose elements (or map values) are non-nil". It is a
+  **construction-time** obligation, not a lifetime invariant of the
+  container: after the value exists, `s[i] = nil`, `append`, and map
+  assignment are ordinary Go and are not tracked.
+  - **Explicit `nil` written as an element / map value under an element `!`
+    is GN001** — `[]!*T{nil}`, `map[string]!*T{"k": nil}`. Ordinary
+    expressions (including calls that may return nil) are accepted,
+    conservatively, exactly as for outer `!` (Type Coverage C4).
+  - **A fixed-array literal that leaves a `!` nilable element index at its
+    zero value is GN002** — one diagnostic per literal. Coverage is by
+    index: `[3]!*T{x}`, `[3]!*T{2: x}`, and `[3]!*T{0: x, 2: x}` are each
+    GN002; `[...]!*T{x}` (inferred length) never is.
+  - **Malformed element `!` is GN003** — on a channel element (`chan !*T`),
+    on a map **key** (`map[!*K]V`, deferred), or on a non-nilable element
+    kind (`[]!int`).
+  - The outermost-binding rule is unchanged and compositional: `![]!*T`
+    constrains both the slice and its elements; a leading `!` still binds
+    only the outermost constructor.
+- **`.gna` type strings** accept element `!` (`"[]!*T"`,
+  `"map[string]!*Service"`, `"[8]!*Slot"`). The recorded flag still
+  reflects only the outermost `!`. An `!` on a channel element remains a
+  load error.
+
+### Changed
+
+- `gon version` reports `1.7.0`.
+- `gon fmt` preserves element `!` in place across the format round-trip
+  (no change needed — re-insertion is offset-driven).
+
+### Compatibility
+
+- **Non-breaking.** Every new diagnostic fires only on syntax that v1.6
+  rejected outright (element `!` was GN003 / a parse error / a `.gna` load
+  error). Programs valid under v1.6 remain valid.
+- `.gna` semantic schema remains **1** (I7) — only the acceptance of a
+  previously-reserved string form changes.
+- Older `.gna` tooling built against v1.6 may still reject the newly legal
+  element forms; consumers that re-validate `.gna` should update.
+
 ## [1.6.0] — 2026-09-06
 
 ### Added

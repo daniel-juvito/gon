@@ -229,8 +229,10 @@ mechanism concrete `!*T` already uses.
 - In a `.gna` type string, a leading `!` binds **only the outermost type
   constructor**. `"!map[string]*T"` means "the map is non-nil"; it says
   nothing about the `*T` values. `"![]*T"` means "the slice is non-nil".
-  Element-level contracts (`"[]!*T"`, `"map[string]!*T"`) are **M2b /
-  v1.7** and are a parse error / GN003 in v1.6.
+  Element-level contracts (`"[]!*T"`, `"map[string]!*T"`) were a parse
+  error / GN003 in v1.6; **v1.7 (M2b) lifts that reservation** — see
+  `docs/rfc-element-contract-construction.md`. A channel-element or map-key
+  `!` remains rejected.
 - Authoring principle carries over verbatim from `docs/gna-spec-v1.md`: a
   `[]byte` parameter must not be marked `"![]byte"` merely because callers
   "usually" pass a non-nil slice. Mark it `!` only when the API contract
@@ -288,7 +290,8 @@ in a way that would matter. If the owner rejects C5(P) in favour of C5(Q)
 
 `!` on nilable kinds does **not** introduce:
 
-1. element nilability (`[]!T`, `map[K]!V`, `chan !T`) — M2b / v1.7;
+1. element nilability (`[]!T`, `map[K]!V`) — delivered by M2b / v1.7
+   (`chan !T` stays rejected);
 2. length / non-emptiness contracts for slices or maps;
 3. channel state: open/closed, buffered/unbuffered, capacity;
 4. flow tracking through `append`, reslice, `close`, `delete`, send/receive;

@@ -89,9 +89,16 @@ types:                            # optional; field contracts (v1.2)
   non-nil — never a length, non-emptiness, or channel-state contract. A
   leading `!` binds **only the outermost type constructor**:
   `"!map[string]*T"` says the map is non-nil and nothing about the `*T`
-  values. An `!` in element position (`"[]!*T"`, `"map[string]!V"`) is a
-  **load error** in v1 (reserved for M2b). See
-  [docs/rfc-type-coverage.md](rfc-type-coverage.md). No schema bump.
+  values.
+- `"[]!*T"`, `"map[string]!V"`, `"[8]!*Slot"` (v1.7 / M2b) — an `!` in
+  element / value position is legal and denotes an element contract. The
+  recorded flag still reflects only the outermost `!`; element nilability
+  is documentation across the `.gna` boundary and is enforced only at
+  local composite-literal construction sites. An `!` on a **channel
+  element** (`"chan !*T"`) or a **map key** (`"map[!*K]V"`) remains a load
+  error. See
+  [docs/rfc-element-contract-construction.md](rfc-element-contract-construction.md).
+  No schema bump.
 - `"!T"` where `T`'s underlying kind is **not** nilable (struct, array,
   basic) is a malformed contract — **GN003** (v1.6).
 
