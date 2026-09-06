@@ -27,7 +27,7 @@ Full scope contract: [docs/v1-scope.md](docs/v1-scope.md)
 ## Install
 
 ```bash
-go install github.com/daniel-juvito/gon/cmd/gon@v1.4.0
+go install github.com/daniel-juvito/gon/cmd/gon@v1.4.1
 ```
 
 Or from source:
@@ -151,7 +151,7 @@ declared `!T` identifiers emit **GW003**.
 
 Tooling:
 
-- `gon fmt` — `go/format` on the clean form, then word-boundary `!` re-insertion
+- `gon fmt` — `go/format` on the clean form, then token-lockstep `!` re-insertion (v1.4.1; refuses rather than write a mis-aligned result)
 - `gon lsp` — minimal stdio LSP (`initialize` / `didOpen` / `didChange` /
   diagnostics / `shutdown`); same checker pipeline as `gon check`
 
