@@ -55,6 +55,47 @@ functions:
 	}
 }
 
+// v1.6 / M1b (rfc-type-coverage.md C10): a leading "!" binds only the
+// outermost type constructor. An "!" in element position is reserved for M2b
+// and must be rejected, not silently ignored.
+func TestOutermostBangOnReferenceKindsParsed(t *testing.T) {
+	src := `
+schema: 1
+package: example
+functions:
+  Build:
+    params:
+      - "![]byte"
+      - "!map[string]*T"
+    results:
+      - "!func() error"
+      - "!chan int"
+`
+	f, err := LoadBytes("example.gna", []byte(src))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sig := f.Functions["Build"]
+	if !sig.Params[0] || !sig.Params[1] || !sig.Results[0] || !sig.Results[1] {
+		t.Fatalf("outermost ! on slice/map/func/chan must all parse non-nil: %v %v", sig.Params, sig.Results)
+	}
+}
+
+func TestElementPositionBangRejected(t *testing.T) {
+	src := `
+schema: 1
+package: example
+functions:
+  Build:
+    results:
+      - "[]!*T"
+`
+	_, err := LoadBytes("example.gna", []byte(src))
+	if err == nil || !strings.Contains(err.Error(), "outermost position") {
+		t.Fatalf("element-position ! must be rejected, got: %v", err)
+	}
+}
+
 func TestUnsupportedSchema(t *testing.T) {
 	_, err := LoadBytes("x.gna", []byte("schema: 99\npackage: x\n"))
 	if err == nil || !strings.Contains(err.Error(), "unsupported schema") {

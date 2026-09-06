@@ -53,8 +53,11 @@ func (s !*S) f() {
 }
 
 func TestShadowingNullableLocalDoesNotInheritNonNil(t *testing.T) {
+	// The outer var carries an initializer so it does not trip the v1.6 C5
+	// zero-value rule (rfc-type-coverage.md §4.4); this test is about the
+	// inner nullable shadow not inheriting non-nil.
 	diags := checkSource(t, `package main
-var x !*int
+var x !*int = new(int)
 func f() {
 	{
 		var x *int
@@ -67,11 +70,13 @@ func f() {
 }
 
 func TestShadowingNonNilLocalStillWarns(t *testing.T) {
+	// Inner !*int shadow carries an initializer (v1.6 C5); the point is the
+	// GW001 on the redundant nil comparison against the non-nil shadow.
 	diags := checkSource(t, `package main
 var x *int
 func f() {
 	{
-		var x !*int
+		var x !*int = new(int)
 		if x == nil {}
 	}
 }`)

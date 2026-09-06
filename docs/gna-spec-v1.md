@@ -84,6 +84,16 @@ types:                            # optional; field contracts (v1.2)
   the guarantee differs by the kind of Go value. See
   [docs/rfc-interface-semantics.md](rfc-interface-semantics.md). No schema
   bump — `!` on interface types was already valid syntax.
+- `"![]T"`, `"!map[K]V"`, `"!chan T"`, `"!func(…)"` (v1.6) claim only that
+  the **reference value** (slice header, map, channel, function value) is
+  non-nil — never a length, non-emptiness, or channel-state contract. A
+  leading `!` binds **only the outermost type constructor**:
+  `"!map[string]*T"` says the map is non-nil and nothing about the `*T`
+  values. An `!` in element position (`"[]!*T"`, `"map[string]!V"`) is a
+  **load error** in v1 (reserved for M2b). See
+  [docs/rfc-type-coverage.md](rfc-type-coverage.md). No schema bump.
+- `"!T"` where `T`'s underlying kind is **not** nilable (struct, array,
+  basic) is a malformed contract — **GN003** (v1.6).
 
 ## Rules
 

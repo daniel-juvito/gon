@@ -1,9 +1,8 @@
 # RFC: Type Coverage for Non-Nil Contracts (Gon v1.6 / M1b)
 
-**Status:** Accepted — decision matrix C1–C14 + §10 (O1–O7) locked
-2026-09-06. Owner explicitly confirmed all drafted recommendations
-(O1→P, O2→fold-in, O3→no exception, O4→GN003, O5–O7→proposals).
-Implementation target Gon v1.6.
+**Status:** Implemented in Gon v1.6 (2026-09-06). Decision matrix C1–C14 +
+§10 (O1–O7) locked 2026-09-06; owner explicitly confirmed all drafted
+recommendations (O1→P, O2→fold-in, O3→no exception, O4→GN003, O5–O7→proposals).
 **Target:** Gon v1.6
 **Related:** `docs/gna-spec-v1.md`, `docs/v1-scope.md`, `docs/roadmap-v1.3-plus.md`,
 `docs/rfc-interface-semantics.md`, `docs/rfc-field-contracts.md`,
@@ -676,7 +675,43 @@ Original questions, for the record:
 
 ---
 
-**Proposed locked decisions (summary — pending owner sign-off)**
+## 13. Implementation Notes (v1.6)
+
+- New file `internal/checker/type_coverage.go`:
+  - `nilableRefKind(ast.Expr)` — true for `*ast.StarExpr` / `*ast.MapType` /
+    `*ast.ChanType` / `*ast.FuncType` / lenless `*ast.ArrayType`, and for a
+    named type / alias whose `go/types` underlying is `*types.Pointer` /
+    `Slice` / `Map` / `Chan` / `Signature`. Interface deliberately excluded.
+  - `reportZeroValueNilableVar` — GN002 per name, anchored at the type
+    expression; called from `registerPackageVars` and `checkLocalVarDecl`
+    only when the declared type itself carries `!` (`nn`) and there is no
+    initializer. Runs *alongside* the existing `reportMissingNonNilFields`
+    struct-field walk, which is unchanged.
+  - `checkNonNilTypeKinds` — an `ast.Inspect` pass over `*ast.ValueSpec` and
+    `*ast.Field` type positions; `!` on a `*ast.StructType`, fixed
+    `*ast.ArrayType`, or a named type whose underlying is none of the
+    nilable kinds → GN003. Degrades to accepted when `go/types` info is
+    absent (plain `New`, no annotations).
+- `checkTypeAssert` (`construction.go`) — the v1.4 interface-only guard is
+  now `if c.isNonNil(ta.Type)` for any target; the `!I` wording is kept when
+  the target is interface-typed, otherwise a generic `!T` message.
+- `parseTypeAnn` (`internal/gna/gna.go`) — strips one optional leading `!`,
+  then rejects any remaining `!` in the string ("only valid at the
+  outermost position"). Surfaces as a `.gna` load error → GN003 on resolve.
+- Everything else the RFC specifies (nil literal → `!` reference position;
+  `![]T`/`!map`/`!chan`/`!func` as a field; no propagation through
+  `append`/reslice/conversion/assertion; containment-walk boundary) was
+  already the checker's behaviour via the generic `nonNilOffsets` /
+  `isNonNil` path and the v1.2 field machinery; v1.6 adds the executable
+  spec in `internal/checker/type_coverage_test.go` and
+  `internal/gna/gna_test.go`.
+- Two v1.1-era tests updated: `TestShadowingNullableLocalDoesNotInheritNonNil`
+  and `TestShadowingNonNilLocalStillWarns` now give their `!*int` decls an
+  initializer (they predate C5 and were relying on the silent `!*T` gap).
+
+---
+
+**Locked decisions (summary)**
 
 | Decision | Proposal |
 |----------|----------|

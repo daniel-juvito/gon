@@ -1,5 +1,55 @@
 # Changelog
 
+## [1.6.0] — 2026-09-06
+
+### Added
+
+- **Type Coverage** — M1b (`docs/rfc-type-coverage.md`). `!` now has a
+  single, specified meaning across every nilable Go kind: it constrains the
+  **reference value** (slice header, map, channel, function value, pointer)
+  to be non-nil, and says nothing about length, contents, emptiness, or
+  channel state — the same boundary `!I` draws for interfaces (v1.4).
+  - **`var x !S` with no initializer is now GN002** for a nilable reference
+    kind (`![]T`, `!map[K]V`, `!chan T`, `!func(…)`, `!*T`, and named types
+    / aliases whose underlying kind is one of those). This closes a
+    pre-existing gap in which `var p !*T` was silently accepted. Interface
+    types are excluded (owned by M1a). An explicit non-nil initializer
+    (`make(...)`, a composite literal, a function literal/name) is accepted;
+    `= nil` is GN001.
+  - **`!` on a non-nilable type is now GN003.** Writing `!` on a struct,
+    array, or basic type — directly or through a named type / alias
+    (`type Point struct{…}` → `!Point`) — is a malformed contract.
+  - **`x.(!T)` for any assertion target is now GN001.** v1.4 locked this for
+    interface targets and deferred concrete ones; v1.6 adopts the amendment
+    so `x.(!*T)` / `x.(![]T)` are rejected too. Assertions never establish a
+    non-nil guarantee.
+  - Specified and regression-tested (previously accidental) behaviour: a
+    literal `nil` into any `!` reference position is GN001; a `![]T` /
+    `!map` / `!chan` / `!func` **field** left at zero is GN002, `f = nil` is
+    GN001, and the selector is a non-nil source; `append`, reslice,
+    conversion, and assertion results are ordinary and never carry `!`; the
+    zero-value containment walk still stops at every slice/map/chan/func
+    boundary.
+
+### Changed
+
+- `gon version` reports `1.6.0`.
+- **`.gna` type strings:** a leading `!` binds only the outermost type
+  constructor. An `!` in element position (`"[]!*T"`, `"map[string]!V"`) is
+  now rejected at load time (reserved for M2b) instead of being silently
+  ignored.
+
+### Compatibility
+
+- `.gna` schema remains **1**. `"![]T"`, `"!map[K]V"`, `"!func(…)"` were
+  always legal strings; their semantics are now defined.
+- New rejections vs v1.5: bare `var x !S` (nilable kind, no initializer) →
+  GN002; `!` on a non-nilable type → GN003; `x.(!T)` concrete target →
+  GN001; element-position `!` in a `.gna` string → load error. Code that
+  does not annotate a reference-value type with `!` is unchanged.
+- Solo release per roadmap R1; M2b (element-contract construction) remains
+  v1.7.
+
 ## [1.5.1] — 2026-09-06
 
 ### Fixed
