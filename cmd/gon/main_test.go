@@ -171,6 +171,33 @@ func f() { _ = new(S) }
 	}
 }
 
+// A .gon file inside a module that imports a module-local package must be
+// checked against the real module graph — validateGo must not fail with a
+// spurious "could not import" error (regression for v1.5 cross-package use).
+func TestCLICheckModuleLocalImport(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module cliexample\n\ngo 1.25\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "lib"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "lib", "lib.go"), []byte("package lib\n\ntype T struct{ X *int }\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	path := writeTempGon(t, dir, "demo.gon", `package main
+
+import "cliexample/lib"
+
+func f(t lib.T) { _ = t }
+
+func main() {}
+`)
+	if code := run([]string{"check", path}); code != 0 {
+		t.Fatalf("module-local import must type-check clean, got exit %d", code)
+	}
+}
+
 func TestCLIFmtPreservesBang(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTempGon(t, dir, "fmt.gon", "package main\nfunc f(x !*int) {\n}\n")
