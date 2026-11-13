@@ -70,18 +70,28 @@ depends on this application model.
   represented by `go/types`.
 - **Nilable kind** — pointer, slice, map, channel, function, interface
   (underlying kind), as in v1.4 / v1.6.
-- **Nilable type parameter** — a type parameter whose constraint contains at
-  least one specific type term and whose every specific term has a nilable
-  underlying kind (e.g. `~*T`, `~[]E`, `*A | *B`). Method terms do not
-  independently establish nilability. A constraint consisting only of method
-  terms (including `any`, `comparable`, and `fmt.Stringer`-style
-  constraints) is not nilable.
+- **Nilable type parameter** — a type parameter whose constraint is
+  *provably* restricted to nilable kinds by at least one of its type
+  elements. A constraint is a conjunction (intersection) of elements; an
+  element is a union of specific type terms (`~*T`, `*A | *B`) or an
+  embedded interface (examined recursively). A type parameter is nilable
+  iff **some** element is a non-empty union whose **every** term has a
+  nilable underlying kind (e.g. `~*T`, `~[]E`, `*A | *B`). Because the type
+  set is the intersection of all elements, it is a subset of that element's
+  union, so every possible type argument is nilable.
 
-  For this rule the checker conservatively examines the specific terms
-  exposed by the constraint's type-set expression. It does not need to prove
-  that the intersection of all constraint elements is non-empty. If there is
-  no specific term, or if any specific term has a non-nilable underlying
-  kind, the type parameter is not nilable.
+  Method terms do not independently establish nilability. A constraint
+  consisting only of method terms (including `any`, `comparable`, and
+  `fmt.Stringer`-style constraints) is not nilable.
+
+  Examples: `interface{ ~int | ~*T; ~*T }` is nilable (the second element
+  alone restricts to `~*T`); `~int | ~*T` is not; `interface{ ~*T; M() }` is
+  nilable.
+
+  The check is deliberately sound rather than complete: it examines the
+  elements as written and does not compute or prove non-emptiness of the
+  full intersection. If no single element restricts to nilable kinds, the
+  type parameter is not nilable.
 - **Instantiation boundary** — an explicit instantiation (`F[T]`, `Box[T]`)
   or an inferred call (`F(x)`).
 
@@ -139,9 +149,11 @@ cannot ride along. Consequently a type parameter never *carries* a contract:
 ### G5 — Calls to generic functions and methods
 
 Contracts on a generic function's parameters and results are resolved
-**through the instantiation** (explicit or inferred): `NN[T]()` and `NN(x)`
-both expose `NN`'s `!*X` result as a non-nil source; passing `nil` to a
-`!*X` / `!P` parameter → GN001.
+**through the instantiation** (explicit or inferred). Given
+`func NN[X any]() !*X` (no argument to infer from, so explicit only) and
+`func Must[V any](p *V) !*V` (inferable from the argument), both `NN[T]()`
+and `Must(x)` expose the declared `!*X` / `!*V` result as a non-nil source;
+passing `nil` to a `!*X` / `!P` parameter → GN001.
 
 After substitution, the existing parameter-contract compatibility rules
 apply to the declared parameter position. Type inference and the caller's
@@ -240,9 +252,10 @@ CHANGELOG, not versioned as a semantic change.
 1. **Declaration-positional.** A `!` binds to the type expression at which it
    is written (outermost-binding rule, C10 / E-series). Instantiation
    substitutes types and leaves contracts where they were declared.
-2. **`!X` admissibility.** For a type parameter `X`, `!X` is valid iff every
-   term of `X`'s constraint type set has a nilable underlying kind, and the
-   type set has at least one specific term. Else GN003.
+2. **`!X` admissibility.** For a type parameter `X`, `!X` is valid iff `X`
+   is a nilable type parameter (§3): some element of its constraint is a
+   non-empty union of terms that all have nilable underlying kinds. Else
+   GN003.
 3. **Application through instantiation.** Wherever a rule fires on a
    declared contract (GN001, GN002, GW001, interface method-set check), it
    fires identically on any instantiation of the declaring generic type,
@@ -258,6 +271,8 @@ CHANGELOG, not versioned as a semantic change.
 // G2
 func Ptr[P ~*E, E any](p !P) {}        // OK  — P's type set is {~*E}: nilable
 func Slc[S ~[]E, E any](s !S) {}       // OK
+func Both[X interface{ ~int | ~*T; ~*T }](x !X) {} // OK — second element restricts to ~*T
+func Mix[X ~int | ~*T](x !X) {}        // GN003 — one element, not all terms nilable
 func Bad[X any](x !X) {}               // GN003 — any is not nilable
 func Cmp[X comparable](x !X) {}        // GN003
 
@@ -272,9 +287,12 @@ var d Box[!*T]                         // GN003 — ! in type-argument position
 
 // G5
 func NN[X any]() !*X { return new(X) }
+func Must[V any](p *V) !*V { return p }
 func main() {
 	p := NN[T]()
 	if p == nil {}                     // GW001
+	m := Must(&T{})                    // V inferred
+	if m == nil {}                     // GW001 — declared result contract
 	q := Id(p)                         // Id[*T] — result is plain *T: not a source
 	if q == nil {}                     // no GW001 (G4 / I6)
 }
@@ -296,9 +314,11 @@ offset-driven and does not depend on generics; to be confirmed by a fixture).
 
 - **Type-parameter nilability** — new `typeParamNilable(*types.TypeParam)` in
   `internal/checker/type_coverage.go`: walk `tp.Constraint().Underlying()` as
-  a `*types.Interface`; flatten embedded unions via `EmbeddedType(i)` /
-  `*types.Union` terms; true iff there is ≥1 specific term and every term's
-  `Underlying()` is pointer / slice / map / chan / signature / interface.
+  a `*types.Interface`; for each embedded element (`EmbeddedType(i)`; recurse
+  into embedded interfaces) that is a `*types.Union` or single term, test
+  whether it has ≥1 term and **every** term's `Underlying()` is pointer /
+  slice / map / chan / signature / interface; the type parameter is nilable
+  iff **any** element passes (intersection ⊆ that union).
   Extend `nilableRefKind` for `*types.TypeParam`. Wire into
   `checkNonNilTypeKinds` (GN003) and `reportZeroValueNilableVar` (G7).
 - **Instantiation resolution** — unwrap `*ast.IndexExpr` /
@@ -330,12 +350,17 @@ Executable spec in `internal/checker/generics_test.go`; fixtures under
 
 1. G2: `~*E`, `~[]E`, `*A | *B`, `~map[K]V`, `~func()`, interface-kind term
    accepted; `any`, `comparable`, `fmt.Stringer`-style method-only, mixed
-   `*A | int`, `~int` → GN003.
+   `*A | int`, `~int` → GN003. Intersected elements: `interface{ ~int |
+   ~*T; ~*T }` and `interface{ ~*T; M() }` accepted; `interface{ ~int |
+   ~*T }` and `interface{ M() }` → GN003; nested embedded interface
+   restricting to nilable kinds accepted.
 2. G3: `Box[T]{}` GN002; `Box[T]{v: nil}` GN001; `Box[T]{v: &T{}}` OK;
    nested `Box[Box[T]]`; embedded `Box[T]`; selector `b.v == nil` GW001;
-   inferred-instantiation constructors (`func NewBox[X any]() Box[X]`).
+   constructors with explicit (`NewBox[T]()`) and inferred
+   (`func Wrap[V any](p *V) Box[V]` → `Wrap(&t)`) instantiation.
 3. G4: `Box[!*T]`, `F[!*T]()` GN003; `Id(nonNil)` result is not a source.
-4. G5: `NN[T]()` and inferred `NN(x)` results are non-nil sources; `nil`
+4. G5: `NN[T]()` (explicit-only: nothing to infer from) and inferred
+   `Must(x)` results are non-nil sources; `nil`
    argument to `!*X` / `!P` parameter GN001; generic method results via
    instantiated receiver.
 5. G6: body-level `var v !P` GN002; `return nil` GN001; body checked once
@@ -355,9 +380,9 @@ pending implementation and audit.
 
 1. **O1 — G2: ACCEPT (a)**, nilable type parameters only, as defined by §3.
 2. **O2 — G2: ACCEPT.** Interface-kind specific terms count as nilable,
-   consistent with v1.4. Admissibility is determined conservatively from
-   specific terms: at least one specific term must exist and every specific
-   term must have a nilable underlying kind. Method terms alone do not
+   consistent with v1.4. Admissibility is determined soundly from the
+   constraint's elements (§3): some element must be a non-empty union whose
+   every term has a nilable underlying kind. Method terms alone do not
    establish nilability.
 3. **O3 — G4: ACCEPT GN003.** `!` in a type argument is rejected; it is not
    silently stripped.
