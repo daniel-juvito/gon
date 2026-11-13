@@ -443,7 +443,12 @@ func (c *Checker) checkLocalVarDecl(d *ast.GenDecl) {
 			}
 			continue
 		}
-		// No explicit type: promote from annotated call results (v1.1),
+		// No explicit type: the initializers are still ordinary expressions
+		// (composite literals, new(T), calls) and must be checked.
+		for _, val := range vs.Values {
+			c.checkExpr(val)
+		}
+		// Promote from annotated call results (v1.1),
 		// same rule as short declaration. Immediate use site only.
 		if len(vs.Values) == 1 {
 			if call, ok := vs.Values[0].(*ast.CallExpr); ok {

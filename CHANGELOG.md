@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.7.1] — 2026-11-13
+
+### Fixed
+
+- **Untyped local `var x = <expr>` initializers were never checked.** In the
+  no-explicit-type branch of a local `var` declaration the initializer
+  expressions were not walked, so composite-literal contracts (element `!`
+  GN001 / GN002, and struct field contracts) were silently skipped for
+  `var arr = [3]!*T{2: p}` while `arr := [3]!*T{2: p}` and package-level
+  `var` were reported. Initializers are now checked like every other
+  declaration form.
+
+### Changed
+
+- `gon version` reports `1.7.1`.
+
+### Compatibility
+
+- Strictly a bug fix: it can surface GN001 / GN002 on code that violated an
+  already-documented contract but was previously missed.
+
 ## [1.7.0] — 2026-09-07
 
 ### Added
