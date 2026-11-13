@@ -112,7 +112,7 @@ instantiation (G3, G5).**
 a nilable kind"). The check is made once, on the generic declaration, from
 the constraint — never per instantiation. Method terms do not make an
 otherwise unrestricted type parameter nilable; specific terms determine
-admissibility under the conservative rule in §3. This guarantees `!X` is
+admissibility under the sound element-wise rule in §3. This guarantees `!X` is
 meaningful for every possible type argument, so no instantiation can fail on
 a contract it did not declare.
 
