@@ -222,3 +222,16 @@ func TestEC_ReturnSiteElement(t *testing.T) {
 		t.Fatalf("nil element in return literal must be GN001: %v", d)
 	}
 }
+
+// --- v1.7.1: untyped local `var x = lit` is checked like `x := lit` --------
+
+func TestEC_UntypedLocalVarChecked(t *testing.T) {
+	d := elemCheck(t, `func f() {
+	var arr = [3]!*T{2: mk()}
+	var s = []!*T{nil}
+	_, _ = arr, s
+}`)
+	if countCode(d, "GN002") != 1 || countCode(d, "GN001") != 1 {
+		t.Fatalf("untyped local var literals must be checked: %v", d)
+	}
+}

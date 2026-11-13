@@ -1,0 +1,11 @@
+package main
+
+type T struct{}
+
+// Untyped local `var x = lit` must be checked like `x := lit` (v1.7 fix).
+func f() {
+	var arr = [3]!*T{2: &T{}}
+	_ = arr
+	var s = []!*T{nil}
+	_ = s
+}
