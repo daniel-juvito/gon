@@ -1,7 +1,8 @@
 # RFC: Generic Semantics for Non-Nil Contracts (Gon v1.8 / M3)
 
-**Status:** Draft — awaiting owner review. Decision matrix G1–G12 are
-*proposals*; §10 lists the questions that need an explicit owner answer.
+**Status:** Draft — owner decisions O1–O7 accepted. Technical amendments
+are incorporated below; implementation and audit remain pending. No
+implementation or release is implied by these decisions.
 **Target:** Gon v1.8
 **Related:** `docs/gna-spec-v1.md`, `docs/v1-scope.md`,
 `docs/roadmap-v1.3-plus.md`, `docs/rfc-interface-semantics.md` (M1a / v1.4),
@@ -65,14 +66,22 @@ depends on this application model.
 
 ## 3. Terminology
 
-- **Type set** — the set of types a type parameter's constraint permits
-  (from `go/types`).
+- **Type set** — the set of types a type parameter's constraint permits, as
+  represented by `go/types`.
 - **Nilable kind** — pointer, slice, map, channel, function, interface
   (underlying kind), as in v1.4 / v1.6.
-- **Nilable type parameter** — a type parameter whose constraint has a
-  non-empty specific-term type set in which **every** term's underlying type
-  is a nilable kind (e.g. `~*T`, `~[]E`, `*A | *B`). `any`, `comparable`, and
-  method-only constraints are **not** nilable.
+- **Nilable type parameter** — a type parameter whose constraint contains at
+  least one specific type term and whose every specific term has a nilable
+  underlying kind (e.g. `~*T`, `~[]E`, `*A | *B`). Method terms do not
+  independently establish nilability. A constraint consisting only of method
+  terms (including `any`, `comparable`, and `fmt.Stringer`-style
+  constraints) is not nilable.
+
+  For this rule the checker conservatively examines the specific terms
+  exposed by the constraint's type-set expression. It does not need to prove
+  that the intersection of all constraint elements is non-empty. If there is
+  no specific term, or if any specific term has a non-nilable underlying
+  kind, the type parameter is not nilable.
 - **Instantiation boundary** — an explicit instantiation (`F[T]`, `Box[T]`)
   or an inferred call (`F(x)`).
 
@@ -91,7 +100,9 @@ instantiation (G3, G5).**
 `!X` is accepted **iff `X` is a nilable type parameter** (§3). Otherwise
 **GN003** ("`!` on type parameter X: constraint `any` does not restrict X to
 a nilable kind"). The check is made once, on the generic declaration, from
-the constraint — never per instantiation. This guarantees `!X` is
+the constraint — never per instantiation. Method terms do not make an
+otherwise unrestricted type parameter nilable; specific terms determine
+admissibility under the conservative rule in §3. This guarantees `!X` is
 meaningful for every possible type argument, so no instantiation can fail on
 a contract it did not declare.
 
@@ -101,13 +112,21 @@ declaration, violates the "check the declaration" model of every earlier RFC).
 
 ### G3 — Instantiated generic types keep their field contracts
 
-A struct field's `!` is positional in the declaration. `Box[T]{}` and
-`Box[T]{v: nil}` are checked against `Box`'s declaration exactly as if `Box`
-were non-generic: zero construction → GN002, `nil` → GN001, selector use →
-non-nil source (GW001). Applies to explicit instantiation (`Box[T]`),
+A struct field's `!` is positional in the declaration. The generic
+declaration establishes the contract position; instantiated use sites
+resolve that position through type substitution and apply the existing
+construction, mutation, and selector rules.
+
+Thus `Box[T]{}` and `Box[T]{v: nil}` are checked against `Box`'s
+declaration: zero construction → GN002, `nil` → GN001, selector use →
+non-nil source (GW001). This applies to explicit instantiation (`Box[T]`),
 inferred instantiation, nested instantiation (`Box[Box[T]]`), and embedded
 instantiated fields. A `!X` field (G2) is enforced on instantiation with a
 nilable type argument (guaranteed by G2).
+
+These instantiated use-site checks do not re-check the generic declaration
+body or perform monomorphisation. They resolve declared contract positions
+and apply the relevant existing rules at the concrete use site.
 
 ### G4 — `!` is not allowed in type-argument position
 
@@ -122,15 +141,30 @@ cannot ride along. Consequently a type parameter never *carries* a contract:
 Contracts on a generic function's parameters and results are resolved
 **through the instantiation** (explicit or inferred): `NN[T]()` and `NN(x)`
 both expose `NN`'s `!*X` result as a non-nil source; passing `nil` to a
-`!*X` / `!P` parameter → GN001. Contracts come from the **declaration
-position only**; an inferred type argument never creates or removes one
-(G4). Methods of generic types resolve via the instantiated receiver
+`!*X` / `!P` parameter → GN001.
+
+After substitution, the existing parameter-contract compatibility rules
+apply to the declared parameter position. Type inference and the caller's
+argument type do not promote an ordinary value into a non-nil source, nor
+create, remove, or transfer a contract. The contract is supplied solely by
+the generic declaration's parameter or result annotation (G4).
+
+Methods of generic types resolve via the instantiated receiver
 (`(*Box[X]).Get() !*X`).
 
 ### G6 — Bodies are checked once, opaquely
 
-A generic body is checked a single time with type parameters opaque. No
-monomorphisation, no per-instantiation re-check (I1, I3). Inside the body:
+A generic function or method body is checked a single time with type
+parameters opaque. No monomorphisation and no per-instantiation body
+re-check (I1, I3).
+
+This rule governs checks inside generic bodies. It does not prohibit the
+instantiated use-site checks required by G3 or G5: those resolve contract
+positions from the generic declaration and apply existing rules to
+construction, assignment, selector, and call sites, without re-analysing
+the generic body.
+
+Inside the body:
 
 - `var v !X` with no initializer → GN002 (X nilable by G2);
 - `nil` assigned/returned/written where `!X` / `!*X` is required → GN001;
@@ -144,11 +178,16 @@ is already GN002 today and stays so.
 
 ### G8 — Generic interfaces and method-set contracts
 
-Interface method-set contracts (v1.4) apply over the **instantiated** method
-set from `go/types`: `type Getter[X any] interface{ Get() !*X }` is
+Interface method-set contracts (v1.4) apply over the instantiated method
+set obtained from `go/types`: `type Getter[X any] interface{ Get() !*X }` is
 satisfied by a type whose method has the `!` result under the v1.4 rules,
-with `X` substituted. No new rule — only that the existing check runs on
-instantiated method sets rather than skipping generic interfaces.
+with `X` substituted.
+
+This is an additional Gon contract validation. It does not modify Go
+interface satisfaction, method identity, type identity, or assignability.
+`go/types` remains authoritative for the instantiated method set and Go
+signatures; Gon resolves the `!` annotations from the origin declarations
+and applies the existing v1.4 contract rules.
 
 ### G9 — Constraints are untouched
 
@@ -159,10 +198,15 @@ constraint (G2), never *written into* it.
 
 ### G10 — `.gna` and external generics
 
-Generic `.gna` declarations remain **out of scope** (M5b, v1.9). v1.8
-behaviour for a `.gna` entry naming a generic symbol is pinned by tests and
-stays as v1.7.1 (no schema bump, I7). The application model defined here
-(G3/G5) is what M5b will reuse.
+Generic `.gna` declarations and generic external-contract application
+remain **out of scope** (M5b, v1.9). v1.8 behaviour for a `.gna` entry
+naming a generic symbol is pinned by tests and remains as in v1.7.1. No
+`.gna` schema bump is introduced (I7).
+
+This deferral applies only to generic contracts originating in `.gna`. It
+does not disable or defer source-level generic contracts written as `!` in Go
+declarations; G3 and G5 apply to those in v1.8. The application model
+defined here is what M5b will reuse.
 
 ### G11 — Compatibility classification
 
@@ -304,27 +348,30 @@ Executable spec in `internal/checker/generics_test.go`; fixtures under
    non-generic programs produce byte-identical diagnostics.
 10. `gon fmt` round-trip preserves `!` in every generic position above.
 
-## 10. Open Questions for the Owner
+## 10. Owner Decisions
 
-1. **O1 — G2: admissibility of `!X`.** (a) **nilable type parameters only**
-   (proposed); (b) forbid `!X` entirely; (c) defer to instantiation.
-2. **O2 — G2: are interface-kind terms "nilable" for type-set purposes?**
-   (e.g. `*A | io.Reader`.) Proposed: **yes**, matching
-   v1.4 (`!I` is meaningful), so a type set of only pointer / slice / map /
-   chan / func / interface terms qualifies.
-3. **O3 — G4: `!` in a type argument.** GN003 error (proposed) vs silently
-   stripped with a warning.
-4. **O4 — G3/G5: surfacing the instantiation gaps.** Ship in v1.8 as part of
-   the semantic definition (proposed — they cannot be specified separately
-   from G2/G3) vs a v1.7.2 patch for the field/result gaps ahead of the RFC.
-5. **O5 — G9: `!` in constraints.** GN003 reserved (proposed) vs allow as a
-   future "nilable-core" marker (would be new syntax; propose deferring to
-   a post-v1.9 RFC).
-6. **O6 — G10 / release shape.** Confirm v1.8 is **solo** (R1: G2 and G3 are
-   breaking in the senses of G11) and M5b stays v1.9.
-7. **O7 — G5: generic-function result contracts from inference.** Confirm
-   inferred calls (`NN(x)`) behave like explicit ones (proposed), versus
-   explicit-only in v1.8.
+Owner decisions O1–O7 are accepted as recorded below. The RFC remains Draft
+pending implementation and audit.
+
+1. **O1 — G2: ACCEPT (a)**, nilable type parameters only, as defined by §3.
+2. **O2 — G2: ACCEPT.** Interface-kind specific terms count as nilable,
+   consistent with v1.4. Admissibility is determined conservatively from
+   specific terms: at least one specific term must exist and every specific
+   term must have a nilable underlying kind. Method terms alone do not
+   establish nilability.
+3. **O3 — G4: ACCEPT GN003.** `!` in a type argument is rejected; it is not
+   silently stripped.
+4. **O4 — G3/G5: ACCEPT v1.8.** Instantiation gaps are addressed as part of
+   M3; no v1.7.2 semantic patch is planned.
+5. **O5 — G9: ACCEPT GN003 reserved.** Any future constraint-level
+   nilability marker requires a separate RFC and is not part of M3.
+6. **O6 — G10 / release shape: ACCEPT.** M3 ships solo as v1.8; generic
+   `.gna` application remains M5b / v1.9.
+7. **O7 — G5: ACCEPT.** Inferred generic calls apply declared parameter and
+   result contracts identically to explicit instantiations.
+
+These owner decisions settle the alternatives originally listed in O1–O7.
+They do not constitute implementation approval or release sign-off.
 
 ## 11. Alternatives Considered
 
@@ -351,12 +398,12 @@ Executable spec in `internal/checker/generics_test.go`; fixtures under
 
 ---
 
-**Proposed decisions (summary)**
+**Decisions (summary) — owner-accepted O1–O7**
 
 | Decision | Proposal |
 |----------|----------|
 | `!*X` / `![]X` / `[]!*X` meaning unchanged; applied through instantiation | Yes (G1, G3, G5) |
-| `!X` on a bare type parameter | Only if every constraint term is nilable; else GN003 (G2, O1–O2) |
+| `!X` on a bare type parameter | Only if every constraint term is nilable; else GN003 (G2, O1–O2: accepted) |
 | Field contracts of generic structs through `Box[T]` | Enforced as declared (G3) |
 | `!` in type arguments (`Box[!*T]`) | GN003, reserved (G4, O3) |
 | Generic call results / params contracts through instantiation | Yes, explicit and inferred (G5, O7) |

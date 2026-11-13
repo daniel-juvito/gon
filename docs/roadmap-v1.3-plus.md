@@ -141,8 +141,8 @@ absorbed in v1.6, so no isolation needed here.
 ### v1.8 — Generic Semantics
 **Scope:** M3 — Generic RFC (`!T` type parameters, instantiated generic
 contracts).
-**RFC:** `docs/rfc-generic-semantics.md` (Status: Draft — G1–G12 proposed,
-O1–O7 awaiting owner review, 2026-11-13).
+**RFC:** `docs/rfc-generic-semantics.md` (Status: Draft — owner decisions
+O1–O7 accepted; implementation and audit pending, 2026-11-13).
 **Dependency:** M1a full (v1.4) + M1b named-type nilability semantics (v1.6).
 **Breaking risk:** Possibly Yes.
 **Rationale (R1):** Solo release. Independent compatibility exposure even
