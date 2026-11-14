@@ -1,10 +1,11 @@
 # RFC: Generic `.gna` and External Generic Contract Application (Gon v1.9 / M5b)
 
-**Status:** Draft — owner decisions Q1–Q4 accepted 2026-11-14 (refreshed
-after v1.8.1); Q5 and Q6 are still proposals. No implementation or release is
-implied by these decisions. Builds on v1.8 (M3); the corrections in
-`rfc-generic-semantics.md` §13.1 were confirmed by the owner on 2026-11-14
-(resolves Q7).
+**Status:** Draft — owner decisions Q1–Q4 accepted 2026-11-14 by intuition,
+then **exercised** the same day (§12). The exercise supports Q1 and Q4 and
+bears on Q2 and Q3, which are re-opened for re-decision. Q5 and Q6 are still
+proposals. No implementation or release is implied. Builds on v1.8 (M3); the
+corrections in `rfc-generic-semantics.md` §13.1 were confirmed by the owner on
+2026-11-14 (resolves Q7).
 **Target:** Gon v1.9
 **Related:** `docs/gna-spec-v1.md`, `docs/roadmap-v1.3-plus.md`,
 `docs/rfc-generic-semantics.md` (M3 / v1.8),
@@ -280,10 +281,10 @@ implementation approval or release sign-off.
 
 1. **Q1 — X2: ACCEPT.** Explicit instantiation of an external generic
    resolves like the inferred form.
-2. **Q2 — X3 scope: ACCEPT all symbols.** `.gna` kind validation
+2. **Q2 — X3 scope: ACCEPT all symbols (RE-OPENED, §12).** `.gna` kind validation
    (`"!int"` → GN003) applies to generic and non-generic symbols alike, as
    `gna-spec-v1.md` has promised since v1.6.
-3. **Q3 — X3 failure mode: ACCEPT whole-entry drop.** GN003, then none of
+3. **Q3 — X3 failure mode: ACCEPT whole-entry drop (RE-OPENED, §12).** GN003, then none of
    the entry's `!` flags apply (M5a precedent).
 4. **Q4 — X7: ACCEPT uniform.** X3 applies to type parameters declared by a
    method itself (Go 1.27) exactly as to any other type parameter.
@@ -338,3 +339,78 @@ implementation approval or release sign-off.
 | Method-level type parameters (Go 1.27) | X3 applies uniformly (X7, Q4: accepted) |
 | Bundled annotations audit | Release gate (X10, Q5) |
 | Release shape | Solo v1.9 (X9, Q6) |
+
+---
+
+## 12. Empirical exercise (2026-11-14)
+
+The Q1–Q4 decisions were made from the drafted recommendations. Before any
+implementation, X3's classification was prototyped as a throwaway test (not
+committed) and run against real data. **Method:** for each `!` position,
+resolve the *origin* signature type with `go/types` and classify it:
+nilable concrete kind / nilable type parameter (§3 rule) / non-nilable type
+parameter / non-nilable concrete kind. The *careless author* figures assume a
+`.gna` that puts `!` on **every** position — a worst case, not a prevalence.
+
+### 12.1 The bundled annotations (real data)
+
+3 `!` positions across `io.gna`, `os.gna`, `extlib.gna`; **1 would be
+rejected**: `extlib.gna` claims `Take: params ["!string"]` for
+`func Take(s string) error`. That is exactly the "meaningless claim" X3
+targets, and it is the project's own reference annotation. The `"!string"`
+idiom is used as a placeholder for "a non-nil claim" in about ten test
+fixtures (`checker_test.go`, `ecosystem_test.go`, `hardening_test.go`,
+`external_test.go`) and in an example in
+`rfc-ecosystem-contract-expansion.md`. The other two `.gna` files outside
+this repo (`gon-examples`, `gon-vscode`) contain no such claim.
+
+### 12.2 Generic stdlib (`slices`, `maps`, `cmp`, `iter`, `sync`,
+`sync/atomic`, `unique`, `weak`)
+
+- 65 entries, 165 positions: 57 nilable-concrete, 64 nilable-type-parameter,
+  15 non-nilable-type-parameter, 29 non-nilable-concrete.
+- Of the **79 positions typed by a bare type parameter, 64 (81%) satisfy the
+  §3 rule and 15 (19%) do not.** The rule discriminates: `S ~[]E` positions
+  pass, `E comparable` / `any` / `cmp.Ordered` positions fail. It is neither
+  vacuous nor over-strict on real constraints.
+- **Q4:** 0 methods in the standard library declare their own type
+  parameters (Go 1.27 is new). The uniform rule is free to adopt but cannot
+  yet be exercised on real code.
+
+### 12.3 What the figures say about Q3
+
+Under the careless model, 31 of 65 generic entries (48%) hold at least one
+invalid flag, and whole-entry drop would also discard **51 otherwise-valid
+flags** that per-position drop would keep.
+
+The M5a precedent for dropping the whole entry is that an *arity* mismatch
+means positions are misaligned, so none can be trusted. X3 runs **after**
+the arity check passes, so the remaining positions *are* aligned; a wrong
+kind on one position does not make the others untrustworthy. The M5a
+rationale therefore does not transfer, and the original recommendation for
+Q3 was weaker than presented.
+
+### 12.4 What the figures say about Q2
+
+Across 12 non-generic std packages, 815 of 1,698 positions (48%) are
+non-nilable kinds, so a `!`-everywhere author would lose 524 of 719 entries
+(73%) under "all symbols". That is the worst case, not a measured rate; the
+measured exposure is the single bundled entry and the ~10 internal fixtures
+above. The cost of "all symbols" is therefore concrete and bounded **inside
+this repository** (rewrite the fixtures to use `*string` / `[]byte`) and
+unmeasured **outside** it.
+
+### 12.5 Revised recommendations (for the owner)
+
+- **Q1, Q4** — unchanged; the exercise supports them.
+- **Q3** — recommend **per-position**: GN003 on each invalid position and
+  drop *only that flag*; keep whole-entry drop for arity (M5a) where it is
+  justified.
+- **Q2** — keep "all symbols" if the project wants the spec enforced
+  (`gna-spec-v1.md` since v1.6), accepting the fixture rewrite; or phase it
+  in (generic symbols in v1.9, kind validation for non-generic symbols in a
+  following release). The data does not favour either on risk alone.
+
+Limits: one language corpus (the standard library), one worst-case author
+model, and `go/types` data from the toolchain that ran the exercise.
+
