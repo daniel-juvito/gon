@@ -23,6 +23,7 @@ import (
 	"github.com/daniel-juvito/gon/internal/checker"
 	gonfmt "github.com/daniel-juvito/gon/internal/fmt"
 	"github.com/daniel-juvito/gon/internal/gna"
+	"github.com/daniel-juvito/gon/internal/goenv"
 	"github.com/daniel-juvito/gon/internal/lsp"
 	"github.com/daniel-juvito/gon/internal/preproc"
 	"github.com/daniel-juvito/gon/transpiler"
@@ -30,6 +31,9 @@ import (
 )
 
 func main() {
+	// Release binaries are built with -trimpath, which empties go/build's
+	// GOROOT; without it a file outside any module cannot import the stdlib.
+	goenv.EnsureGOROOT()
 	os.Exit(run(os.Args[1:]))
 }
 
@@ -46,7 +50,7 @@ func run(args []string) int {
 		usage()
 		return 0
 	case "version", "-version", "--version":
-		fmt.Println("gon version 1.9.0")
+		fmt.Println("gon version 1.9.1")
 		return 0
 	}
 
