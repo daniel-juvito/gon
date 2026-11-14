@@ -1,11 +1,11 @@
 # RFC: Generic `.gna` and External Generic Contract Application (Gon v1.9 / M5b)
 
-**Status:** Draft — owner decisions Q1–Q4 accepted 2026-11-14 by intuition,
-then **exercised** the same day (§12). The exercise supports Q1 and Q4 and
-bears on Q2 and Q3, which are re-opened for re-decision. Q5 and Q6 are still
-proposals. No implementation or release is implied. Builds on v1.8 (M3); the
-corrections in `rfc-generic-semantics.md` §13.1 were confirmed by the owner on
-2026-11-14 (resolves Q7).
+**Status:** Draft — owner decisions Q1–Q4 recorded 2026-11-14. Q1–Q4 were
+first accepted by intuition, then exercised the same day (§12); Q3 changed to
+per-position drop and Q2 was re-confirmed as "all symbols". Q5 and Q6 are
+still proposals. No implementation or release is implied. Builds on v1.8 (M3);
+the corrections in `rfc-generic-semantics.md` §13.1 were confirmed by the
+owner on 2026-11-14 (resolves Q7).
 **Target:** Gon v1.9
 **Related:** `docs/gna-spec-v1.md`, `docs/roadmap-v1.3-plus.md`,
 `docs/rfc-generic-semantics.md` (M3 / v1.8),
@@ -95,10 +95,14 @@ parameter = slice):
 - **element positions** (`"[]!*E"`) → the same rule applied to the element
   type, per v1.7.
 
-On GN003 the **whole entry is dropped** (none of its `!` flags apply),
-exactly as M5a does for an arity mismatch — a stale or wrong annotation
-must not shift a claim onto another position. `types:` field strings are
-validated the same way against the origin struct's field types.
+On GN003 **only the offending flag is dropped**: that position becomes
+ordinary and every other position of the entry keeps its contract. This
+deliberately differs from M5a's arity rule, which drops the whole entry
+because an arity mismatch misaligns every position; X3 runs *after* the
+arity check passes, so the remaining positions are aligned and a wrong kind
+on one position says nothing about the others (§12.3). `types:` field strings
+are validated the same way against the origin struct's field types, one flag
+per field.
 
 ### X4 — Generic receivers and `types:` through instantiation
 
@@ -157,15 +161,18 @@ Unknown symbol → GW004 as before.
 | X1, X6, X8 | Non-breaking |
 
 By R1 this ships **solo** as v1.9. Ecosystem exposure is the point of the
-release: an entry dropped by X3 silently loses its contract, so the CHANGELOG
+release: a flag dropped by X3 silently loses its contract, so the CHANGELOG
 must list the diagnostic and the migration (fix or delete the position).
 
 ### X10 — Bundled annotations audit
 
 Before release, every `.gna` under `annotations/` is run through X3.
-Any entry the new validation drops is either corrected in the same
-release or called out in the CHANGELOG. This is a release gate, not a
-design decision.
+Any flag the new validation drops is either corrected in the same
+release or called out in the CHANGELOG. The audit already finds one:
+`extlib.gna` claims `"!string"` for `Take(s string)` (§12.1); with Q2 =
+all symbols, that annotation and the ~10 test fixtures that use `"!string"`
+as a placeholder are rewritten in the same release (e.g. `*string`,
+`[]byte`). This is a release gate, not a design decision.
 
 ### X11 — Non-Goals
 
@@ -186,8 +193,8 @@ design decision.
 2. **Explicit = inferred.** Explicit instantiation resolves to the same
    entry as the inferred form (X2).
 3. **Validity.** A `!` position is valid iff the origin's type there is a
-   nilable kind or a nilable type parameter (X3). Otherwise GN003 and the
-   entry is dropped.
+   nilable kind or a nilable type parameter (X3). Otherwise GN003 and
+   **that flag** is dropped; the entry's other positions are unaffected.
 4. **No `!` in `.gna` type-argument position** (X5).
 5. **Names are documentation** (X6).
 6. **go/types is authoritative** for origin identity, signatures, type
@@ -230,16 +237,20 @@ q := p.Load()                   // `methods: Pointer.Load` results ["!*T"] -> GW
   `*types.Signature` (`types.Func.Type()` for functions;
   `Named.Origin()` method for methods). Classify the position type:
   `*types.TypeParam` → `typeParamNilable`; otherwise `nilableUnderlying`.
-  On failure emit GN003 anchored at the import spec (as M5a does) and add
-  the symbol to `droppedContracts`. Extend to `types:` field strings via
-  the origin struct's fields.
+  On failure emit GN003 anchored at the import spec (as M5a does) and record
+  the **position** in a new `droppedPositions[pkgPath][symbol]` set, which
+  `resolveCall{Params,Results}` consult to treat that one flag as ordinary
+  (the existing `droppedContracts` whole-symbol set stays for arity). Extend
+  to `types:` field strings via the origin struct's fields.
 - **X4** — resolve instantiated receivers with `Named.Origin()`; pin the
   existing `atomic.Pointer[T]` method behaviour with a test.
 - **X5** — `parseTypeAnn` (`internal/gna/gna.go`): reject `!` found inside a
   `[...]` type-argument list that is not an array length / element
   position (distinguish `Name[` from `[N]`/`[]`).
 - **X10** — a test that loads every bundled `annotations/**/*.gna` and
-  asserts the validator drops nothing (or lists exactly the expected set).
+  asserts the validator drops nothing (or lists exactly the expected set);
+  rewrite the `"!string"` fixtures (checker, ecosystem, hardening, external
+  tests, RFC v1.5 example) and `extlib.gna`.
 - **Docs** — `gna-spec-v1.md`, `v1-scope.md`, roadmap, README, CHANGELOG,
   `gon version` → `1.9.0`; examples + editor fixture follow.
 
@@ -253,10 +264,11 @@ generic packages (`slices`, `maps`, `sync/atomic`).
    multi-type-parameter lists (`F[A, B]`), nested instantiation, literal /
    `var` / `new` of an external generic struct.
 2. X3: `!E` over `any` / `comparable` / method-only constraint → GN003 +
-   entry dropped; over `~[]E`, `~*T`, `*A | *B` → accepted; `!int`,
+   that flag dropped; over `~[]E`, `~*T`, `*A | *B` → accepted; `!int`,
    `!string`, `!struct` → GN003; element positions; variadic final
-   parameter; whole-entry drop (a second valid position in the same entry
-   no longer applies).
+   parameter; **per-position drop** (a second, valid position in the same
+   entry keeps its contract); an arity mismatch still drops the whole entry
+   (M5a, unchanged).
 3. X4: `methods:` on an instantiated receiver; `types:` on a generic
    external struct (construction GN002/GN001, mutation, use GW001); embedded
    generic one-hop.
@@ -281,11 +293,14 @@ implementation approval or release sign-off.
 
 1. **Q1 — X2: ACCEPT.** Explicit instantiation of an external generic
    resolves like the inferred form.
-2. **Q2 — X3 scope: ACCEPT all symbols (RE-OPENED, §12).** `.gna` kind validation
-   (`"!int"` → GN003) applies to generic and non-generic symbols alike, as
-   `gna-spec-v1.md` has promised since v1.6.
-3. **Q3 — X3 failure mode: ACCEPT whole-entry drop (RE-OPENED, §12).** GN003, then none of
-   the entry's `!` flags apply (M5a precedent).
+2. **Q2 — X3 scope: ACCEPT all symbols, re-confirmed after the exercise
+   (§12).** `.gna` kind validation (`"!int"` → GN003) applies to generic and
+   non-generic symbols alike, as `gna-spec-v1.md` has promised since v1.6.
+   The owner accepted the cost found in §12.1: `extlib.gna` and about ten
+   `"!string"` test fixtures are rewritten in the same release.
+3. **Q3 — X3 failure mode: per-position drop, decided after the exercise
+   (§12).** GN003, then only that flag is dropped; the entry's other
+   positions keep their contract. Whole-entry drop remains for arity (M5a).
 4. **Q4 — X7: ACCEPT uniform.** X3 applies to type parameters declared by a
    method itself (Go 1.27) exactly as to any other type parameter.
 5. **Q5 — X10 — OPEN.** Confirm the bundled-annotations audit is a release
@@ -332,7 +347,7 @@ implementation approval or release sign-off.
 | New `.gna` syntax / schema bump | None (X1) |
 | Explicit external instantiation resolves like inferred | Yes (X2, Q1: accepted) |
 | `!` positions validated against the origin signature | Yes — type parameter via nilable rule, concrete via kind, all symbols (X3, Q2: accepted) |
-| Failure mode | GN003, drop whole entry (X3, Q3: accepted) |
+| Failure mode | GN003, drop only the invalid flag; arity still drops the entry (X3, Q3: per-position) |
 | Generic receivers / `types:` | Resolved by origin identity (X4) |
 | `!` inside a `.gna` type argument | Load error (X5) |
 | Type-parameter names in strings | Documentation only (X6) |
@@ -413,4 +428,10 @@ unmeasured **outside** it.
 
 Limits: one language corpus (the standard library), one worst-case author
 model, and `go/types` data from the toolchain that ran the exercise.
+
+### 12.6 Outcome
+
+After seeing §12.1–12.5 the owner chose **per-position drop** for Q3 and
+**all symbols now** for Q2 (rewriting the `"!string"` fixtures and
+`extlib.gna` in the same release). Q1 and Q4 stand as accepted.
 
