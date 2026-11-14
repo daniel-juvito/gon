@@ -171,26 +171,26 @@ per `gna-spec-v1.md`).
 - v1.6 onward are planned, not committed. RFC outcomes, scope changes, or
   implementation reality may shift these boundaries without violating R1–R4
   or the underlying dependency graph.
-- **Go 1.27 generic methods (open, unscheduled — noted 2026-11-14).** Go 1.27
-  allows methods with their own type parameters
+- **Go 1.27 generic methods (toolchain resolved in v1.8.1; contracts open).**
+  Go 1.27 allows methods with their own type parameters
   (`func (b Box[X]) Map[Y any](…)`). Gon parses with the `go/parser` of the
-  toolchain that builds it, so:
-  - A Gon built with Go 1.25 (current `go.mod` minimum) rejects such source
-    at parse time (`method must have no type parameters`); a Gon built with
-    Go 1.27 accepts it **without checking any contract on it** — verified
-    2026-11-14 against v1.8.0 sources. The same Gon source therefore
-    behaves differently depending on the builder's Go version. Until
-    decided, official release binaries should be built with one pinned Go
-    version, recorded in the release notes.
-  - Accepting the syntax is **not breaking** (it was a parse error before).
-    Raising the `go.mod` minimum to 1.27 is a separate, build-level
-    compatibility decision and is not required to accept the syntax.
-  - Defining `!` contracts on generic methods (method type parameters, and
-    whether `!Y` follows the G2 nilable-type-parameter rule) needs its own
-    RFC. Note that source-declared method contracts are not tracked for
-    *any* receiver today (RFC `rfc-generic-semantics.md` §13.1), so this
-    interacts with that gap. Once contracts start being checked on code
+  toolchain that builds it, so a Gon built with Go 1.25 rejected such source
+  at parse time while one built with 1.27 accepted it — the same Gon source
+  behaved differently depending on the builder's Go version (verified
+  2026-11-14 against v1.8.0). **v1.8.1 raises the build minimum to Go 1.27.0**
+  (`go.mod`, CI, release), so every Gon build parses the syntax. This is a
+  build-level change, not a language-compatibility one: accepting the syntax
+  is not breaking (it was a parse error before), and a user's *own* Go
+  version does not gate it — checking was observed to produce identical
+  diagnostics with the user's `go` at 1.21.13 through 1.27.0.
+  - **What already works** with a 1.27 build (checked 2026-11-14): body-level
+    checks on a generic method — `!Y` on a method type parameter follows the
+    G2 nilable rule (`Y any` → GN003) and `return nil` into a `!*Y` result is
+    GN001.
+  - **What remains open**: call-site contracts for methods (parameters and
+    results) are untracked for *every* receiver, generic or not
+    (`rfc-generic-semantics.md` §13.1), so a generic method's contracts are
+    not enforced at its callers. Defining that needs its own RFC; candidate
+    slot: with or after M5b (v1.9). Once contracts start being checked on code
     that was previously unchecked, R1/G11-style compatibility analysis
-    applies. Candidate slot: with or after M5b (v1.9); not part of v1.8.
-  - CI/release toolchain bump (matrix 1.25.0 + 1.27.0; release builds on
-    1.27.0) is deferred and should be a separate commit from feature work.
+    applies.

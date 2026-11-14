@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.8.1] — 2026-11-14
+
+### Changed
+
+- **Build minimum raised to Go 1.27.0** (`go.mod`, CI, release workflow).
+  Gon parses `.gon` with the `go/parser` of the toolchain that builds it;
+  Go 1.27 accepts methods with their own type parameters
+  (`func (b Box[X]) Map[Y any](…)`), earlier toolchains reject them at parse
+  time. With one build minimum every Gon binary now behaves the same.
+- `gon version` reports `1.8.1`.
+
+### Compatibility
+
+- **No change to diagnostics or to accepted/rejected programs**, apart from
+  source that uses generic methods, which was previously a parse error.
+- **Building from source needs Go 1.27.0+.** `go install …@v1.8.1` works from
+  any Go that can auto-download toolchains (Go 1.21+, `GOTOOLCHAIN` not set to
+  `local`); release binaries need no Go at all.
+- The Go installed on a *user's* machine is not constrained: with the user's
+  `go` forced to 1.21.13, 1.22.12, 1.23.12, 1.24.7, 1.25.0, 1.26.0 and 1.27.0
+  the same file produced identical diagnostics. (Observed, not a support
+  guarantee; CI does not yet run this matrix.)
+- Generic-method contracts: body-level checks work (G2 on method type
+  parameters, GN001 on returns); call-site contracts for methods remain
+  untracked for all receivers — see the roadmap note.
+
 ## [1.8.0] — 2026-11-14
 
 ### Added
