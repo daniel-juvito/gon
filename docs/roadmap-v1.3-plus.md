@@ -165,3 +165,26 @@ application.
 - v1.6 onward are planned, not committed. RFC outcomes, scope changes, or
   implementation reality may shift these boundaries without violating R1–R4
   or the underlying dependency graph.
+- **Go 1.27 generic methods (open, unscheduled — noted 2026-11-14).** Go 1.27
+  allows methods with their own type parameters
+  (`func (b Box[X]) Map[Y any](…)`). Gon parses with the `go/parser` of the
+  toolchain that builds it, so:
+  - A Gon built with Go 1.25 (current `go.mod` minimum) rejects such source
+    at parse time (`method must have no type parameters`); a Gon built with
+    Go 1.27 accepts it **without checking any contract on it** — verified
+    2026-11-14 against v1.8.0 sources. The same Gon source therefore
+    behaves differently depending on the builder's Go version. Until
+    decided, official release binaries should be built with one pinned Go
+    version, recorded in the release notes.
+  - Accepting the syntax is **not breaking** (it was a parse error before).
+    Raising the `go.mod` minimum to 1.27 is a separate, build-level
+    compatibility decision and is not required to accept the syntax.
+  - Defining `!` contracts on generic methods (method type parameters, and
+    whether `!Y` follows the G2 nilable-type-parameter rule) needs its own
+    RFC. Note that source-declared method contracts are not tracked for
+    *any* receiver today (RFC `rfc-generic-semantics.md` §13.1), so this
+    interacts with that gap. Once contracts start being checked on code
+    that was previously unchecked, R1/G11-style compatibility analysis
+    applies. Candidate slot: with or after M5b (v1.9); not part of v1.8.
+  - CI/release toolchain bump (matrix 1.25.0 + 1.27.0; release builds on
+    1.27.0) is deferred and should be a separate commit from feature work.
