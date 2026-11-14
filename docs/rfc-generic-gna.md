@@ -1,10 +1,10 @@
 # RFC: Generic `.gna` and External Generic Contract Application (Gon v1.9 / M5b)
 
-**Status:** Draft — awaiting owner review (refreshed 2026-11-14 after
-v1.8.1). Decisions X1–X11 are *proposals*;
-§9 lists the questions that need an explicit owner answer. Builds on v1.8
-(M3); the corrections in `rfc-generic-semantics.md` §13.1 were confirmed by
-the owner on 2026-11-14 (resolves Q7).
+**Status:** Draft — owner decisions Q1–Q4 accepted 2026-11-14 (refreshed
+after v1.8.1); Q5 and Q6 are still proposals. No implementation or release is
+implied by these decisions. Builds on v1.8 (M3); the corrections in
+`rfc-generic-semantics.md` §13.1 were confirmed by the owner on 2026-11-14
+(resolves Q7).
 **Target:** Gon v1.9
 **Related:** `docs/gna-spec-v1.md`, `docs/roadmap-v1.3-plus.md`,
 `docs/rfc-generic-semantics.md` (M3 / v1.8),
@@ -272,23 +272,26 @@ generic packages (`slices`, `maps`, `sync/atomic`).
     external, aliased) — a fuzz-style table over `typeExprName` and the
     resolvers.
 
-## 9. Open Questions for the Owner
+## 9. Owner Decisions and Open Questions
 
-1. **Q1 — X2.** Resolve explicit instantiation of external generics like the
-   inferred form (proposed), or keep explicit-instantiation unchecked?
-2. **Q2 — X3 scope.** Enforce `.gna` kind validation (`!int` → GN003) for
-   **all** symbols (proposed: it is what `gna-spec-v1.md` already
-   promises, and splitting generic from non-generic would be perverse), only
-   generic symbols, or defer the non-generic part to its own patch?
-3. **Q3 — X3 failure mode.** Drop the whole entry on GN003 (proposed, M5a
-   precedent), or drop only the offending position?
-4. **Q4 — X7.** Apply X3 uniformly to method-level type parameters
-   (proposed — same mechanism, nothing extra to build), or exclude them from
-   v1.9 and leave their `.gna` positions unvalidated.
-5. **Q5 — X10.** Confirm the bundled-annotations audit is a release gate.
-6. **Q6 — Release shape.** Solo v1.9 (proposed). The Go-version question
-   that used to sit here is RESOLVED: v1.8.1 raised the build minimum to Go
-   1.27.0 and release binaries are built with it.
+Q1–Q4 were answered by the owner on 2026-11-14, each accepting the
+drafted recommendation. They settle the alternatives; they are not
+implementation approval or release sign-off.
+
+1. **Q1 — X2: ACCEPT.** Explicit instantiation of an external generic
+   resolves like the inferred form.
+2. **Q2 — X3 scope: ACCEPT all symbols.** `.gna` kind validation
+   (`"!int"` → GN003) applies to generic and non-generic symbols alike, as
+   `gna-spec-v1.md` has promised since v1.6.
+3. **Q3 — X3 failure mode: ACCEPT whole-entry drop.** GN003, then none of
+   the entry's `!` flags apply (M5a precedent).
+4. **Q4 — X7: ACCEPT uniform.** X3 applies to type parameters declared by a
+   method itself (Go 1.27) exactly as to any other type parameter.
+5. **Q5 — X10 — OPEN.** Confirm the bundled-annotations audit is a release
+   gate (proposed: yes).
+6. **Q6 — Release shape — OPEN.** Solo v1.9 (proposed). The Go-version
+   question that used to sit here is RESOLVED: v1.8.1 raised the build
+   minimum to Go 1.27.0 and release binaries are built with it.
 7. **Q7 — Prerequisite.** RESOLVED 2026-11-14: the two
    `rfc-generic-semantics.md` §13.1 corrections (source-level method
    contracts untracked; no method-set contract) are confirmed. X4 relies on
@@ -326,12 +329,12 @@ generic packages (`slices`, `maps`, `sync/atomic`).
 | Decision | Proposal |
 |----------|----------|
 | New `.gna` syntax / schema bump | None (X1) |
-| Explicit external instantiation resolves like inferred | Yes (X2, Q1) |
-| `!` positions validated against the origin signature | Yes — type parameter via nilable rule, concrete via kind (X3, Q2) |
-| Failure mode | GN003, drop whole entry (X3, Q3) |
+| Explicit external instantiation resolves like inferred | Yes (X2, Q1: accepted) |
+| `!` positions validated against the origin signature | Yes — type parameter via nilable rule, concrete via kind, all symbols (X3, Q2: accepted) |
+| Failure mode | GN003, drop whole entry (X3, Q3: accepted) |
 | Generic receivers / `types:` | Resolved by origin identity (X4) |
 | `!` inside a `.gna` type argument | Load error (X5) |
 | Type-parameter names in strings | Documentation only (X6) |
-| Method-level type parameters (Go 1.27) | X3 applies uniformly (X7, Q4) |
+| Method-level type parameters (Go 1.27) | X3 applies uniformly (X7, Q4: accepted) |
 | Bundled annotations audit | Release gate (X10, Q5) |
 | Release shape | Solo v1.9 (X9, Q6) |

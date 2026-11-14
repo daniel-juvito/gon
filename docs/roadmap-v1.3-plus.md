@@ -152,8 +152,8 @@ though it depends on prior RFCs.
 ### v1.9 — Generic `.gna` Ecosystem
 **Scope:** M5b — generic `.gna` declarations + generic contract
 application.
-**RFC:** `docs/rfc-generic-gna.md` (Status: Draft — X1–X11 proposed,
-Q1–Q7 awaiting owner review, 2026-11-14). Measured baseline: most generic
+**RFC:** `docs/rfc-generic-gna.md` (Status: Draft — owner decisions
+Q1–Q4 accepted 2026-11-14; Q5 / Q6 open; implementation pending). Measured baseline: most generic
 `.gna` application already works by name + position; the release closes the
 explicit-instantiation inconsistency and validates `.gna` `!` positions
 against `go/types` (type parameters via the M3 nilable rule; concrete kinds
