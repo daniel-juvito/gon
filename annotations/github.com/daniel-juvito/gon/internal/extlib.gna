@@ -5,7 +5,7 @@ description: "Reference external-package annotation (in-module proof)"
 functions:
   Take:
     params:
-      - "!string"
+      - "!*string"
     results:
       - "error"
 
@@ -19,7 +19,29 @@ functions:
     results:
       - "!io.Reader"
 
+  Unwrap:
+    params:
+      - "!*X"
+    results:
+      - "!*X"
+
+  Pick:
+    params:
+      - "!S"
+    results:
+      - "!S"
+
 methods:
+  Box.Get:
+    results:
+      - "!*X"
+
+  Box.Ptr:
+    params:
+      - "!P"
+    results:
+      - "!P"
+
   Handle.Put:
     params:
       - "![]byte"
@@ -27,6 +49,9 @@ methods:
       - "error"
 
 types:
+  Box:
+    fields:
+      V: "!*X"
   Conn:
     fields:
       DB: "!*Handle"

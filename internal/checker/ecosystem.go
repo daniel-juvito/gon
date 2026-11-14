@@ -328,6 +328,12 @@ func (c *Checker) validateGnaFile(pkgPath string, file *gna.File, tpkg *types.Pa
 	pos := c.importPos[pkgPath]
 	scope := tpkg.Scope()
 
+	// v1.9 (M5b / X3): flags that fail validation are cleared on a per-run
+	// COPY of the file — never on the registry's own object, which a
+	// long-lived registry (LSP) hands to every later check.
+	masked := cloneGnaFile(file)
+	defer c.installMasked(file, masked)
+
 	for _, name := range sortedKeys(file.Functions) {
 		sig := file.Functions[name]
 		obj := scope.Lookup(name)
@@ -338,7 +344,9 @@ func (c *Checker) validateGnaFile(pkgPath string, file *gna.File, tpkg *types.Pa
 			continue
 		}
 		if s, ok := fn.Type().(*types.Signature); ok {
-			c.checkArity(pkgPath, name, s, sig, pos)
+			if c.checkArity(pkgPath, name, s, sig, pos) {
+				c.checkFlags(pkgPath, name, s, masked.Functions[name], pos)
+			}
 		}
 	}
 
@@ -361,22 +369,28 @@ func (c *Checker) validateGnaFile(pkgPath string, file *gna.File, tpkg *types.Pa
 			continue
 		}
 		if s, ok := m.Type().(*types.Signature); ok {
-			c.checkArity(pkgPath, key, s, sig, pos)
+			if c.checkArity(pkgPath, key, s, sig, pos) {
+				c.checkFlags(pkgPath, key, s, masked.Methods[key], pos)
+			}
 		}
 	}
 
 	for _, typeName := range sortedKeys(file.Types) {
-		if lookupNamed(scope, typeName) == nil {
+		named := lookupNamed(scope, typeName)
+		if named == nil {
 			c.addWarning(pos, "GW004",
 				fmt.Sprintf(".gna for %s annotates %s, which the package does not provide", pkgPath, typeName))
+			continue
 		}
+		c.checkFieldFlags(pkgPath, typeName, named, masked.Types[typeName], pos)
 	}
 }
 
 // checkArity compares the `.gna` params/results length against the Go
 // signature (a variadic final parameter counts as one). On mismatch it emits
-// GN003 and drops the whole entry.
-func (c *Checker) checkArity(pkgPath, symbol string, s *types.Signature, sig *gna.Signature, pos token.Pos) {
+// GN003 and drops the whole entry, and reports false so position validation
+// is skipped for it.
+func (c *Checker) checkArity(pkgPath, symbol string, s *types.Signature, sig *gna.Signature, pos token.Pos) bool {
 	goParams := s.Params().Len()
 	goResults := s.Results().Len()
 	if len(sig.Params) != goParams {
@@ -384,14 +398,16 @@ func (c *Checker) checkArity(pkgPath, symbol string, s *types.Signature, sig *gn
 			fmt.Sprintf(".gna for %s: signature arity mismatch for %s (annotation %d params, package %d)",
 				pkgPath, symbol, len(sig.Params), goParams))
 		c.markDropped(pkgPath, symbol)
-		return
+		return false
 	}
 	if len(sig.Results) != goResults {
 		c.addError(pos, "GN003",
 			fmt.Sprintf(".gna for %s: signature arity mismatch for %s (annotation %d results, package %d)",
 				pkgPath, symbol, len(sig.Results), goResults))
 		c.markDropped(pkgPath, symbol)
+		return false
 	}
+	return true
 }
 
 func splitMethodKey(key string) (typeName, methodName string, ok bool) {
@@ -413,13 +429,150 @@ func lookupNamed(scope *types.Scope, name string) *types.Named {
 }
 
 // lookupMethod finds a method by name in the full method set of *T (which
-// includes value-receiver and promoted methods).
+// includes value-receiver and promoted methods). For an interface type the
+// method set is that of the interface itself: a pointer to an interface has an
+// EMPTY method set, which made every annotated interface method (io.Reader.Read,
+// io.Writer.Write, …) a false GW004 before v1.9.
 func lookupMethod(named *types.Named, name string) *types.Func {
-	ms := types.NewMethodSet(types.NewPointer(named))
+	var recv types.Type = types.NewPointer(named)
+	if _, isIface := named.Underlying().(*types.Interface); isIface {
+		recv = named
+	}
+	ms := types.NewMethodSet(recv)
 	for i := 0; i < ms.Len(); i++ {
 		if fn, ok := ms.At(i).Obj().(*types.Func); ok && fn.Name() == name {
 			return fn
 		}
 	}
 	return nil
+}
+
+// cloneGnaFile deep-copies everything validation may clear: the per-position
+// flags of functions and methods and the per-field flags of types.
+func cloneGnaFile(f *gna.File) *gna.File {
+	cp := *f
+	cp.Functions = make(map[string]*gna.Signature, len(f.Functions))
+	for k, v := range f.Functions {
+		cp.Functions[k] = cloneSignature(v)
+	}
+	cp.Methods = make(map[string]*gna.Signature, len(f.Methods))
+	for k, v := range f.Methods {
+		cp.Methods[k] = cloneSignature(v)
+	}
+	cp.Types = make(map[string]*gna.TypeAnnotation, len(f.Types))
+	for k, v := range f.Types {
+		if v == nil {
+			cp.Types[k] = nil
+			continue
+		}
+		fields := make(map[string]bool, len(v.Fields))
+		for fk, fv := range v.Fields {
+			fields[fk] = fv
+		}
+		cp.Types[k] = &gna.TypeAnnotation{Fields: fields}
+	}
+	return &cp
+}
+
+func cloneSignature(s *gna.Signature) *gna.Signature {
+	if s == nil {
+		return nil
+	}
+	return &gna.Signature{
+		Params:  append([]bool(nil), s.Params...),
+		Results: append([]bool(nil), s.Results...),
+	}
+}
+
+// installMasked makes every cached reference to the original file point at
+// the masked copy for the rest of this check run.
+func (c *Checker) installMasked(orig, masked *gna.File) {
+	for k, v := range c.resolved {
+		if v == orig {
+			c.resolved[k] = masked
+		}
+	}
+}
+
+// flagProblem reports why a `!` flag cannot hold on a position of type t
+// (RFC rfc-generic-gna.md X3), or "" when it can. t comes from the symbol's
+// ORIGIN signature, so a type parameter is seen as such, whether it is
+// declared by the function, its receiver type, or the method itself (X7).
+func flagProblem(t types.Type) string {
+	if tp, ok := t.(*types.TypeParam); ok {
+		if typeParamNilable(tp) {
+			return ""
+		}
+		return fmt.Sprintf("type parameter %s is not restricted to nilable kinds by its constraint", tp.Obj().Name())
+	}
+	if nilableUnderlying(t) {
+		return ""
+	}
+	return fmt.Sprintf("%s is not a nilable kind (pointer, slice, map, channel, function, interface)",
+		types.TypeString(t, func(p *types.Package) string { return p.Name() }))
+}
+
+// checkFlags validates every `!` flag of one function / method entry against
+// its origin signature. An invalid flag is GN003 and is cleared (that
+// position becomes ordinary); the entry's other positions keep their
+// contract. Arity has already been checked, so positions are aligned.
+func (c *Checker) checkFlags(pkgPath, symbol string, s *types.Signature, sig *gna.Signature, pos token.Pos) {
+	if sig == nil {
+		return
+	}
+	for i, flag := range sig.Params {
+		if !flag || i >= s.Params().Len() {
+			continue
+		}
+		v := s.Params().At(i)
+		if why := flagProblem(v.Type()); why != "" {
+			label := fmt.Sprintf("parameter %d", i+1)
+			if v.Name() != "" && v.Name() != "_" {
+				label += " (" + v.Name() + ")"
+			}
+			c.addError(pos, "GN003", fmt.Sprintf(".gna for %s: ! on %s of %s: %s; the flag is ignored",
+				pkgPath, label, symbol, why))
+			sig.Params[i] = false
+		}
+	}
+	for i, flag := range sig.Results {
+		if !flag || i >= s.Results().Len() {
+			continue
+		}
+		if why := flagProblem(s.Results().At(i).Type()); why != "" {
+			c.addError(pos, "GN003", fmt.Sprintf(".gna for %s: ! on result %d of %s: %s; the flag is ignored",
+				pkgPath, i+1, symbol, why))
+			sig.Results[i] = false
+		}
+	}
+}
+
+// checkFieldFlags validates the `types:` field flags of one annotated type
+// against the origin struct's fields. Fields the struct does not declare
+// directly (promoted, or absent) are left as before.
+func (c *Checker) checkFieldFlags(pkgPath, typeName string, named *types.Named, ann *gna.TypeAnnotation, pos token.Pos) {
+	if ann == nil {
+		return
+	}
+	st, ok := named.Underlying().(*types.Struct)
+	if !ok {
+		return
+	}
+	for _, fname := range sortedKeys(ann.Fields) {
+		if !ann.Fields[fname] {
+			continue
+		}
+		for i := 0; i < st.NumFields(); i++ {
+			f := st.Field(i)
+			if f.Name() != fname {
+				continue
+			}
+			if why := flagProblem(f.Type()); why != "" {
+				c.addError(pos, "GN003", fmt.Sprintf(".gna for %s: ! on field %s.%s: %s; the flag is ignored",
+					pkgPath, typeName, fname, why))
+				ann.Fields[fname] = false
+			}
+			break
+		}
+	}
 }

@@ -25,7 +25,10 @@ composite-literal construction site, and — since v1.8 — generics: contracts
 are attached to declaration positions and survive instantiation (`Box[T]{}`,
 `NN[T]()`), `!X` is valid on a type parameter only when its constraint
 restricts it to nilable kinds, and `!` in a type argument or constraint is
-rejected. It is not a runtime non-nil guarantee.
+rejected; since v1.9 the same holds for external generics described in `.gna`
+(explicit and inferred instantiation resolve alike, and every `.gna` `!` flag
+is validated against the symbol's real signature). It is not a runtime
+non-nil guarantee.
 
 Architectural rule:
 
@@ -37,7 +40,7 @@ Full scope contract: [docs/v1-scope.md](docs/v1-scope.md)
 ## Install
 
 ```bash
-go install github.com/daniel-juvito/gon/cmd/gon@v1.8.1
+go install github.com/daniel-juvito/gon/cmd/gon@v1.9.0
 ```
 
 Or from source:
@@ -236,9 +239,9 @@ Full format: [docs/gna-spec-v1.md](docs/gna-spec-v1.md)
 
 | Code  | Severity | Meaning |
 |-------|----------|---------|
-| GN001 | error    | literal `nil` assigned / passed / returned where `!T` is required; `nil` assigned into a `!T` field (local or external, v1.5); an ordinary interface value where `!I` is required (incl. an external `!I` field, v1.5); `!T` as a type-assertion target — interface (v1.4) or any kind (v1.6); `nil` as an element / map value under an element contract (v1.7) |
-| GN002 | error    | construction leaves a required non-nil field at zero (including nested / embedded / array; includes `new(T)`; external `pkg.T` incl. one-hop embedded promotion, v1.5); bare `var x !S` of a nilable reference kind with no initializer (v1.6); fixed-array literal leaves a `!` nilable element index at zero (v1.7) |
-| GN003 | error    | malformed `.gna`, or (v1.5) a `params`/`results` arity mismatch vs `go/types` — the entry is dropped; `!` on a non-nilable type (v1.6); element `!` on a channel element, map key, or non-nilable element kind (v1.7) |
+| GN001 | error    | literal `nil` assigned / passed / returned where `!T` is required; `nil` assigned into a `!T` field (local or external, v1.5); an ordinary interface value where `!I` is required (incl. an external `!I` field, v1.5); `!T` as a type-assertion target — interface (v1.4) or any kind (v1.6); `nil` as an element / map value under an element contract (v1.7); `nil` into a `!` field / argument through a generic instantiation (v1.8), including an explicit instantiation of an external generic (v1.9) |
+| GN002 | error    | construction leaves a required non-nil field at zero (including nested / embedded / array; includes `new(T)`; external `pkg.T` incl. one-hop embedded promotion, v1.5); bare `var x !S` of a nilable reference kind with no initializer (v1.6); fixed-array literal leaves a `!` nilable element index at zero (v1.7); construction of an instantiated generic struct leaves a `!` field at zero (v1.8), local or external via `.gna` `types:` (v1.9); `var v !P` with no initializer for a nilable type parameter `P` (v1.8) |
+| GN003 | error    | malformed `.gna`, or (v1.5) a `params`/`results` arity mismatch vs `go/types` — the entry is dropped; `!` on a non-nilable type (v1.6); element `!` on a channel element, map key, or non-nilable element kind (v1.7); `!X` on a type parameter not restricted to nilable kinds, and `!` inside a type argument or constraint (v1.8); a `.gna` `!` flag over a non-nilable kind or type parameter — only that flag is dropped (v1.9) |
 | GW001 | warning  | comparison of a non-nil name or `!T` field selector (local or external, v1.5) with `nil` (always true/false) |
 | GW002 | warning  | calling an un-annotated symbol of an annotated package |
 | GW003 | warning  | redundant type assertion on a declared `!T` identifier (v1.3) |
@@ -273,7 +276,8 @@ Full format: [docs/gna-spec-v1.md](docs/gna-spec-v1.md)
 - Conditional contracts (`non-nil when err == nil`)
 - Automatic nilability inference from bodies
 - Runtime enforcement (annotations are stripped)
-- Generic `.gna` declarations / external generic contracts (M5b, v1.9)
+- Declaring type parameters or constraints in `.gna` (names are documentation; `go/types` decides)
+- A built-in "nilable" constraint (see the roadmap note)
 - Interface **dynamic-value** nilability (`!I` never constrains it — by design)
 - Cross-package unkeyed / positional construction expansion (M4)
 - Remote annotation registries

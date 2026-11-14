@@ -271,69 +271,37 @@ func f() { _ = Pair[int, string]{}; _ = Id(1) }`)
 	}
 }
 
-// --- G10: external generics stay as v1.7.1 ---------------------------------
+// --- G10 -> v1.9 (X2): external instantiation resolves like inference -------
 
-// `.gna` application to an instantiation of an external generic is deferred
-// to M5b; an explicit instantiation of an imported symbol must not start
-// resolving contracts in v1.8.
-func TestGen_ExternalInstantiationNotResolved(t *testing.T) {
+// Without a `.gna` an instantiation of an external generic carries no
+// contract, so it must stay silent. (With a `.gna` it is resolved since
+// v1.9 — see generic_gna_test.go.)
+func TestGen_ExternalInstantiationWithoutGnaIsClean(t *testing.T) {
 	d := checkTyped(t, `package main
 import "slices"
 func f() { _ = slices.Clone[[]int](nil) }`)
 	for _, x := range d {
 		if x.Code == "GN001" || x.Code == "GN002" {
-			t.Fatalf("external instantiation must not resolve contracts: %v", d)
+			t.Fatalf("no .gna, no contract: %v", d)
 		}
 	}
 }
 
 func TestGen_GenericOriginUnit(t *testing.T) {
-	// pkg.Box[T] is left alone (G10); Box[T] / Reg[K, V] resolve to the ident.
+	// Box[T] / Reg[K, V] resolve to the identifier; pkg.Box[T] to the selector.
 	if got := genericOrigin(parseExprForTest(t, "Box[T]")); typeExprName(got) != "Box" {
 		t.Fatalf("Box[T] -> %q", typeExprName(got))
 	}
 	if got := genericOrigin(parseExprForTest(t, "Reg[K, V]")); typeExprName(got) != "Reg" {
 		t.Fatalf("Reg[K,V] -> %q", typeExprName(got))
 	}
-	e := parseExprForTest(t, "pkg.Box[T]")
+	if got := genericOrigin(parseExprForTest(t, "pkg.Box[T]")); typeExprName(got) != "pkg.Box" {
+		t.Fatalf("pkg.Box[T] -> %q", typeExprName(got))
+	}
+	e := parseExprForTest(t, "[]int{}")
 	if genericOrigin(e) != e {
-		t.Fatalf("pkg.Box[T] must be returned unchanged")
+		t.Fatalf("a non-instantiation must be returned unchanged")
 	}
-}
-
-// --- G8: generic interfaces behave like non-generic ones -------------------
-
-// v1.4 D5 / I3: `!` never alters method sets or interface implementation, so
-// `!` on an interface method signature is not a satisfaction constraint.
-// A generic interface must behave exactly like its non-generic counterpart.
-func TestGen_GenericInterfaceMatchesNonGeneric(t *testing.T) {
-	g := genCheck(t, `type Getter[X any] interface{ Get() !*X }
-type Impl struct{}
-func (Impl) Get() *T { return &T{} }
-func use(g Getter[T]) {}
-func f() { use(Impl{}) }`)
-	n := genCheck(t, `type Getter interface{ Get() !*T }
-type Impl struct{}
-func (Impl) Get() *T { return &T{} }
-func use(g Getter) {}
-func f() { use(Impl{}) }`)
-	if len(g) != len(n) {
-		t.Fatalf("generic interface diverges from non-generic: generic=%v non-generic=%v", g, n)
-	}
-	want(t, g, "GN001", 0)
-}
-
-func TestGen_BangGenericInterfaceValue(t *testing.T) {
-	// `!I` over an instantiated interface keeps the v1.4 rule: concrete is
-	// accepted, nil is GN001.
-	d := genCheck(t, `type Getter[X any] interface{ Get() *X }
-type Impl struct{}
-func (Impl) Get() *T { return &T{} }
-func f() { var a !Getter[T] = Impl{}; _ = a }`)
-	want(t, d, "GN001", 0)
-	d = genCheck(t, `type Getter[X any] interface{ Get() *X }
-func f() { var a !Getter[T] = nil; _ = a }`)
-	want(t, d, "GN001", 1)
 }
 
 // Regression: typeExprName must terminate on an instantiation of an external

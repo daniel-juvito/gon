@@ -36,7 +36,7 @@ package: example
 functions:
   Take:
     params:
-      - "!string"
+      - "!*string"
       - "int"
     results:
       - "!example.T"
@@ -264,5 +264,45 @@ func TestLoadOSAnnotation(t *testing.T) {
 	}
 	if len(sig.Params) != 1 || sig.Params[0] {
 		t.Fatalf("File.Write params should be ordinary []byte, got %v", sig.Params)
+	}
+}
+
+// v1.9 / M5b X5: a `!` inside a type-argument list is a load error — a type
+// argument carries no contract (mirrors the source-level rule, M3 G4). Element
+// positions outside type-argument lists stay legal.
+func TestBangInTypeArgumentRejected(t *testing.T) {
+	for _, ann := range []string{
+		"Box[!*T]",
+		"Box[A, !*T]",
+		"pkg.Box[!*T]",
+		"map[string]Box[!*T]",
+		"[]Box[!*T]",
+		"Box[[]!*T]",
+		"Box[map[string]!*T]",
+		"!Box[[]!*T]",
+		"Box[Reg[!*T]]",
+	} {
+		src := "schema: 1\npackage: example\nfunctions:\n  Build:\n    results:\n      - \"" + ann + "\"\n"
+		if _, err := LoadBytes("example.gna", []byte(src)); err == nil {
+			t.Errorf("`!` inside a type argument (%q) must be rejected", ann)
+		}
+	}
+}
+
+func TestBangOutsideTypeArgumentStillAccepted(t *testing.T) {
+	for _, ann := range []string{
+		"[]!*T",
+		"map[string]!*T",
+		"[8]!*Slot",
+		"!Box[T]",
+		"[]!Box[T]",
+		"map[string]!Box[T]",
+		"![]!Box[A, B]",
+		"Box[map[string]T]",
+	} {
+		src := "schema: 1\npackage: example\nfunctions:\n  Build:\n    results:\n      - \"" + ann + "\"\n"
+		if _, err := LoadBytes("example.gna", []byte(src)); err != nil {
+			t.Errorf("%q must load: %v", ann, err)
+		}
 	}
 }

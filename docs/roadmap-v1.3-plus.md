@@ -59,7 +59,7 @@ analysis (see v1.6, §4).
 | M4a | Cross-package / External resolution + non-interface application | Core + basic `.gna` model — **shipped v1.5** |
 | M4b | Interface-typed contract application | M1a + M4a application model — **shipped v1.5** |
 | M5a | `.gna` validation + external contract boundary | M4a — **shipped v1.5** |
-| M5b | Generic `.gna` + generic contract application | M3 + M5a infrastructure |
+| M5b | Generic `.gna` + generic contract application | M3 + M5a infrastructure — **shipped v1.9** |
 | M6a | `gon fmt` + `gon check` | Core |
 | M6b | LSP / editor support | M2a — contract tracing |
 
@@ -149,15 +149,15 @@ by the owner 2026-11-14).
 **Rationale (R1):** Solo release. Independent compatibility exposure even
 though it depends on prior RFCs.
 
-### v1.9 — Generic `.gna` Ecosystem
+### v1.9 — Generic `.gna` Ecosystem — SHIPPED (2026-11-14)
 **Scope:** M5b — generic `.gna` declarations + generic contract
 application.
-**RFC:** `docs/rfc-generic-gna.md` (Status: Draft — owner decisions
-all owner decisions recorded 2026-11-14 (Q2/Q3 after an exercise); implementation pending). Measured baseline: most generic
-`.gna` application already works by name + position; the release closes the
-explicit-instantiation inconsistency and validates `.gna` `!` positions
-against `go/types` (type parameters via the M3 nilable rule; concrete kinds
-per `gna-spec-v1.md`).
+**RFC:** `docs/rfc-generic-gna.md` (Status: Implemented in Gon v1.9,
+2026-11-14; owner decisions Q1–Q7 recorded, Q2 / Q3 after an exercise).
+Measured baseline: most generic `.gna` application already worked by name +
+position; the release closes the explicit-instantiation inconsistency and
+validates `.gna` `!` positions against `go/types` (type parameters via the
+M3 nilable rule; concrete kinds per `gna-spec-v1.md`).
 **Dependency:** M3 (v1.8) + M5a infrastructure (v1.5).
 **Breaking risk:** Possibly Yes (inherited from M3).
 **Rationale (R1):** Follows the isolation of M3 as its direct consumer.

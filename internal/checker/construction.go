@@ -20,7 +20,8 @@ func (c *Checker) checkNewConstruction(call *ast.CallExpr) {
 		return
 	}
 	arg := call.Args[0]
-	switch a := arg.(type) {
+	// v1.9 (X2): `new(Box[T])` / `new(pkg.Box[T])` use the generic declaration.
+	switch a := genericOrigin(arg).(type) {
 	case *ast.Ident, *ast.StructType:
 		trace := &ContractTrace{Origin: "new(" + typeExprName(arg) + ")"}
 		c.reportMissingNonNilFieldsTraced(call.Pos(), arg, nil, "", trace)

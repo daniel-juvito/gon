@@ -21,13 +21,13 @@ import (
 //	G7  — `var v !P` with no initializer is GN002 for a nilable P.
 //	G9  — `!` anywhere inside a constraint is GN003 (reserved).
 
-// genericOrigin strips a generic instantiation (`Box[T]`, `Reg[K, V]`) of a
-// **local** declaration down to the identifier naming the generic declaration.
-// Contracts are positional in the declaration (G3/G5); instantiation
-// substitutes types only. An instantiation of an external generic
-// (`pkg.Box[T]`) is returned unchanged: generic `.gna` application is M5b
-// (v1.9) and v1.8 behaviour for it is pinned (G10). Any other expression is
-// returned unchanged.
+// genericOrigin strips a generic instantiation (`Box[T]`, `Reg[K, V]`,
+// `pkg.Box[T]`, `pkg.F[T]`) down to the expression naming the generic
+// declaration: an identifier for a local symbol, a selector for an external
+// one. Contracts are positional in the declaration (G3/G5); instantiation
+// substitutes types only. Since v1.9 (M5b, RFC `rfc-generic-gna.md` X2) an
+// explicit instantiation of an external generic resolves exactly like the
+// inferred form. Any other expression is returned unchanged.
 func genericOrigin(expr ast.Expr) ast.Expr {
 	base := expr
 	instantiated := false
@@ -48,7 +48,8 @@ func genericOrigin(expr ast.Expr) ast.Expr {
 	if !instantiated {
 		return expr
 	}
-	if _, ok := base.(*ast.Ident); ok {
+	switch base.(type) {
+	case *ast.Ident, *ast.SelectorExpr:
 		return base
 	}
 	return expr
@@ -150,9 +151,11 @@ func nilableUnderlying(t types.Type) bool {
 	if _, ok := t.(*types.TypeParam); ok {
 		return false
 	}
-	switch t.Underlying().(type) {
+	switch u := t.Underlying().(type) {
 	case *types.Pointer, *types.Slice, *types.Map, *types.Chan, *types.Signature, *types.Interface:
 		return true
+	case *types.Basic:
+		return u.Kind() == types.UnsafePointer
 	}
 	return false
 }

@@ -1,5 +1,61 @@
 # Changelog
 
+## [1.9.0] — 2026-11-14
+
+### Added
+
+- **Generic `.gna` and external generic contract application** — M5b
+  (`docs/rfc-generic-gna.md`). No new `.gna` syntax; schema stays **1**.
+  - **Explicit instantiation resolves like inference.** `pkg.F[T](…)`,
+    `pkg.Box[T]{…}`, `new(pkg.Box[T])` and a method on an instantiated
+    receiver now apply the same `.gna` entry as the inferred form. Before,
+    `slices.Clone(nil)` was reported and `slices.Clone[[]int](nil)` was not.
+  - **Every `!` flag is validated against the symbol's origin signature**
+    (`go/types`, before instantiation): valid only on a nilable kind
+    (pointer, slice, map, channel, function, interface, `unsafe.Pointer`) or
+    a type parameter whose constraint restricts it to nilable kinds. An
+    invalid flag is **GN003** and **only that flag is dropped** — the
+    position becomes ordinary and the entry's other positions keep their
+    contract. Applies to `params`, `results` and `types:` fields, to generic
+    and non-generic symbols alike, and to type parameters a method declares
+    itself (Go 1.27). Arity mismatch still drops the whole entry.
+  - **`!` inside a `.gna` type-argument list** (`"Box[!*T]"`,
+    `"Box[[]!*T]"`) is a load error — the `.gna` mirror of the v1.8 source
+    rule.
+- No new diagnostic codes.
+
+### Fixed
+
+- **`import "io"` produced three false GW004 warnings** (`Reader.Read`,
+  `Writer.Write`, `WriterTo.WriteTo` "which the package does not provide").
+  Annotated interface methods were looked up in the method set of a pointer
+  to the interface, which is empty. Present since v1.5; found by the
+  bundled-annotation audit added in this release.
+
+### Changed
+
+- `gon version` reports `1.9.0`.
+- The bundled `extlib` reference annotation claimed `"!string"` for
+  `Take(s string)`; `Take` now takes `*string` and the claim is `"!*string"`.
+  About ten test fixtures that used `"!string"` as a placeholder were
+  rewritten the same way.
+
+### Compatibility
+
+- **Possibly breaking, by design (RFC X9), shipped solo per R1:**
+  - A `.gna` `!` over a non-nilable kind (`"!string"` on a `string`
+    parameter) or a non-nilable type parameter used to be accepted silently
+    and is now GN003 with that flag dropped. This is the rule
+    `gna-spec-v1.md` has stated since v1.6. **Migration:** correct the type,
+    or delete the `!`.
+  - A call or literal through an *explicit* instantiation of an external
+    generic that violates a `.gna` contract is newly reported (the inferred
+    form already was).
+  - `"Box[!*T]"` and `"Box[[]!*T]"` in a `.gna` string are now load errors.
+- **Unchanged:** `.gna` schema, source-level behaviour, diagnostics for code
+  that imports no annotated generic symbol. Differential run of v1.8.1 vs
+  v1.9.0 over 46 existing `.gon` files: identical output.
+
 ## [1.8.1] — 2026-11-14
 
 ### Changed

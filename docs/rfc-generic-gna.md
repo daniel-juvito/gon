@@ -1,12 +1,13 @@
 # RFC: Generic `.gna` and External Generic Contract Application (Gon v1.9 / M5b)
 
-**Status:** Draft — all owner decisions Q1–Q7 recorded 2026-11-14. Q1–Q4
-were first accepted by intuition, then exercised the same day (§12); Q3
-changed to per-position drop and Q2 was re-confirmed as "all symbols". Q5
-(audit is a release gate) and Q6 (solo v1.9) were accepted afterwards. No
-implementation or release is implied by these decisions. Builds on v1.8
-(M3); the corrections in `rfc-generic-semantics.md` §13.1 were confirmed by
-the owner on 2026-11-14 (resolves Q7).
+**Status:** Implemented in Gon v1.9 (2026-11-14). All owner decisions
+Q1–Q7 recorded 2026-11-14; Q1–Q4 were first accepted by intuition, then
+exercised the same day (§12): Q3 changed to per-position drop and Q2 was
+re-confirmed as "all symbols". Q5 (audit is a release gate) and Q6 (solo
+v1.9) were accepted afterwards. Implementation notes and deviations from the
+sketch: §13. Builds on v1.8 (M3); the corrections in
+`rfc-generic-semantics.md` §13.1 were confirmed by the owner on 2026-11-14
+(resolves Q7).
 **Target:** Gon v1.9
 **Related:** `docs/gna-spec-v1.md`, `docs/roadmap-v1.3-plus.md`,
 `docs/rfc-generic-semantics.md` (M3 / v1.8),
@@ -437,4 +438,52 @@ model, and `go/types` data from the toolchain that ran the exercise.
 After seeing §12.1–12.5 the owner chose **per-position drop** for Q3 and
 **all symbols now** for Q2 (rewriting the `"!string"` fixtures and
 `extlib.gna` in the same release). Q1 and Q4 stand as accepted.
+
+---
+
+## 13. Implementation Notes (v1.9)
+
+- **X2** — `genericOrigin` (`internal/checker/generics.go`) now also unwraps
+  an instantiation whose base is a selector (`pkg.F[T]`, `pkg.Box[T]`), and
+  `checkNewConstruction` uses it for `new(pkg.Box[T])`. The call resolvers,
+  composite-literal paths and `reportExternalTypeFields` were already routed
+  through it in v1.8; `callArgParamType` deliberately still reads the
+  *instantiated* signature (it feeds `!I` interface checks).
+- **X3** — `validateGnaFile` (`ecosystem.go`) validates after `checkArity`
+  succeeds. **Deviation from the §7 sketch:** instead of a
+  `droppedPositions` set consulted by every resolver, validation clears the
+  invalid flags on a per-run **copy** of the `.gna` file
+  (`cloneGnaFile`) and swaps it into the checker's per-run cache
+  (`installMasked`), so every existing consumer (`resolveCallParams`,
+  `resolveCallResults`, method resolvers, `externalTypeAnn`,
+  `reportExternalTypeFields`) sees the masked flags with no change. The
+  registry's own object is never mutated (a long-lived LSP registry hands it
+  to every later check; pinned by a test). Classification (`flagProblem`)
+  reads the origin signature: `typeParamNilable` for a type parameter,
+  `nilableUnderlying` otherwise (now also true for `unsafe.Pointer`).
+- **X4** — no new code: methods resolve by origin type name and `types:` by
+  `Named.Obj()`, both already identity-correct through instantiation; pinned
+  by tests against a generic `extlib.Box[X]`.
+- **X5** — `parseTypeAnn` (`internal/gna/gna.go`) tracks which open `[`
+  starts a type-argument list (an identifier other than `map` before it) and
+  rejects any `!` inside one, including the previously accepted
+  `Box[[]!*T]`.
+- **X7** — no special case: the origin signature of a method that declares
+  its own type parameters exposes them as `*types.TypeParam`, so X3 treats
+  them like any other (tested against `extlib.Box.Echo` / `Box.Ptr`).
+- **X10** — `TestGGna_BundledAnnotationsAudit` loads every bundled `.gna`
+  and fails on GN003 / GW004. It found a bug unrelated to generics (below)
+  and the one real violation of §12.1.
+- **Found by the audit — fixed in this release.** `lookupMethod` searched the
+  method set of `*T`; for an interface type that set is empty, so every
+  annotated interface method (`io.Reader.Read`, `io.Writer.Write`,
+  `io.WriterTo.WriteTo`) was a false GW004 and a plain `import "io"` printed
+  three spurious warnings (since v1.5).
+- **Fixtures (Q2, all symbols).** `extlib.Take` now takes `*string` and its
+  claim is `"!*string"`; the other `"!string"` placeholders in tests and in
+  `rfc-ecosystem-contract-expansion.md` were rewritten. `extlib` gained a
+  generic `Box[X]` (with a method that declares its own type parameters),
+  `Unwrap`, `Pick`, `Ident`, `Mix` and `Meta` as test material; its bundled
+  `.gna` annotates only the valid ones.
+- No new diagnostic codes; `.gna` schema stays 1.
 
