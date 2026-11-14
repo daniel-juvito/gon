@@ -1,0 +1,7 @@
+package main
+
+// `!X` where X is not restricted to nilable kinds (v1.8 / M3, G2).
+func Bad[X any](x !X) {}
+
+// Not an error: P is constrained to pointer types.
+func Ok[P ~*int](p !P) {}

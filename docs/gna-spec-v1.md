@@ -123,7 +123,7 @@ types:                            # optional; field contracts (v1.2)
    arity is the only shape property checked.
 7. No flow-sensitive semantics.
 8. No conditional contracts (“non-nil when err == nil”).
-9. No generic / type-parameter support in v1.
+9. No generic / type-parameter support in `.gna` (source-level generic `!` contracts shipped in v1.8, `docs/rfc-generic-semantics.md`; generic `.gna` is M5b / v1.9).
 10. Since **v1.5**, `types:` field contracts are enforced across the
     package boundary at the same three sites as local field contracts —
     construction (`pkg.T{…}` keyed, `new(pkg.T)`, `&pkg.T{}`, `pkg.T{}`;
@@ -146,6 +146,6 @@ because a nil slice is uncommon; a nil slice is a valid Go value for
 
 ## Out of scope for v1
 
-- Generics / type parameters
+- Generics / type parameters in `.gna` (M5b, v1.9)
 - Variadic special cases beyond ordinary positional matching
 - Conditional or flow-dependent nilability

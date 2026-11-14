@@ -1,8 +1,9 @@
 # RFC: Generic Semantics for Non-Nil Contracts (Gon v1.8 / M3)
 
-**Status:** Draft — owner decisions O1–O7 accepted. Technical amendments
-are incorporated below; implementation and audit remain pending. No
-implementation or release is implied by these decisions.
+**Status:** Draft — owner decisions O1–O7 accepted; implemented on the
+`claude/development-continuation-7uibda` branch (§13). Two normative
+corrections found during implementation (G5 methods, G8) are flagged in
+§13.1 and need owner confirmation. Release sign-off pending.
 **Target:** Gon v1.8
 **Related:** `docs/gna-spec-v1.md`, `docs/v1-scope.md`,
 `docs/roadmap-v1.3-plus.md`, `docs/rfc-interface-semantics.md` (M1a / v1.4),
@@ -161,8 +162,10 @@ argument type do not promote an ordinary value into a non-nil source, nor
 create, remove, or transfer a contract. The contract is supplied solely by
 the generic declaration's parameter or result annotation (G4).
 
-Methods of generic types resolve via the instantiated receiver
-(`(*Box[X]).Get() !*X`).
+**Methods.** Source-declared method contracts are not tracked in Gon v1.x
+for *any* receiver — only `.gna` carries method contracts (§13.1). A generic
+receiver therefore behaves exactly like a non-generic one; generic `.gna`
+method contracts are M5b (G10).
 
 ### G6 — Bodies are checked once, opaquely
 
@@ -188,18 +191,22 @@ C5 (v1.6) extends uniformly: bare `var x !S` is GN002 whenever `S`'s
 underlying kind is nilable, including a nilable type parameter. `var p !*X`
 is already GN002 today and stays so.
 
-### G8 — Generic interfaces and method-set contracts
+### G8 — Generic interfaces: no new rule
 
-Interface method-set contracts (v1.4) apply over the instantiated method
-set obtained from `go/types`: `type Getter[X any] interface{ Get() !*X }` is
-satisfied by a type whose method has the `!` result under the v1.4 rules,
-with `X` substituted.
+Gon v1.4 (D5 / I3) specifies that `!` does not alter Go method sets or the
+interface implementation relation, and Gon enforces **no** method-set
+contract: `!` on an interface method signature is not a satisfaction
+constraint, for generic and non-generic interfaces alike. G8 adds nothing:
+a generic interface behaves exactly like its non-generic counterpart, `!I`
+over an instantiated interface (`!Getter[T]`) keeps the v1.4 value rules,
+and `go/types` remains authoritative for instantiated method sets,
+identity, and assignability (I3).
 
-This is an additional Gon contract validation. It does not modify Go
-interface satisfaction, method identity, type identity, or assignability.
-`go/types` remains authoritative for the instantiated method set and Go
-signatures; Gon resolves the `!` annotations from the origin declarations
-and applies the existing v1.4 contract rules.
+> *Correction (§13.1):* the owner-amended text of this section described an
+> "additional Gon contract validation" applying v1.4 rules over instantiated
+> method sets. v1.4 defines no such validation; adding one would be a new
+> semantic rule that contradicts v1.4 D5, not an application of v1.3–v1.7.
+> A method-set contract rule, if wanted, needs its own RFC.
 
 ### G9 — Constraints are untouched
 
@@ -257,9 +264,8 @@ CHANGELOG, not versioned as a semantic change.
    non-empty union of terms that all have nilable underlying kinds. Else
    GN003.
 3. **Application through instantiation.** Wherever a rule fires on a
-   declared contract (GN001, GN002, GW001, interface method-set check), it
-   fires identically on any instantiation of the declaring generic type,
-   function, or method.
+   declared contract (GN001, GN002, GW001), it fires identically on any
+   instantiation of the declaring generic type or function.
 4. **Type arguments and constraints carry no `!`.** GN003.
 5. **One check per declaration.** Generic bodies are checked once.
 6. **No propagation** of a contract through type-argument substitution
@@ -336,9 +342,7 @@ offset-driven and does not depend on generics; to be confirmed by a fixture).
   over `IndexExpr.Index` / `IndexListExpr.Indices` and `TypeParams` constraint
   expressions; any `!` → GN003. The preprocessor must not mis-strip `!` in
   type-argument lists (`F[!*T]`); verify offsets for `gon fmt`.
-- **Generic interfaces** — run the v1.4 method-set contract check on
-  `types.Named` instances using `types.NewMethodSet` over the instantiated
-  type, comparing against the origin declaration's annotated methods.
+- **Generic interfaces** — no code (G8: no new rule; see §13.1).
 - **Docs** — `docs/v1-scope.md`, `docs/gna-spec-v1.md` (generic section:
   still deferred to v1.9, but point to this RFC), roadmap v1.8 entry,
   README, CHANGELOG, `gon version` → `1.8.0`.
@@ -362,11 +366,12 @@ Executable spec in `internal/checker/generics_test.go`; fixtures under
 4. G5: `NN[T]()` (explicit-only: nothing to infer from) and inferred
    `Must(x)` results are non-nil sources; `nil`
    argument to `!*X` / `!P` parameter GN001; generic method results via
-   instantiated receiver.
+   instantiated receiver — source method contracts are untracked, so a
+   generic receiver must match a non-generic one (§13.1).
 5. G6: body-level `var v !P` GN002; `return nil` GN001; body checked once
    (diagnostic count independent of the number of instantiations).
-6. G8: generic interface method-set contract satisfied / violated, per the
-   v1.4 matrix.
+6. G8: a generic interface behaves exactly like its non-generic
+   counterpart (pinned); `!Getter[T]` keeps the v1.4 `!I` value rules.
 7. G9: `!` in a constraint → GN003.
 8. G10: `.gna` naming a generic symbol — behaviour pinned (same as v1.7.1).
 9. Regression: every existing v1.1–v1.7 test passes unchanged;
@@ -433,9 +438,63 @@ They do not constitute implementation approval or release sign-off.
 | `!` in type arguments (`Box[!*T]`) | GN003, reserved (G4, O3) |
 | Generic call results / params contracts through instantiation | Yes, explicit and inferred (G5, O7) |
 | Generic bodies | Checked once, opaque (G6) |
-| Generic interface method-set contracts | v1.4 rules on instantiated method sets (G8) |
+| Generic interfaces | No new rule — behave like non-generic (G8, §13.1) |
 | `!` in constraints | GN003, reserved (G9, O5) |
 | Generic `.gna` | Deferred to v1.9 / M5b (G10) |
 | Schema bump | No (stay 1) |
 | New diagnostic codes | None |
 | Release shape | Solo v1.8 (G11, O6) |
+
+---
+
+## 13. Implementation Notes (v1.8)
+
+- `internal/checker/generics.go` (new):
+  - `genericOrigin` — resolves a local instantiation (`Box[T]`, `Reg[K, V]`)
+    to the declaring identifier. Instantiations of **external** generics
+    (`pkg.Box[T]`) are deliberately returned unchanged so v1.8 does not start
+    applying `.gna` contracts to them (G10; pinned by test).
+  - `typeParamOf`, `typeParamNilable` — the §3 rule over
+    `types.Interface.EmbeddedType(i)` (a `*types.Union` per element, recursing
+    into embedded interfaces): nilable iff *some* element is a non-empty union
+    of all-nilable terms.
+  - `checkBangInTypeArgsAndConstraints` — GN003 for any `!` inside a type
+    argument (G4) or a type-parameter constraint (G9).
+- `type_coverage.go`: `nonNilKindMeaningful` and `nilableRefKind` consult
+  `typeParamOf` **before** `resolvedUnderlying` (which would see the
+  constraint interface and accept `!X` for `X any`), giving G2 (GN003) and G7
+  (GN002 for `var v !P`). `checkNonNilTypeKinds` also validates the element
+  types of composite-literal expressions, closing a v1.7 gap
+  (`_ = []!int{}` was accepted).
+- `construction.go`, `fields.go`, `annotations.go`: composite-literal,
+  field-walk and call resolution go through `genericOrigin`, so `Box[T]{}`,
+  `var a Box[T]`, and `NN[T](nil)` use the generic declaration (G3, G5).
+  Inferred calls (`Must(x)`) already resolved by name.
+- `internal/preproc/preproc.go`: `!` is now stripped as a type modifier after
+  `~` (always), after `[` when the preceding token is an identifier and the
+  next token can only begin a type (`*`, `[`, `map`, `chan`, `func`,
+  `interface`), and after `,` directly inside `[…]`. Without this, G4/G9
+  would surface as Go parse errors rather than GN003. `m[!ok]` indexing is
+  untouched. The one theoretical ambiguity is `m[!*p]` with `p *bool`, which
+  is treated as a type argument.
+- No new diagnostic codes, no `.gna` schema change, no `gon fmt` change
+  (round-trip pinned by `TestFormatPreservesBangInGenerics`).
+- Zero-value rule (G7) applies to any nilable type parameter, including one
+  whose terms are all interface kinds; v1.6's exclusion of interface types
+  from GN002 is not extended to type parameters.
+
+### 13.1 Corrections to the accepted draft (owner confirmation requested)
+
+1. **G5 / methods.** The draft said methods of generic types resolve via the
+   instantiated receiver. Source-declared method result/parameter contracts
+   are not tracked in any Gon v1.x release (`resolveMethodResults` consults
+   `.gna` only); this is true of non-generic types too. G5 now states that a
+   generic receiver behaves like a non-generic one.
+2. **G8.** The draft (and the owner amendment to it) described applying v1.4
+   method-set contract rules over instantiated method sets. v1.4 has no
+   method-set contract enforcement (D5 / I3 make `!` orthogonal to method
+   sets). G8 is therefore restated as "no new rule". If a method-set contract
+   is desired it is a new semantic RFC, not part of M3.
+
+Neither correction changes O1–O7 or any diagnostic.
+

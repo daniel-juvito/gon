@@ -80,6 +80,7 @@ func (c *Checker) Check() []*Diagnostic {
 	c.collectDecls()
 	c.validateAnnotations()
 	c.checkNonNilTypeKinds()
+	c.checkBangInTypeArgsAndConstraints()
 	c.pushScope() // package scope
 	c.registerPackageVars()
 	c.checkPackageLevelComposites()

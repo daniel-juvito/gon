@@ -55,7 +55,7 @@ analysis (see v1.6, §4).
 | M1b | Type Coverage semantics | Core — **shipped v1.6** |
 | M2a | Struct-only construction + diagnostics + warnings | Core |
 | M2b | Element-contract construction subcases | M1b — **shipped v1.7** |
-| M3 | Generic `!T` + instantiated generic contracts | M1a (full) + M1b named-type nilability semantics |
+| M3 | Generic `!T` + instantiated generic contracts | M1a (full) + M1b named-type nilability semantics — **shipped v1.8** |
 | M4a | Cross-package / External resolution + non-interface application | Core + basic `.gna` model — **shipped v1.5** |
 | M4b | Interface-typed contract application | M1a + M4a application model — **shipped v1.5** |
 | M5a | `.gna` validation + external contract boundary | M4a — **shipped v1.5** |
@@ -138,11 +138,12 @@ only on syntax v1.6 rejected. `.gna` schema stays 1.
 **Rationale (R2):** Follow-on extension; semantic risk was already
 absorbed in v1.6, so no isolation needed here.
 
-### v1.8 — Generic Semantics
+### v1.8 — Generic Semantics — SHIPPED (2026-11-14)
 **Scope:** M3 — Generic RFC (`!T` type parameters, instantiated generic
 contracts).
-**RFC:** `docs/rfc-generic-semantics.md` (Status: Draft — owner decisions
-O1–O7 accepted; implementation and audit pending, 2026-11-13).
+**RFC:** `docs/rfc-generic-semantics.md` (owner decisions O1–O7 accepted
+2026-11-13; implemented 2026-11-14 — two corrections in RFC §13.1 pending
+owner confirmation).
 **Dependency:** M1a full (v1.4) + M1b named-type nilability semantics (v1.6).
 **Breaking risk:** Possibly Yes.
 **Rationale (R1):** Solo release. Independent compatibility exposure even

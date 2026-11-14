@@ -74,7 +74,7 @@ func (c *Checker) reportMissingNonNilFields(pos token.Pos, typExpr ast.Expr, pro
 	if typExpr == nil {
 		return
 	}
-	switch t := typExpr.(type) {
+	switch t := genericOrigin(typExpr).(type) {
 	case *ast.Ident:
 		fields, ok := c.structFields[t.Name]
 		if ok {

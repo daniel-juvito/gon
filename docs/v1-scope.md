@@ -168,7 +168,7 @@ Spec: [docs/rfc-field-contracts.md](rfc-field-contracts.md).
 | Conditional contracts (`non-nil when err == nil`) | No path-sensitive analysis |
 | Runtime enforcement | Annotations are stripped; emitted Go has ordinary types |
 | Automatic inference from implementation bodies | `.gna` and source `!T` are explicit contracts only |
-| Generics / type-parameter contracts | Deferred |
+| Generics / type-parameter contracts | **Shipped v1.8** (source `!`; generic `.gna` deferred to v1.9) — `docs/rfc-generic-semantics.md` |
 | Remote annotation registries | Deferred |
 | Flow-sensitive field tracking after construction | Local sites only (construction, mutation, use) |
 
@@ -232,7 +232,7 @@ Positions refer to the **Gon source** (`.gon`), not generated `.go`.
 
 Candidate topics for later RFCs (not part of this release):
 
-- Generic / type-parameter nilability
+- ~~Generic / type-parameter nilability~~ — shipped v1.8; generic `.gna` (M5b) remains
 - Optional strict mode (ordinary value into `!T` becomes an error)
 - Community / remote annotation registry
 

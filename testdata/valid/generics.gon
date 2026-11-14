@@ -1,0 +1,23 @@
+package main
+
+import "fmt"
+
+type T struct{}
+
+func mk() *T { return &T{} }
+
+// Generic contracts satisfied (v1.8 / M3).
+type Box[X any] struct {
+	v !*X
+}
+
+func Ptr[P ~*T](p !P) P { return p }
+
+func Must[V any](p *V) !*V { return p }
+
+func main() {
+	b := Box[T]{v: mk()}
+	m := Must(mk())
+	p := Ptr(mk())
+	fmt.Println(b, m, p)
+}
