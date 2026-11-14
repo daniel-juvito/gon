@@ -1,6 +1,7 @@
 # RFC: Generic `.gna` and External Generic Contract Application (Gon v1.9 / M5b)
 
-**Status:** Draft — awaiting owner review. Decisions X1–X11 are *proposals*;
+**Status:** Draft — awaiting owner review (refreshed 2026-11-14 after
+v1.8.1). Decisions X1–X11 are *proposals*;
 §9 lists the questions that need an explicit owner answer. Builds on v1.8
 (M3); the corrections in `rfc-generic-semantics.md` §13.1 were confirmed by
 the owner on 2026-11-14 (resolves Q7).
@@ -123,14 +124,17 @@ symbol's declared type-parameter names; only the position matters (X3).
 This keeps `.gna` stable across upstream renames of type parameters and
 avoids per-version coupling.
 
-### X7 — Methods with their own type parameters (Go 1.27) are out of scope
+### X7 — Methods with their own type parameters (Go 1.27): X3 applies uniformly
 
-Contracts on methods that declare their own type parameters
-(`func (b Box[X]) Map[Y any](…)`) are not defined here
-(`roadmap-v1.3-plus.md` §5 note, 2026-11-14). A `.gna` `methods:` entry
-naming such a method is validated by arity only, as today; X3's
-type-parameter rule does not apply to method-level type parameters until a
-dedicated RFC.
+Since v1.8.1 the build minimum is Go 1.27.0, so every Gon build parses
+methods that declare their own type parameters
+(`func (b Box[X]) Map[Y any](…)`). X3 inspects the **origin signature** and
+treats a position whose type is a `*types.TypeParam` identically wherever
+that parameter is declared, so a `.gna` `methods:` entry for such a method
+gets the same G2-style validation as any other with no extra mechanism.
+What stays out of scope is unchanged from `rfc-generic-semantics.md` §13.1:
+call-site contracts for source-declared methods are untracked for every
+receiver, generic or not.
 
 ### X8 — Arity and symbol validation
 
@@ -148,7 +152,8 @@ Unknown symbol → GW004 as before.
 | X3 GN003 on a `.gna` `!` over a non-nilable concrete kind | Breaking for `.gna` files that contradict `gna-spec-v1.md` (previously accepted); applies to **non-generic** symbols too |
 | X4 `types:` through instantiated receivers | New on previously unchecked input |
 | X5 `!` in a `.gna` type argument | Previously accepted or a load error depending on form; now uniformly a load error |
-| X1, X6, X7, X8 | Non-breaking |
+| X7 (X3 on method-level type parameters) | Same as X3: breaking for `.gna` files with a meaningless claim |
+| X1, X6, X8 | Non-breaking |
 
 By R1 this ships **solo** as v1.9. Ecosystem exposure is the point of the
 release: an entry dropped by X3 silently loses its contract, so the CHANGELOG
@@ -166,7 +171,8 @@ design decision.
 1. New `.gna` syntax, `typeparams:`, or constraints in `.gna` — X1.
 2. Matching type-parameter *names* between `.gna` and Go — X6.
 3. Per-instantiation contracts (`Box[*T]` vs `Box[!*T]`) — M3 G4.
-4. Contracts on method-level type parameters — X7.
+4. Call-site contracts for source-declared methods — untracked for every
+   receiver (`rfc-generic-semantics.md` §13.1).
 5. Source-level method contracts (untracked for every receiver; separate
    RFC, `rfc-generic-semantics.md` §13.1).
 6. Flow-sensitive nilability, body inference, runtime checks — I1, I2, I5.
@@ -255,8 +261,8 @@ generic packages (`slices`, `maps`, `sync/atomic`).
    generic one-hop.
 4. X5: `"Box[!*T]"` load error; `"[]!*T"` and `"map[string]!*T"` still load.
 5. X6: renaming type parameters in the `.gna` string changes nothing.
-6. X7: a `.gna` entry for a method-level-type-parameter method is
-   validated by arity only (skip when the toolchain cannot parse it).
+6. X7: X3 applied to a `.gna` entry for a method that declares its own type
+   parameters (`!Y` over `Y any` → GN003; over `~*T` accepted).
 7. X8: type parameters never count toward arity.
 8. X10: bundled `annotations/` audit.
 9. Regression: every v1.1–v1.8 test passes unchanged; non-generic
@@ -276,12 +282,13 @@ generic packages (`slices`, `maps`, `sync/atomic`).
    generic symbols, or defer the non-generic part to its own patch?
 3. **Q3 — X3 failure mode.** Drop the whole entry on GN003 (proposed, M5a
    precedent), or drop only the offending position?
-4. **Q4 — X7.** Confirm method-level type parameters (Go 1.27) are out of
-   scope for v1.9 and get their own RFC.
+4. **Q4 — X7.** Apply X3 uniformly to method-level type parameters
+   (proposed — same mechanism, nothing extra to build), or exclude them from
+   v1.9 and leave their `.gna` positions unvalidated.
 5. **Q5 — X10.** Confirm the bundled-annotations audit is a release gate.
-6. **Q6 — Release shape.** Solo v1.9 (proposed). Also decide whether
-   official release binaries are pinned to one Go version before v1.9
-   (`roadmap-v1.3-plus.md` §5 Go 1.27 note).
+6. **Q6 — Release shape.** Solo v1.9 (proposed). The Go-version question
+   that used to sit here is RESOLVED: v1.8.1 raised the build minimum to Go
+   1.27.0 and release binaries are built with it.
 7. **Q7 — Prerequisite.** RESOLVED 2026-11-14: the two
    `rfc-generic-semantics.md` §13.1 corrections (source-level method
    contracts untracked; no method-set contract) are confirmed. X4 relies on
@@ -325,6 +332,6 @@ generic packages (`slices`, `maps`, `sync/atomic`).
 | Generic receivers / `types:` | Resolved by origin identity (X4) |
 | `!` inside a `.gna` type argument | Load error (X5) |
 | Type-parameter names in strings | Documentation only (X6) |
-| Method-level type parameters (Go 1.27) | Out of scope (X7, Q4) |
+| Method-level type parameters (Go 1.27) | X3 applies uniformly (X7, Q4) |
 | Bundled annotations audit | Release gate (X10, Q5) |
 | Release shape | Solo v1.9 (X9, Q6) |
