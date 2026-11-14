@@ -63,6 +63,12 @@ Static checks only. Enforced at `gon check` / `gon vet` time.
 | Explicit `nil` as an element / map value under an element contract (`[]!*T{nil}`, `map[K]!*V{k: nil}`, `[]!I{nil}`) at a composite literal | GN001 | **v1.7** |
 | Fixed-array literal leaving a `!` nilable element index at zero (`[3]!*T{x}`, `[3]!*T{2: x}`) — one per literal; `[...]!*T` exempt | GN002 | **v1.7** |
 | Element `!` on a channel element (`chan !*T`), a map key (`map[!*K]V`), or a non-nilable element kind (`[]!int`) | GN003 | **v1.7** |
+| `!X` on a type parameter not restricted to nilable kinds (`func F[X any](x !X)`) | GN003 | **v1.8** |
+| `!` inside a type argument (`Box[!*T]`) or a constraint (`~!*T`) | GN003 | **v1.8** |
+| Field / call contracts through a local generic instantiation (`Box[T]{}`, `NN[T](nil)`) | GN001 / GN002 / GW001 | **v1.8** |
+| `.gna` `!` over a non-nilable kind or non-nilable type parameter (`"!string"`) — only that flag is dropped | GN003 | **v1.9** |
+| Explicit instantiation of an external generic applies its `.gna` contracts like the inferred form (`pkg.F[T](nil)`, `pkg.Box[T]{}`) | GN001 / GN002 / GW001 | **v1.9** |
+| `!` inside a `.gna` type-argument list (`"Box[!*T]"`) | `.gna` load error | **v1.9** |
 
 Warnings alone do **not** fail the process (exit 0). Errors do (exit 1).
 
@@ -168,7 +174,7 @@ Spec: [docs/rfc-field-contracts.md](rfc-field-contracts.md).
 | Conditional contracts (`non-nil when err == nil`) | No path-sensitive analysis |
 | Runtime enforcement | Annotations are stripped; emitted Go has ordinary types |
 | Automatic inference from implementation bodies | `.gna` and source `!T` are explicit contracts only |
-| Generics / type-parameter contracts | **Shipped v1.8** (source `!`; generic `.gna` deferred to v1.9) — `docs/rfc-generic-semantics.md` |
+| Generics / type-parameter contracts | **Shipped** — source `!` v1.8 (`docs/rfc-generic-semantics.md`), generic `.gna` v1.9 (`docs/rfc-generic-gna.md`) |
 | Remote annotation registries | Deferred |
 | Flow-sensitive field tracking after construction | Local sites only (construction, mutation, use) |
 
@@ -232,7 +238,7 @@ Positions refer to the **Gon source** (`.gon`), not generated `.go`.
 
 Candidate topics for later RFCs (not part of this release):
 
-- ~~Generic / type-parameter nilability~~ — shipped v1.8; generic `.gna` (M5b) remains
+- ~~Generic / type-parameter nilability~~ — shipped v1.8 (source) and v1.9 (`.gna`)
 - Optional strict mode (ordinary value into `!T` becomes an error)
 - Community / remote annotation registry
 

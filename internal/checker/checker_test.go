@@ -157,7 +157,7 @@ package: demo
 functions:
   Take:
     params:
-      - "!string"
+      - "!*string"
     results:
       - "error"
 `))

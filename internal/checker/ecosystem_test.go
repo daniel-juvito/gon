@@ -252,8 +252,8 @@ func TestEcoGnaArityMismatchParams(t *testing.T) {
 	reg := badRegistry(t, `functions:
   Take:
     params:
-      - "!string"
-      - "!string"
+      - "!*string"
+      - "!*string"
     results:
       - "error"
 `)
@@ -272,7 +272,7 @@ func TestEcoGnaArityMismatchResults(t *testing.T) {
 	reg := badRegistry(t, `functions:
   Take:
     params:
-      - "!string"
+      - "!*string"
     results:
       - "error"
       - "error"
@@ -292,7 +292,7 @@ func TestEcoGnaUnknownSymbolGW004(t *testing.T) {
 	reg := badRegistry(t, `functions:
   Take:
     params:
-      - "!string"
+      - "!*string"
     results:
       - "error"
   Nonexistent:
@@ -352,7 +352,7 @@ package: demo
 functions:
   Take:
     params:
-      - "!string"
+      - "!*string"
 `))
 	if err != nil {
 		t.Fatal(err)

@@ -123,7 +123,7 @@ types:                            # optional; field contracts (v1.2)
    arity is the only shape property checked.
 7. No flow-sensitive semantics.
 8. No conditional contracts (“non-nil when err == nil”).
-9. No generic / type-parameter support in `.gna` (source-level generic `!` contracts shipped in v1.8, `docs/rfc-generic-semantics.md`; generic `.gna` is M5b / v1.9).
+9. `.gna` declares no type parameters or constraints (no syntax, schema stays 1). Generic symbols are annotated like any other and handled by rules 11–12 (v1.9); source-level generic `!` contracts are `docs/rfc-generic-semantics.md` (v1.8).
 10. Since **v1.5**, `types:` field contracts are enforced across the
     package boundary at the same three sites as local field contracts —
     construction (`pkg.T{…}` keyed, `new(pkg.T)`, `&pkg.T{}`, `pkg.T{}`;
@@ -132,6 +132,30 @@ types:                            # optional; field contracts (v1.2)
     (external field order is not reconstructed). A `!` position whose Go
     type is an interface carries interface-value semantics
     (`docs/rfc-interface-semantics.md`).
+11. **Flag validity (v1.9, `docs/rfc-generic-gna.md` X3).** After the arity
+    check passes, every `!` flag is validated against the symbol's **origin
+    signature** from `go/types` (before any instantiation). A flag is valid
+    only if the type at that position is a nilable kind (pointer, slice,
+    map, channel, function, interface, `unsafe.Pointer`), or a type
+    parameter whose constraint restricts it to nilable kinds (some
+    constraint element is a non-empty union of all-nilable terms —
+    `rfc-generic-semantics.md` §3). An invalid flag is **GN003** and **only
+    that flag is dropped**: the position becomes ordinary and the entry's
+    other positions keep their contract (an arity mismatch, rule 6, still
+    drops the whole entry). This covers `params`, `results` and `types:`
+    fields, for generic and non-generic symbols alike — `"!string"` for a
+    `string` parameter is GN003, the rule this spec has stated since v1.6,
+    enforced since v1.9. A type parameter declared by a method itself
+    (Go 1.27) is validated like any other.
+12. **Generic symbols (v1.9).** Type strings may mention type parameters
+    (`"![]E"`, `"!S"`); the names are documentation — only the position
+    matters, so an upstream rename changes nothing. An explicit
+    instantiation (`pkg.F[T](…)`, `pkg.Box[T]{…}`, `new(pkg.Box[T])`)
+    resolves to the same entry as the inferred form. `methods:` is keyed by
+    the origin type name and resolves through an instantiated receiver;
+    `types:` fields apply through instantiation. A `!` **inside a
+    type-argument list** of a type string (`"Box[!*T]"`, `"Box[[]!*T]"`) is
+    a load error: a type argument carries no contract.
 
 ## Authoring principle
 
@@ -146,6 +170,6 @@ because a nil slice is uncommon; a nil slice is a valid Go value for
 
 ## Out of scope for v1
 
-- Generics / type parameters in `.gna` (M5b, v1.9)
+- Declaring type parameters or constraints in `.gna` (names are documentation; `go/types` is authoritative)
 - Variadic special cases beyond ordinary positional matching
 - Conditional or flow-dependent nilability

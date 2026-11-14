@@ -192,9 +192,31 @@ func parseTypeAnn(file, label, s string) (bool, error) {
 		nn = true
 		rest = s[1:]
 	}
+	// inTypeArgs[k] is true when the k-th currently open '[' starts a
+	// type-argument list (`Box[`, `pkg.Box[`) rather than a slice / array
+	// bracket or a map-key bracket.
+	var inTypeArgs []bool
 	for i := 0; i < len(rest); i++ {
-		if rest[i] != '!' {
+		switch rest[i] {
+		case '[':
+			inTypeArgs = append(inTypeArgs, opensTypeArgs(rest, i))
 			continue
+		case ']':
+			if n := len(inTypeArgs); n > 0 {
+				inTypeArgs = inTypeArgs[:n-1]
+			}
+			continue
+		case '!':
+		default:
+			continue
+		}
+		// v1.9 (M5b / X5): a type argument carries no contract — `!` anywhere
+		// inside one is rejected, even in an otherwise legal element position
+		// (`Box[[]!*T]`). Mirrors the source-level rule (M3 G4).
+		for _, ta := range inTypeArgs {
+			if ta {
+				return false, fmt.Errorf("%s: %s: non-nil marker in %q is not valid inside a type-argument list; type arguments carry no contract", file, label, s)
+			}
 		}
 		// An element / value-position "!" follows the "]" that closes a slice,
 		// array, or map-key bracket. Anywhere else (channel element, map key)
@@ -319,4 +341,27 @@ func (r *Registry) Package(pkg string) (*File, bool) {
 	}
 	f, ok := r.byPackage[pkg]
 	return f, ok
+}
+
+// opensTypeArgs reports whether the '[' at rest[i] opens a type-argument list:
+// it directly follows an identifier (`Box[`, `pkg.Box[`) that is not the
+// `map` keyword. A '[' after nothing, `*`, `]`, `(` or `,` is a slice / array
+// bracket, and `map[` is a map-key bracket.
+func opensTypeArgs(rest string, i int) bool {
+	j := i - 1
+	for j >= 0 && (rest[j] == ' ' || rest[j] == '\t') {
+		j--
+	}
+	if j < 0 || !isIdentByte(rest[j]) {
+		return false
+	}
+	end := j + 1
+	for j >= 0 && isIdentByte(rest[j]) {
+		j--
+	}
+	return rest[j+1:end] != "map"
+}
+
+func isIdentByte(b byte) bool {
+	return b == '_' || (b >= '0' && b <= '9') || (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z')
 }

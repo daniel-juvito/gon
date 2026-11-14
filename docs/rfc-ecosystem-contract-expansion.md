@@ -367,11 +367,11 @@ b.W = nil                              // GN001
 ### 5.5 Signature arity mismatch (E10)
 
 ```go
-// .gna:  Take: { params: [ "!string", "!string" ] }
-// real:  func Take(s string)
+// .gna:  Take: { params: [ "!*string", "!*string" ] }
+// real:  func Take(s *string)
 
 demo.Take(nil) // GN003 — arity mismatch (annotation 2, package 1);
-               // the "!string" claims are dropped, so no GN001 here
+               // the "!*string" claims are dropped, so no GN001 here
 ```
 
 ### 5.6 Unknown annotated symbol (E11)

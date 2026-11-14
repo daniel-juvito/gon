@@ -63,7 +63,7 @@ package: main
 methods:
   Box.Set:
     params:
-      - "!string"
+      - "!*string"
 `))
 	if err != nil {
 		t.Fatal(err)
@@ -97,7 +97,7 @@ package: github.com/daniel-juvito/gon/internal/extlib
 functions:
   Take:
     params:
-      - "!string"
+      - "!*string"
     results:
       - "error"
 `))
@@ -132,7 +132,7 @@ package: main
 methods:
   Box.Set:
     params:
-      - "!string"
+      - "!*string"
 `))
 	if err != nil {
 		t.Fatal(err)
