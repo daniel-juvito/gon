@@ -194,3 +194,25 @@ per `gna-spec-v1.md`).
     slot: with or after M5b (v1.9). Once contracts start being checked on code
     that was previously unchecked, R1/G11-style compatibility analysis
     applies.
+- **A "nilable" constraint (open, unscheduled — noted 2026-11-14).** Go has no
+  named constraint or supertype for "a type whose zero value is `nil`":
+  `nil` is typed per kind (pointer, slice, map, chan, func, interface), and
+  the only way to say it is to enumerate kinds in a type set. Verified
+  against Go 1.27.0: `x == nil` compiles for a type parameter whose type set
+  holds only nilable kinds (`*A | []int | map[string]int`, `~*A`) and is
+  rejected for `any` and `comparable`. Gon's nilable-type-parameter rule
+  (`rfc-generic-semantics.md` §3) is the same boundary, so `!X` on `X any`
+  being GN003 is not an arbitrary Gon rule.
+  - **Consequence.** A generic `!` over a pointer / slice / map value is
+    written `[P ~*E, E any](p !P)`, `[S ~[]E, E any](s !S)`,
+    `[M ~map[K]V, K comparable, V any](m !M)` — the idiom the standard
+    library uses (in `slices` / `maps`, 64 of the 79 bare type-parameter
+    positions satisfy the rule). When the caller's named type need not be
+    preserved, the plain forms `!*X`, `![]E` need no type parameter at all.
+  - **Why it is only a note.** Naming the concept would need either a
+    language-level constraint (not Gon's to add) or new Gon syntax such as a
+    constraint-position marker. The latter is reserved as GN003 (G9 / O5 of
+    `rfc-generic-semantics.md`) and needs its own RFC; it also interacts
+    with I3 (Go owns type identity and constraints) and I7 (schema bumps are
+    syntax-driven). No candidate release; revisit if the
+    `[P ~*E, E any]` form proves a real adoption cost in practice.
