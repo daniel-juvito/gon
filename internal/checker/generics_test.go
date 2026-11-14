@@ -335,3 +335,32 @@ func f() { var a !Getter[T] = Impl{}; _ = a }`)
 func f() { var a !Getter[T] = nil; _ = a }`)
 	want(t, d, "GN001", 1)
 }
+
+// Regression: typeExprName must terminate on an instantiation of an external
+// generic (`pkg.Box[T]`), which genericOrigin deliberately leaves unchanged
+// (G10). v1.8 development build overflowed the stack here.
+func TestGen_ExternalGenericLiteralDoesNotRecurse(t *testing.T) {
+	d := checkTyped(t, `package main
+import "sync/atomic"
+type T struct{}
+func f() { _ = atomic.Pointer[T]{}; var p atomic.Pointer[T]; _ = p }`)
+	if len(d) != 0 {
+		t.Fatalf("unexpected diagnostics: %v", d)
+	}
+}
+
+func TestGen_TypeExprNameInstantiations(t *testing.T) {
+	cases := map[string]string{
+		"Box[T]":        "Box",
+		"Reg[K, V]":     "Reg",
+		"pkg.Box[T]":    "pkg.Box",
+		"pkg.Reg[K, V]": "pkg.Reg",
+		"*Box[T]":       "*Box",
+		"Box[Box[T]]":   "Box",
+	}
+	for src, want := range cases {
+		if got := typeExprName(parseExprForTest(t, src)); got != want {
+			t.Errorf("typeExprName(%s) = %q, want %q", src, got, want)
+		}
+	}
+}

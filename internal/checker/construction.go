@@ -575,8 +575,10 @@ func typeExprName(expr ast.Expr) string {
 		return "struct"
 	case *ast.StarExpr:
 		return "*" + typeExprName(t.X)
-	case *ast.IndexExpr, *ast.IndexListExpr:
-		return typeExprName(genericOrigin(t))
+	case *ast.IndexExpr:
+		return typeExprName(t.X) // Box[T] -> Box, pkg.Box[T] -> pkg.Box
+	case *ast.IndexListExpr:
+		return typeExprName(t.X)
 	default:
 		return ""
 	}
