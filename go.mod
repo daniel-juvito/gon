@@ -1,6 +1,6 @@
 module github.com/daniel-juvito/gon
 
-go 1.25.0
+go 1.27.0
 
 require (
 	golang.org/x/tools v0.49.0

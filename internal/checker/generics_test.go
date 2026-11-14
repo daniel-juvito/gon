@@ -364,3 +364,18 @@ func TestGen_TypeExprNameInstantiations(t *testing.T) {
 		}
 	}
 }
+
+// --- Go 1.27 generic methods (build minimum raised in v1.8.1) --------------
+
+// A method with its own type parameters parses only on a Go 1.27+ toolchain.
+// Body-level checks apply to it like any function: G2 on a method type
+// parameter and GN001 on `return nil` into a `!` result. Call-site contracts
+// for methods remain untracked for every receiver (RFC §13.1).
+func TestGen_GenericMethodBodyChecks(t *testing.T) {
+	d := genCheck(t, `type Box[X any] struct{ v *X }
+func (b Box[X]) Bad[Y any](y !Y) {}
+func (b Box[X]) Ok[P ~*T](p !P) {}
+func (b Box[X]) Nil[Y any]() !*Y { return nil }`)
+	want(t, d, "GN003", 1)
+	want(t, d, "GN001", 1)
+}
