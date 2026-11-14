@@ -1,5 +1,30 @@
 # Changelog
 
+## [1.9.1] — 2026-11-14
+
+### Fixed
+
+- **Official release binaries could not check a file outside a module.** On a
+  file whose folder has no `go.mod` above it, `gon check` failed with
+  `gon: Go type error: could not import fmt … ($GOROOT not set)`. Release
+  binaries are built with `-trimpath`, which leaves `go/build`'s GOROOT empty;
+  the standalone importer used for such files then had no standard library.
+  Gon now fills GOROOT at start-up, from the `GOROOT` environment variable if
+  set, otherwise from `go env GOROOT`. Present in every release binary
+  (verified on v1.7.0, v1.8.1 and v1.9.0). Files inside a module, and binaries
+  built without `-trimpath`, were not affected. A regression test builds a real
+  `-trimpath` binary and runs it on such a file with `GOROOT` unset.
+
+### Changed
+
+- `gon version` reports `1.9.1`.
+
+### Compatibility
+
+- No change to diagnostics. Only a path that previously failed outright now
+  works. It still needs the `go` command on `PATH` when `GOROOT` is not set,
+  as module files already did.
+
 ## [1.9.0] — 2026-11-14
 
 ### Added
