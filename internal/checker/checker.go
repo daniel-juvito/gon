@@ -203,35 +203,36 @@ func (c *Checker) collectGenDecl(d *ast.GenDecl) {
 }
 
 func (c *Checker) collectFuncDecl(d *ast.FuncDecl) {
-	var params []bool
-	if d.Type.Params != nil {
-		for _, field := range d.Type.Params.List {
-			isNN := c.isNonNil(field.Type)
-			count := len(field.Names)
-			if count == 0 {
-				count = 1
-			}
-			for i := 0; i < count; i++ {
-				params = append(params, isNN)
-			}
-		}
+	// funcParams / funcReturns resolve calls written with a bare identifier,
+	// which can only name a plain function. A method is reached through a
+	// selector, and several types may share a method name (or a method may
+	// share a plain function's name), so methods must not enter name-keyed
+	// tables: the declaration seen last would silently replace the others.
+	if d.Recv != nil {
+		return
 	}
-	c.funcParams[d.Name.Name] = params
+	c.funcParams[d.Name.Name] = nonNilFlags(c, d.Type.Params)
+	c.funcReturns[d.Name.Name] = nonNilFlags(c, d.Type.Results)
+}
 
-	var returns []bool
-	if d.Type.Results != nil {
-		for _, field := range d.Type.Results.List {
-			isNN := c.isNonNil(field.Type)
-			count := len(field.Names)
-			if count == 0 {
-				count = 1
-			}
-			for i := 0; i < count; i++ {
-				returns = append(returns, isNN)
-			}
+// nonNilFlags returns one `!` flag per parameter / result position of a field
+// list (an unnamed field is one position, `a, b !*T` is two).
+func nonNilFlags(c *Checker, fl *ast.FieldList) []bool {
+	var flags []bool
+	if fl == nil {
+		return flags
+	}
+	for _, field := range fl.List {
+		isNN := c.isNonNil(field.Type)
+		count := len(field.Names)
+		if count == 0 {
+			count = 1
+		}
+		for i := 0; i < count; i++ {
+			flags = append(flags, isNN)
 		}
 	}
-	c.funcReturns[d.Name.Name] = returns
+	return flags
 }
 
 func (c *Checker) registerPackageVars() {
@@ -300,7 +301,9 @@ func (c *Checker) checkPackageLevelComposites() {
 func (c *Checker) checkFuncDecl(d *ast.FuncDecl) {
 	prev := c.currentFuncReturns
 	prevTypes := c.currentFuncResultTypes
-	c.currentFuncReturns = c.funcReturns[d.Name.Name]
+	// The body's own `return` contract comes from THIS declaration, never from
+	// a name-keyed table shared with other functions and methods.
+	c.currentFuncReturns = nonNilFlags(c, d.Type.Results)
 	c.currentFuncResultTypes = nil
 	if c.info != nil && d.Name != nil {
 		if obj := c.info.Defs[d.Name]; obj != nil {
