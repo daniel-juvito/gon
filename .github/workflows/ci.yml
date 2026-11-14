@@ -26,3 +26,26 @@ jobs:
 
       - name: Test
         run: go test ./... -count=1
+
+  # The Go on a user's machine is not the Go that built Gon. Run a release-style
+  # binary with the user's `go` forced to each supported version and require the
+  # same diagnostics (a file inside a module and one outside any module).
+  user-go:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        user-go: ['1.21.13', '1.22.12', '1.23.12', '1.24.7', '1.25.0', '1.26.0', '1.27.0']
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.0'
+          cache: true
+
+      - name: Check with user Go ${{ matrix.user-go }}
+        run: go test ./cmd/gon -run TestUserGoVersion -count=1 -v
+        env:
+          GON_USER_GO: ${{ matrix.user-go }}

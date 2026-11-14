@@ -1,0 +1,19 @@
+package main
+
+import (
+	"fmt"
+	"os"
+	"slices"
+	"strings"
+)
+
+type T struct{}
+type Box[X any] struct{ v !*X }
+
+func Bad[X any](x !X) {} // GN003: `any` does not restrict X to a nilable kind
+
+func main() {
+	_ = Box[T]{} // GN002: the field contract survives instantiation
+	xs := slices.Clone([]string{"a"})
+	fmt.Fprintln(os.Stderr, strings.Join(xs, ","))
+}
