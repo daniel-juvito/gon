@@ -215,3 +215,39 @@ func f() {
 		t.Fatalf("not idempotent:\n--- 1 ---\n%s--- 2 ---\n%s", out1, out2)
 	}
 }
+
+// v1.8 / M3: `!` survives the format round-trip in every generic position
+// (constraint-typed parameter, instantiated field, generic result), with
+// formatting normalised by go/format.
+func TestFormatPreservesBangInGenerics(t *testing.T) {
+	src := `package main
+
+type T struct{}
+
+type Box[X any] struct {
+	v !*X
+}
+
+type Reg[K comparable, V any] struct {
+	items map[K]!*V
+}
+
+func Ptr[P ~*T](p !P) {}
+
+func NN[X any]() !*X { return new(X) }
+
+func Must[V any](p *V) !*V { return p }
+
+func f() {
+	_ = Box[T]{v: &T{}}
+	_ = []!*T{&T{}}
+}
+`
+	out := mustFormat(t, src)
+	if out != src {
+		t.Fatalf("round-trip changed the source:\n--- want ---\n%s--- got ---\n%s", src, out)
+	}
+	if out2 := mustFormat(t, out); out2 != out {
+		t.Fatalf("not idempotent:\n%s", out2)
+	}
+}

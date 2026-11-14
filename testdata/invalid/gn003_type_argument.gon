@@ -1,0 +1,8 @@
+package main
+
+type T struct{}
+
+type Box[X any] struct{ v *X }
+
+// `!` is not allowed in a type argument (v1.8 / M3, G4).
+var b Box[!*T]

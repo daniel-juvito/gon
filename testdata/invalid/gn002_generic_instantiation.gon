@@ -1,0 +1,11 @@
+package main
+
+type T struct{}
+
+type Box[X any] struct {
+	v !*X
+}
+
+// The field contract survives instantiation (v1.8 / M3, G3).
+var zero = Box[T]{}
+var nilv = Box[T]{v: nil}

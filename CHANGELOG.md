@@ -1,5 +1,59 @@
 # Changelog
 
+## [1.8.0] — 2026-11-14
+
+### Added
+
+- **Generic Semantics** — M3 (`docs/rfc-generic-semantics.md`). Contracts are
+  attached to a *declaration position*, never to a type argument:
+  instantiation substitutes types and neither adds, removes, nor carries a
+  `!`.
+  - **`!X` on a type parameter** is valid only when `X` is a *nilable type
+    parameter* — some element of its constraint is a non-empty union whose
+    every term has a nilable underlying kind (`~*T`, `~[]E`, `*A | *B`,
+    `interface{ ~int | ~*T; ~*T }`). `X any`, `comparable`, method-only and
+    non-nilable constraints are **GN003**. `var v !P` with no initializer
+    (nilable `P`) is **GN002**.
+  - **Field contracts survive instantiation**: `Box[T]{}`, `Box[T]{v: nil}`,
+    `var a Box[T]`, `Box[Box[T]]{}` are checked against `Box`'s declaration
+    (GN002 / GN001 / GW001).
+  - **Call contracts resolve through explicit instantiation**:
+    `NN[T](…)` now applies `NN`'s parameter and result contracts, like the
+    already-working inferred form `Must(x)`.
+  - **`!` inside a type argument** (`Box[!*T]`, `F[!*T]()`) and **inside a
+    constraint** (`~!*T`, `interface{ ~[]!*T }`) are **GN003** (reserved).
+- No new diagnostic codes; `.gna` schema stays **1**.
+
+### Fixed
+
+- **Diagnostic order was nondeterministic.** Missing-required-field GN002s
+  were emitted by iterating a Go map, so the order varied run to run
+  (observed since v1.7.1: 7 distinct outputs in 12 runs of one file). Local
+  struct fields are now reported in declaration order; `.gna` `types:` fields
+  in alphabetical order. Diagnostic *content* is unchanged.
+- `!` on an element type written in a composite-literal *expression*
+  (`_ = []!int{}`) was accepted; it is now GN003 like the declaration form.
+
+### Changed
+
+- `gon version` reports `1.8.0`.
+- The preprocessor strips `!` after `~`, after `[` before a type-only token
+  following an identifier, and after `,` inside `[…]`, so the reserved
+  positions above surface as GN003 rather than a Go parse error. `m[!ok]`
+  indexing is unchanged.
+
+### Compatibility
+
+- **Possibly breaking, by design (RFC G11).** Rejected where v1.7 accepted:
+  `!X` for a non-nilable type parameter `X`; `!` in a type argument or
+  constraint. Newly reported on code that already violated a documented
+  contract: zero/nil construction of an instantiated generic struct, a nil
+  argument to an explicitly instantiated `!`-parameter.
+- Unchanged: instantiations of **external** generics (`pkg.F[T]`) — generic
+  `.gna` application remains M5b (v1.9). Source-declared **method** contracts
+  remain untracked for generic and non-generic receivers alike; generic
+  interfaces follow the non-generic rules (v1.4 D5). See RFC §13.1.
+
 ## [1.7.1] — 2026-11-13
 
 ### Fixed

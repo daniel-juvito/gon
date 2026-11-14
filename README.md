@@ -19,9 +19,13 @@ since v1.5 — external `.gna` `types:` field contracts enforced across the
 package boundary plus `.gna` validation against `go/types` (arity → GN003,
 unknown symbol → GW004), since v1.6 a uniform meaning for `!` on
 every nilable kind (`![]T` / `!map` / `!chan` / `!func` and named types /
-aliases): the reference value is non-nil, nothing more, and — since v1.7 —
+aliases): the reference value is non-nil, nothing more, since v1.7
 element contracts (`[]!*T`, `[N]!*T`, `map[K]!*V`, `[]!I`) checked at the
-composite-literal construction site. It is not a runtime non-nil guarantee.
+composite-literal construction site, and — since v1.8 — generics: contracts
+are attached to declaration positions and survive instantiation (`Box[T]{}`,
+`NN[T]()`), `!X` is valid on a type parameter only when its constraint
+restricts it to nilable kinds, and `!` in a type argument or constraint is
+rejected. It is not a runtime non-nil guarantee.
 
 Architectural rule:
 
@@ -33,7 +37,7 @@ Full scope contract: [docs/v1-scope.md](docs/v1-scope.md)
 ## Install
 
 ```bash
-go install github.com/daniel-juvito/gon/cmd/gon@v1.7.1
+go install github.com/daniel-juvito/gon/cmd/gon@v1.8.0
 ```
 
 Or from source:
@@ -254,7 +258,7 @@ Full format: [docs/gna-spec-v1.md](docs/gna-spec-v1.md)
 - Conditional contracts (`non-nil when err == nil`)
 - Automatic nilability inference from bodies
 - Runtime enforcement (annotations are stripped)
-- Generic type contracts
+- Generic `.gna` declarations / external generic contracts (M5b, v1.9)
 - Interface **dynamic-value** nilability (`!I` never constrains it — by design)
 - Cross-package unkeyed / positional construction expansion (M4)
 - Remote annotation registries

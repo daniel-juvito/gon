@@ -61,6 +61,11 @@ func Process(filename string, src []byte) *Result {
 	// type modifier rather than unary NOT.
 	inTypeList := markTypeListTokens(tokens)
 
+	// inBrack[i] is true when the innermost open bracket enclosing token i is
+	// a '['. A ',' there separates type arguments / type parameters (an index
+	// expression takes one operand), so a following `!` is a type modifier.
+	inBrack := markBracketContext(tokens)
+
 	// Find ! tokens that are type modifiers.
 	typeModifiers := make(map[int]bool) // byte offsets of ! type modifiers in src
 	prevIdx := -1
@@ -78,6 +83,10 @@ func Process(filename string, src []byte) *Result {
 				case token.LPAREN, token.COMMA:
 					// Only when this LPAREN/COMMA is inside a signature type list.
 					if inTypeList[prevIdx] {
+						typeModifiers[t.offset] = true
+					} else if prev.kind == token.COMMA && inBrack[prevIdx] && startsType(tokens, i) {
+						// Type-argument list, second or later argument:
+						// Box[A, !*T] (v1.8 / M3 — reported as GN003, G4).
 						typeModifiers[t.offset] = true
 					} else if prev.kind == token.LPAREN && isTypeAssertLParen(tokens, prevIdx) {
 						// Type-assertion target: x.(!T). Not a Gon mechanism, but
@@ -108,7 +117,18 @@ func Process(filename string, src []byte) *Result {
 					// 'map' keyword so `m[!ok]` indexing is left untouched.
 					if p := prevNonComment(tokens, prevIdx-1); p >= 0 && tokens[p].kind == token.MAP {
 						typeModifiers[t.offset] = true
+					} else if p >= 0 && tokens[p].kind == token.IDENT && startsType(tokens, i) {
+						// First type argument: Box[!*T], F[!*T]() (v1.8 / M3 —
+						// reported as GN003, G4). Only when the operand begins
+						// with a type-only token (`*`, `[`, map, chan, func,
+						// interface) so `m[!ok]` indexing is left untouched.
+						typeModifiers[t.offset] = true
 					}
+				case token.TILDE:
+					// Constraint term: ~!*T (v1.8 / M3 — reported as GN003, G9).
+					// `~` is never an expression operator in Go, so this is
+					// unambiguous.
+					typeModifiers[t.offset] = true
 				}
 			}
 		}
@@ -283,4 +303,44 @@ func isTypeAssertLParen(tokens []tokInfo, lparenIdx int) bool {
 		j--
 	}
 	return j >= 0 && tokens[j].kind == token.PERIOD
+}
+
+// startsType reports whether the token after the `!` at tokens[bangIdx] can
+// only begin a type, never a boolean operand: `*`, `[`, map, chan, func,
+// interface. (`!*p` with p a *bool in an index position is the one theoretical
+// ambiguity; it is vanishingly rare and is treated as a type argument.)
+func startsType(tokens []tokInfo, bangIdx int) bool {
+	j := nextNonComment(tokens, bangIdx+1)
+	if j >= len(tokens) {
+		return false
+	}
+	switch tokens[j].kind {
+	case token.MUL, token.LBRACK, token.MAP, token.CHAN, token.FUNC, token.INTERFACE:
+		return true
+	}
+	return false
+}
+
+// markBracketContext returns, for each token, whether the innermost enclosing
+// bracket ((, [, {) is a '['.
+func markBracketContext(tokens []tokInfo) []bool {
+	mask := make([]bool, len(tokens))
+	var stack []token.Token
+	for i, t := range tokens {
+		if t.kind == token.COMMENT {
+			continue
+		}
+		if n := len(stack); n > 0 && stack[n-1] == token.LBRACK {
+			mask[i] = true
+		}
+		switch t.kind {
+		case token.LPAREN, token.LBRACK, token.LBRACE:
+			stack = append(stack, t.kind)
+		case token.RPAREN, token.RBRACK, token.RBRACE:
+			if n := len(stack); n > 0 {
+				stack = stack[:n-1]
+			}
+		}
+	}
+	return mask
 }

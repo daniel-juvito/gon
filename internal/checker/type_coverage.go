@@ -44,6 +44,10 @@ func (c *Checker) nilableRefKind(typeExpr ast.Expr) bool {
 	case *ast.InterfaceType:
 		return false
 	case *ast.Ident, *ast.SelectorExpr:
+		// v1.8 / M3 (G7): a nilable type parameter's zero value is nil.
+		if tp := c.typeParamOf(typeExpr); tp != nil {
+			return typeParamNilable(tp)
+		}
 		switch c.resolvedUnderlying(typeExpr).(type) {
 		case *types.Pointer, *types.Slice, *types.Map, *types.Chan, *types.Signature:
 			return true
@@ -108,6 +112,9 @@ func (c *Checker) checkNonNilTypeKinds() {
 		case *ast.TypeSpec:
 			// `type Slots [4]!*Slot` — element `!` on a named type / alias.
 			c.validateElementContracts(x.Type)
+		case *ast.CompositeLit:
+			// `[]!int{}` written as an expression (v1.8: was unchecked).
+			c.validateElementContracts(x.Type)
 		}
 		return true
 	})
@@ -132,9 +139,7 @@ func (c *Checker) validateElementContracts(typeExpr ast.Expr) {
 		c.validateElementContracts(t.X)
 	case *ast.ArrayType:
 		if t.Elt != nil && c.isNonNil(t.Elt) && !c.nonNilKindMeaningful(t.Elt) {
-			c.addError(t.Elt.Pos(), "GN003", fmt.Sprintf(
-				"non-nil modifier ! is not valid on element type %s; ! applies only to pointer, slice, map, channel, function, and interface types",
-				formatType(t.Elt)))
+			c.reportBadElementBang(t.Elt)
 		}
 		c.validateElementContracts(t.Elt)
 	case *ast.MapType:
@@ -143,9 +148,7 @@ func (c *Checker) validateElementContracts(typeExpr ast.Expr) {
 				"non-nil modifier ! is not valid on a map key type; map key contracts are not supported in v1")
 		}
 		if t.Value != nil && c.isNonNil(t.Value) && !c.nonNilKindMeaningful(t.Value) {
-			c.addError(t.Value.Pos(), "GN003", fmt.Sprintf(
-				"non-nil modifier ! is not valid on element type %s; ! applies only to pointer, slice, map, channel, function, and interface types",
-				formatType(t.Value)))
+			c.reportBadElementBang(t.Value)
 		}
 		c.validateElementContracts(t.Key)
 		c.validateElementContracts(t.Value)
@@ -165,6 +168,10 @@ func (c *Checker) validateNonNilKind(typeExpr ast.Expr) {
 	if c.nonNilKindMeaningful(typeExpr) {
 		return
 	}
+	if c.typeParamOf(typeExpr) != nil {
+		c.addError(typeExpr.Pos(), "GN003", typeParamBangMessage(formatType(typeExpr)))
+		return
+	}
 	c.addError(typeExpr.Pos(), "GN003", fmt.Sprintf(
 		"non-nil modifier ! is not valid on %s; ! applies only to pointer, slice, map, channel, function, and interface types",
 		formatType(typeExpr)))
@@ -181,6 +188,13 @@ func (c *Checker) nonNilKindMeaningful(typeExpr ast.Expr) bool {
 	case *ast.StructType:
 		return false
 	case *ast.Ident, *ast.SelectorExpr:
+		// v1.8 / M3 (G2): `!X` on a type parameter is meaningful only when
+		// X is restricted to nilable kinds by its constraint. Must run
+		// before resolvedUnderlying, which would see the constraint
+		// interface and wrongly accept `any`.
+		if tp := c.typeParamOf(typeExpr); tp != nil {
+			return typeParamNilable(tp)
+		}
 		u := c.resolvedUnderlying(typeExpr)
 		if u == nil {
 			return true // degrade to accepted without type info

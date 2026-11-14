@@ -267,7 +267,8 @@ func (c *Checker) reportExternalEmbeddedFields(pos token.Pos, typeExpr ast.Expr,
 		if ann == nil {
 			continue
 		}
-		for fn, nn := range ann.Fields {
+		for _, fn := range sortedKeys(ann.Fields) {
+			nn := ann.Fields[fn]
 			if nn {
 				c.addError(pos, "GN002", fmt.Sprintf("missing required non-nil field %s.%s", en.Obj().Name(), fn))
 			}

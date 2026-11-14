@@ -45,7 +45,8 @@ func (c *Checker) checkCompositeLitConstruction(lit *ast.CompositeLit) {
 	origin := compositeOrigin(lit)
 	provided := c.providedFieldsFromComposite(lit)
 
-	switch t := lit.Type.(type) {
+	// v1.8 / M3 (G3): `Box[T]{}` is checked against Box's declaration.
+	switch t := genericOrigin(lit.Type).(type) {
 	case *ast.Ident:
 		typeName := t.Name
 		fields, ok := c.structFields[typeName]
@@ -268,7 +269,7 @@ func (c *Checker) providedFieldsFromComposite(lit *ast.CompositeLit) map[string]
 	if keyed {
 		return provided
 	}
-	switch lit.Type.(type) {
+	switch genericOrigin(lit.Type).(type) {
 	case *ast.Ident, *ast.StructType:
 	default:
 		return provided
@@ -304,7 +305,7 @@ func providedKeyedOnly(lit *ast.CompositeLit) map[string]bool {
 
 func (c *Checker) structFieldNamesInOrder(typ ast.Expr) []string {
 	var names []string
-	switch t := typ.(type) {
+	switch t := genericOrigin(typ).(type) {
 	case *ast.Ident:
 		st := c.lookupStructAST(t.Name)
 		if st == nil {
@@ -402,7 +403,7 @@ func (c *Checker) reportMissingNonNilFieldsTraced(pos token.Pos, typExpr ast.Exp
 	if typExpr == nil {
 		return
 	}
-	switch t := typExpr.(type) {
+	switch t := genericOrigin(typExpr).(type) {
 	case *ast.Ident:
 		fields, ok := c.structFields[t.Name]
 		if ok {
@@ -574,6 +575,10 @@ func typeExprName(expr ast.Expr) string {
 		return "struct"
 	case *ast.StarExpr:
 		return "*" + typeExprName(t.X)
+	case *ast.IndexExpr:
+		return typeExprName(t.X) // Box[T] -> Box, pkg.Box[T] -> pkg.Box
+	case *ast.IndexListExpr:
+		return typeExprName(t.X)
 	default:
 		return ""
 	}

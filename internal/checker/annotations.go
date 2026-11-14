@@ -250,7 +250,8 @@ func (c *Checker) resolvePackage(importPath string) (*gna.File, error) {
 // resolveCallParams returns non-nil param flags and a display name for diagnostics.
 // Order: method selection (go/types) → package-level function (.gna) → local function.
 func (c *Checker) resolveCallParams(fun ast.Expr) ([]bool, string) {
-	switch f := fun.(type) {
+	// v1.8 / M3 (G5): `F[T](…)` resolves to F's declaration.
+	switch f := genericOrigin(fun).(type) {
 	case *ast.Ident:
 		params, ok := c.funcParams[f.Name]
 		if !ok {
@@ -302,7 +303,7 @@ func (c *Checker) resolveCallParams(fun ast.Expr) ([]bool, string) {
 //
 // Returns nil when no result contracts are known (all ordinary).
 func (c *Checker) resolveCallResults(fun ast.Expr) []bool {
-	switch f := fun.(type) {
+	switch f := genericOrigin(fun).(type) {
 	case *ast.Ident:
 		return c.funcReturns[f.Name]
 

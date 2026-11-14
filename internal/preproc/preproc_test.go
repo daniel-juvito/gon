@@ -224,3 +224,43 @@ type I interface {
 		t.Fatalf("! left in interface method:\n%s", clean)
 	}
 }
+
+// v1.8 / M3: `!` in type-argument and constraint positions is stripped so the
+// checker can report GN003 (RFC G4 / G9) instead of a Go parse error, while
+// ordinary unary `!` inside index expressions is untouched.
+func TestGenericTypeArgumentAndConstraintBang(t *testing.T) {
+	cases := []struct {
+		name      string
+		src       string
+		wantClean string
+		wantBangs int
+	}{
+		{"first type arg", "var d Box[!*T]\n", "var d Box[*T]", 1},
+		{"second type arg", "var d Reg[string, !*T]\n", "var d Reg[string, *T]", 1},
+		{"call type arg", "func g() { F[!*T]() }\n", "F[*T]()", 1},
+		{"constraint tilde", "func F[P ~!*T](p P) {}\n", "func F[P ~*T](p P) {}", 1},
+		{"slice type arg", "var d Box[![]T]\n", "var d Box[[]T]", 1},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := Process("t.gon", []byte("package main\n"+tc.src))
+			if !strings.Contains(string(r.Clean), tc.wantClean) {
+				t.Fatalf("clean = %q, want it to contain %q", r.Clean, tc.wantClean)
+			}
+			if len(r.NonNilOffsets) != tc.wantBangs {
+				t.Fatalf("got %d offsets, want %d", len(r.NonNilOffsets), tc.wantBangs)
+			}
+		})
+	}
+}
+
+func TestIndexUnaryNotUntouched(t *testing.T) {
+	src := "package main\nfunc f(m map[bool]int, ok bool, p *bool) {\n\t_ = m[!ok]\n\t_ = m[!(ok)]\n\t_ = m[!f2()]\n}\n"
+	r := Process("t.gon", []byte(src))
+	if string(r.Clean) != src {
+		t.Fatalf("unary ! in index expression must not be stripped:\n%s", r.Clean)
+	}
+	if len(r.NonNilOffsets) != 0 {
+		t.Fatalf("expected no offsets, got %v", r.NonNilOffsets)
+	}
+}

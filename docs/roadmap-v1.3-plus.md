@@ -55,7 +55,7 @@ analysis (see v1.6, §4).
 | M1b | Type Coverage semantics | Core — **shipped v1.6** |
 | M2a | Struct-only construction + diagnostics + warnings | Core |
 | M2b | Element-contract construction subcases | M1b — **shipped v1.7** |
-| M3 | Generic `!T` + instantiated generic contracts | M1a (full) + M1b named-type nilability semantics |
+| M3 | Generic `!T` + instantiated generic contracts | M1a (full) + M1b named-type nilability semantics — **shipped v1.8** |
 | M4a | Cross-package / External resolution + non-interface application | Core + basic `.gna` model — **shipped v1.5** |
 | M4b | Interface-typed contract application | M1a + M4a application model — **shipped v1.5** |
 | M5a | `.gna` validation + external contract boundary | M4a — **shipped v1.5** |
@@ -138,9 +138,12 @@ only on syntax v1.6 rejected. `.gna` schema stays 1.
 **Rationale (R2):** Follow-on extension; semantic risk was already
 absorbed in v1.6, so no isolation needed here.
 
-### v1.8 — Generic Semantics
+### v1.8 — Generic Semantics — SHIPPED (2026-11-14)
 **Scope:** M3 — Generic RFC (`!T` type parameters, instantiated generic
 contracts).
+**RFC:** `docs/rfc-generic-semantics.md` (owner decisions O1–O7 accepted
+2026-11-13; implemented 2026-11-14 — two corrections in RFC §13.1 confirmed
+by the owner 2026-11-14).
 **Dependency:** M1a full (v1.4) + M1b named-type nilability semantics (v1.6).
 **Breaking risk:** Possibly Yes.
 **Rationale (R1):** Solo release. Independent compatibility exposure even
@@ -149,6 +152,12 @@ though it depends on prior RFCs.
 ### v1.9 — Generic `.gna` Ecosystem
 **Scope:** M5b — generic `.gna` declarations + generic contract
 application.
+**RFC:** `docs/rfc-generic-gna.md` (Status: Draft — X1–X11 proposed,
+Q1–Q7 awaiting owner review, 2026-11-14). Measured baseline: most generic
+`.gna` application already works by name + position; the release closes the
+explicit-instantiation inconsistency and validates `.gna` `!` positions
+against `go/types` (type parameters via the M3 nilable rule; concrete kinds
+per `gna-spec-v1.md`).
 **Dependency:** M3 (v1.8) + M5a infrastructure (v1.5).
 **Breaking risk:** Possibly Yes (inherited from M3).
 **Rationale (R1):** Follows the isolation of M3 as its direct consumer.
@@ -162,3 +171,26 @@ application.
 - v1.6 onward are planned, not committed. RFC outcomes, scope changes, or
   implementation reality may shift these boundaries without violating R1–R4
   or the underlying dependency graph.
+- **Go 1.27 generic methods (open, unscheduled — noted 2026-11-14).** Go 1.27
+  allows methods with their own type parameters
+  (`func (b Box[X]) Map[Y any](…)`). Gon parses with the `go/parser` of the
+  toolchain that builds it, so:
+  - A Gon built with Go 1.25 (current `go.mod` minimum) rejects such source
+    at parse time (`method must have no type parameters`); a Gon built with
+    Go 1.27 accepts it **without checking any contract on it** — verified
+    2026-11-14 against v1.8.0 sources. The same Gon source therefore
+    behaves differently depending on the builder's Go version. Until
+    decided, official release binaries should be built with one pinned Go
+    version, recorded in the release notes.
+  - Accepting the syntax is **not breaking** (it was a parse error before).
+    Raising the `go.mod` minimum to 1.27 is a separate, build-level
+    compatibility decision and is not required to accept the syntax.
+  - Defining `!` contracts on generic methods (method type parameters, and
+    whether `!Y` follows the G2 nilable-type-parameter rule) needs its own
+    RFC. Note that source-declared method contracts are not tracked for
+    *any* receiver today (RFC `rfc-generic-semantics.md` §13.1), so this
+    interacts with that gap. Once contracts start being checked on code
+    that was previously unchecked, R1/G11-style compatibility analysis
+    applies. Candidate slot: with or after M5b (v1.9); not part of v1.8.
+  - CI/release toolchain bump (matrix 1.25.0 + 1.27.0; release builds on
+    1.27.0) is deferred and should be a separate commit from feature work.
