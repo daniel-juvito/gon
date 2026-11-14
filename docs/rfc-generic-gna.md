@@ -1,8 +1,9 @@
 # RFC: Generic `.gna` and External Generic Contract Application (Gon v1.9 / M5b)
 
 **Status:** Draft — awaiting owner review. Decisions X1–X11 are *proposals*;
-§9 lists the questions that need an explicit owner answer. Depends on v1.8
-(M3) owner confirmation of RFC `rfc-generic-semantics.md` §13.1.
+§9 lists the questions that need an explicit owner answer. Builds on v1.8
+(M3); the corrections in `rfc-generic-semantics.md` §13.1 were confirmed by
+the owner on 2026-11-14 (resolves Q7).
 **Target:** Gon v1.9
 **Related:** `docs/gna-spec-v1.md`, `docs/roadmap-v1.3-plus.md`,
 `docs/rfc-generic-semantics.md` (M3 / v1.8),
@@ -281,9 +282,10 @@ generic packages (`slices`, `maps`, `sync/atomic`).
 6. **Q6 — Release shape.** Solo v1.9 (proposed). Also decide whether
    official release binaries are pinned to one Go version before v1.9
    (`roadmap-v1.3-plus.md` §5 Go 1.27 note).
-7. **Q7 — Prerequisite.** Confirm the two `rfc-generic-semantics.md` §13.1
-   corrections (source-level method contracts untracked; no method-set
-   contract). X4 relies on the same reading.
+7. **Q7 — Prerequisite.** RESOLVED 2026-11-14: the two
+   `rfc-generic-semantics.md` §13.1 corrections (source-level method
+   contracts untracked; no method-set contract) are confirmed. X4 relies on
+   the same reading.
 
 ## 10. Alternatives Considered
 

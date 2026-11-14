@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
+	"sort"
 )
 
 // checkCompositeLitFields is retained as a v1.2 compatibility alias.
@@ -78,7 +79,8 @@ func (c *Checker) reportMissingNonNilFields(pos token.Pos, typExpr ast.Expr, pro
 	case *ast.Ident:
 		fields, ok := c.structFields[t.Name]
 		if ok {
-			for name, nn := range fields {
+			for _, name := range c.orderedFieldNames(t.Name, fields) {
+				nn := fields[name]
 				p := name
 				if pathPrefix != "" {
 					p = pathPrefix + "." + name
@@ -180,7 +182,8 @@ func (c *Checker) reportExternalTypeFields(pos token.Pos, sel *ast.SelectorExpr,
 	if !ok || typeAnn == nil {
 		return
 	}
-	for name, nn := range typeAnn.Fields {
+	for _, name := range sortedKeys(typeAnn.Fields) {
+		nn := typeAnn.Fields[name]
 		if nn && (provided == nil || !provided[name]) {
 			c.addError(pos, "GN002", fmt.Sprintf("missing required non-nil field %s.%s", sel.Sel.Name, name))
 		}
@@ -280,4 +283,31 @@ func (c *Checker) namedTypeFieldNonNil(typ types.Type, fieldName string) bool {
 		}
 	}
 	return false
+}
+
+// orderedFieldNames returns the keys of fields in a deterministic order: the
+// struct's declaration order when its AST is available, then any remaining
+// names alphabetically. Diagnostics must not depend on Go's randomised map
+// iteration order.
+func (c *Checker) orderedFieldNames(typeName string, fields map[string]bool) []string {
+	names := make([]string, 0, len(fields))
+	seen := make(map[string]bool, len(fields))
+	if st := c.lookupStructAST(typeName); st != nil && st.Fields != nil {
+		for _, f := range st.Fields.List {
+			for _, n := range f.Names {
+				if _, ok := fields[n.Name]; ok && !seen[n.Name] {
+					seen[n.Name] = true
+					names = append(names, n.Name)
+				}
+			}
+		}
+	}
+	var rest []string
+	for n := range fields {
+		if !seen[n] {
+			rest = append(rest, n)
+		}
+	}
+	sort.Strings(rest)
+	return append(names, rest...)
 }

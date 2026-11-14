@@ -1,9 +1,9 @@
 # RFC: Generic Semantics for Non-Nil Contracts (Gon v1.8 / M3)
 
 **Status:** Draft — owner decisions O1–O7 accepted; implemented on the
-`claude/development-continuation-7uibda` branch (§13). Two normative
-corrections found during implementation (G5 methods, G8) are flagged in
-§13.1 and need owner confirmation. Release sign-off pending.
+`claude/development-continuation-7uibda` branch (§13). The two normative
+corrections found during implementation (G5 methods, G8; §13.1) were
+confirmed by the owner on 2026-11-14. Release sign-off pending.
 **Target:** Gon v1.8
 **Related:** `docs/gna-spec-v1.md`, `docs/v1-scope.md`,
 `docs/roadmap-v1.3-plus.md`, `docs/rfc-interface-semantics.md` (M1a / v1.4),
@@ -483,7 +483,7 @@ They do not constitute implementation approval or release sign-off.
   whose terms are all interface kinds; v1.6's exclusion of interface types
   from GN002 is not extended to type parameters.
 
-### 13.1 Corrections to the accepted draft (owner confirmation requested)
+### 13.1 Corrections to the accepted draft (confirmed by the owner, 2026-11-14)
 
 1. **G5 / methods.** The draft said methods of generic types resolve via the
    instantiated receiver. Source-declared method result/parameter contracts

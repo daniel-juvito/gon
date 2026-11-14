@@ -26,6 +26,11 @@
 
 ### Fixed
 
+- **Diagnostic order was nondeterministic.** Missing-required-field GN002s
+  were emitted by iterating a Go map, so the order varied run to run
+  (observed since v1.7.1: 7 distinct outputs in 12 runs of one file). Local
+  struct fields are now reported in declaration order; `.gna` `types:` fields
+  in alphabetical order. Diagnostic *content* is unchanged.
 - `!` on an element type written in a composite-literal *expression*
   (`_ = []!int{}`) was accepted; it is now GN003 like the declaration form.
 
