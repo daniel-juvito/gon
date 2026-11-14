@@ -209,10 +209,24 @@ per `gna-spec-v1.md`).
     library uses (in `slices` / `maps`, 64 of the 79 bare type-parameter
     positions satisfy the rule). When the caller's named type need not be
     preserved, the plain forms `!*X`, `![]E` need no type parameter at all.
-  - **Why it is only a note.** Naming the concept would need either a
-    language-level constraint (not Gon's to add) or new Gon syntax such as a
-    constraint-position marker. The latter is reserved as GN003 (G9 / O5 of
-    `rfc-generic-semantics.md`) and needs its own RFC; it also interacts
-    with I3 (Go owns type identity and constraints) and I7 (schema bumps are
-    syntax-driven). No candidate release; revisit if the
+  - **A library can name the common shapes — no Gon change needed.** Verified
+    2026-11-14 against Gon v1.8.1: named constraints such as
+    `type Ptr[E any] interface{ ~*E }`, `Slice[E]`, `Map[K, V]` and `Chan[E]`
+    are recognised by the nilable-type-parameter rule (no GN003 on
+    `func F[P Ptr[E], E any](p !P)`), `E` is still inferred, and a named slice
+    type is preserved. It shortens `P ~*E` to `P Ptr[E]` and gives the intent
+    a name; it does **not** remove the second type parameter.
+  - **What a library cannot do.** One `Nilable` constraint spanning every kind
+    and element type: element types must be written out, so a union such as
+    `~*int | ~[]int | …` only admits those exact elements (Go rejects
+    `[]string` as `does not satisfy Nilable`). Covering the general case would
+    need a language-level constraint (not Gon's to add) or new Gon syntax in a
+    constraint position, which is reserved as GN003 (G9 / O5 of
+    `rfc-generic-semantics.md`) and needs its own RFC; it also interacts with
+    I3 (Go owns type identity and constraints) and I7 (schema bumps are
+    syntax-driven).
+  - **Open design questions for the library route.** Where it lives (a tiny
+    separate module vs a package in the Gon module, which would pull Gon's
+    dependencies into users' `go.mod`); it carries no runtime code, so I5
+    (`!T` is compile-time only) holds. No candidate release; revisit if the
     `[P ~*E, E any]` form proves a real adoption cost in practice.
