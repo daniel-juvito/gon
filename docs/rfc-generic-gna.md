@@ -1,11 +1,12 @@
 # RFC: Generic `.gna` and External Generic Contract Application (Gon v1.9 / M5b)
 
-**Status:** Draft — owner decisions Q1–Q4 recorded 2026-11-14. Q1–Q4 were
-first accepted by intuition, then exercised the same day (§12); Q3 changed to
-per-position drop and Q2 was re-confirmed as "all symbols". Q5 and Q6 are
-still proposals. No implementation or release is implied. Builds on v1.8 (M3);
-the corrections in `rfc-generic-semantics.md` §13.1 were confirmed by the
-owner on 2026-11-14 (resolves Q7).
+**Status:** Draft — all owner decisions Q1–Q7 recorded 2026-11-14. Q1–Q4
+were first accepted by intuition, then exercised the same day (§12); Q3
+changed to per-position drop and Q2 was re-confirmed as "all symbols". Q5
+(audit is a release gate) and Q6 (solo v1.9) were accepted afterwards. No
+implementation or release is implied by these decisions. Builds on v1.8
+(M3); the corrections in `rfc-generic-semantics.md` §13.1 were confirmed by
+the owner on 2026-11-14 (resolves Q7).
 **Target:** Gon v1.9
 **Related:** `docs/gna-spec-v1.md`, `docs/roadmap-v1.3-plus.md`,
 `docs/rfc-generic-semantics.md` (M3 / v1.8),
@@ -303,9 +304,11 @@ implementation approval or release sign-off.
    positions keep their contract. Whole-entry drop remains for arity (M5a).
 4. **Q4 — X7: ACCEPT uniform.** X3 applies to type parameters declared by a
    method itself (Go 1.27) exactly as to any other type parameter.
-5. **Q5 — X10 — OPEN.** Confirm the bundled-annotations audit is a release
-   gate (proposed: yes).
-6. **Q6 — Release shape — OPEN.** Solo v1.9 (proposed). The Go-version
+5. **Q5 — X10: ACCEPT.** The bundled-annotations audit is a release gate:
+   v1.9 does not ship until every bundled `.gna` passes X3 and the
+   `"!string"` fixtures and `extlib.gna` are rewritten, enforced by an
+   automated test.
+6. **Q6 — Release shape: ACCEPT solo v1.9.** The Go-version
    question that used to sit here is RESOLVED: v1.8.1 raised the build
    minimum to Go 1.27.0 and release binaries are built with it.
 7. **Q7 — Prerequisite.** RESOLVED 2026-11-14: the two
@@ -352,8 +355,8 @@ implementation approval or release sign-off.
 | `!` inside a `.gna` type argument | Load error (X5) |
 | Type-parameter names in strings | Documentation only (X6) |
 | Method-level type parameters (Go 1.27) | X3 applies uniformly (X7, Q4: accepted) |
-| Bundled annotations audit | Release gate (X10, Q5) |
-| Release shape | Solo v1.9 (X9, Q6) |
+| Bundled annotations audit | Release gate (X10, Q5: accepted) |
+| Release shape | Solo v1.9 (X9, Q6: accepted) |
 
 ---
 
