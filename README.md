@@ -48,6 +48,21 @@ cd gon
 go build -o gon ./cmd/gon
 ```
 
+### Go versions
+
+- **Release binaries** (GitHub Releases, with `checksums.txt`) need no Go at
+  all.
+- **Building Gon** (`go install` or from source) needs **Go 1.27.0 or newer**
+  (`go.mod`). With Go 1.21+ and the default `GOTOOLCHAIN=auto`, `go install`
+  downloads the required toolchain by itself and leaves your installed Go
+  untouched; this needs network access and fails with `GOTOOLCHAIN=local` or
+  on Go older than 1.21.
+- **Checking your code** uses the `go` command to load your module, and
+  type-checking follows the `go` directive in *your* `go.mod`. A project that
+  declares `go 1.21` cannot use language features from a newer Go; for
+  example, methods with their own type parameters
+  (`func (b Box[X]) Map[Y any](…)`) need `go 1.27` in your `go.mod`.
+
 ## Quickstart
 
 ```bash
