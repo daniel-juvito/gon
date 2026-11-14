@@ -61,6 +61,7 @@ analysis (see v1.6, §4).
 | M5a | `.gna` validation + external contract boundary | M4a — **shipped v1.5** |
 | M5b | Generic `.gna` + generic contract application | M3 + M5a infrastructure — **shipped v1.9** |
 | M6a | `gon fmt` + `gon check` | Core |
+| M7 | Call-site contracts for source-declared methods | M3 + M5b — **proposed v1.10** |
 | M6b | LSP / editor support | M2a — contract tracing |
 
 Full feature inventory and dependency graph rationale are maintained
@@ -161,6 +162,20 @@ M3 nilable rule; concrete kinds per `gna-spec-v1.md`).
 **Dependency:** M3 (v1.8) + M5a infrastructure (v1.5).
 **Breaking risk:** Possibly Yes (inherited from M3).
 **Rationale (R1):** Follows the isolation of M3 as its direct consumer.
+
+### v1.10 — Source Method Contracts — PROPOSED
+**Scope:** M7 — a `!` on a method's parameter or result, written in the checked
+file, is enforced at its call sites, matched by `go/types` object identity
+rather than by name.
+**RFC:** `docs/rfc-method-contracts.md` (Status: Draft — S1–S10 proposed,
+Q1–Q6 awaiting owner review, 2026-11-14). Baseline measured before any
+decision: none of the seven ordinary call forms is checked today; seven of
+eight resolve to their declaration through `go/types`.
+**Dependency:** M3 (v1.8) + M5b (v1.9); the v1.9.2 fix removes methods from the
+name-keyed tables this RFC would otherwise have to work around.
+**Breaking risk:** Possibly Yes (reports on code that already contradicts a
+written contract).
+**Rationale (R1):** Solo release.
 
 ## 5. Open Sequencing Notes
 
