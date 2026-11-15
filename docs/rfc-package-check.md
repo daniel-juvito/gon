@@ -428,6 +428,7 @@ measures user projects.
   modes now agree (pinned by `TestFileAndPackageJSONAgreeOnGoTypeError`).
   Beyond type and parse errors the package's `go list` errors (for example
   mismatched package clauses) are reported as well.
+- **`*_test.gon` is excluded too** (found in audit of the rebased head): the package is loaded with `Tests: false`, so a `helper_test.gon`, overlaid as `helper_test.go`, could never join it and used to fail with "is not part of the package". `gonFilesIn` now skips the name, so a directory with only `*_test.gon` files is "no .gon files" (exit 2), also for `./...`. A `*_test.gon` named as a FILE operand is checked as before.
 - **M5a validation** runs per file against that file's own imports, so a package
   imported only by a sibling is not reported twice.
 - **Not done, as decided:** no flag, no cross-package source contracts, no

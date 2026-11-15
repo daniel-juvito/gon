@@ -14,7 +14,8 @@
   Diagnostic Protocol v1 document; the schema is unchanged.
   - A `.gon` file **replaces the `.go` file of the same base name** (the one
     `gon transpile` emits next to it); other `.go` files of the directory are
-    loaded as they are; `*_test.go` files are excluded; build constraints apply.
+    loaded as they are; `*_test.go` and `*_test.gon` files are excluded (a
+    directory holding only `*_test.gon` files is exit 2); build constraints apply.
   - A Go type error in one file does not stop the other files from being
     checked: contract diagnostics are printed first, then the type errors, then
     the process exits 1. With `--json` the document still holds only Protocol v1

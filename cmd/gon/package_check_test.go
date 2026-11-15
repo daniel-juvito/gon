@@ -320,3 +320,64 @@ func TestFileAndPackageJSONAgreeOnGoTypeError(t *testing.T) {
 		t.Fatalf("the reason must be on stderr in both modes:\nfile: %s\npackage: %s", fileErr, pkgErr)
 	}
 }
+
+// --- *_test.gon files are not part of package mode ---------------------------
+
+const testGonWithContractError = "package main\n\nfunc helper() { f(nil) }\n\nfunc f(p !*int) {}\n"
+
+// A *_test.gon next to production files is skipped, not an error: the package is
+// loaded without tests, so it could never join it (it used to fail with "is not
+// part of the package (excluded by a build constraint?)").
+func TestPackageModeSkipsTestGonFiles(t *testing.T) {
+	root := pkgModule(t, map[string]string{
+		"a.gon":           "package main\n\nfunc main() {}\n",
+		"helper_test.gon": testGonWithContractError,
+	})
+	chdir(t, root)
+
+	exit, out, errOut := captureRun([]string{"check", "."})
+	if exit != 0 || strings.Contains(errOut, "not part of the package") || strings.Contains(errOut, "GN001") {
+		t.Fatalf("the test file must be ignored: exit %d\nstdout: %s\nstderr: %s", exit, out, errOut)
+	}
+	exit, out, errOut = captureRun([]string{"check", "--json", "."})
+	if exit != 0 || strings.Contains(out, "GN001") {
+		t.Fatalf("--json: exit %d\nstdout: %s\nstderr: %s", exit, out, errOut)
+	}
+}
+
+// A directory holding only *_test.gon files has nothing to check, like a
+// directory with no .gon file at all: exit 2.
+func TestPackageModeOnlyTestGonFilesIsNothingToCheck(t *testing.T) {
+	root := pkgModule(t, map[string]string{"helper_test.gon": testGonWithContractError})
+	chdir(t, root)
+
+	exit, _, errOut := captureRun([]string{"check", "."})
+	if exit != 2 || !strings.Contains(errOut, "no .gon files") || !strings.Contains(errOut, "_test.gon") {
+		t.Fatalf("exit %d, stderr:\n%s", exit, errOut)
+	}
+}
+
+// `./...` does not count a directory that holds only *_test.gon files.
+func TestPackagePatternIgnoresDirectoriesWithOnlyTestGonFiles(t *testing.T) {
+	root := pkgModule(t, map[string]string{
+		"a.gon":              "package main\n\nfunc main() {}\n",
+		"only/only_test.gon": "package only\n\n" + "func broken() { undefinedThing() }\n",
+	})
+	chdir(t, root)
+
+	exit, out, errOut := captureRun([]string{"check", "./..."})
+	if exit != 0 || strings.Contains(errOut, "only_test.gon") {
+		t.Fatalf("exit %d\nstdout: %s\nstderr: %s", exit, out, errOut)
+	}
+}
+
+// Naming a *_test.gon as a FILE operand keeps the single-file behaviour.
+func TestFileOperandStillChecksATestGonFile(t *testing.T) {
+	root := pkgModule(t, map[string]string{"helper_test.gon": testGonWithContractError})
+	chdir(t, root)
+
+	exit, _, errOut := captureRun([]string{"check", "helper_test.gon"})
+	if exit != 1 || !strings.Contains(errOut, "GN001") {
+		t.Fatalf("file operand must be unchanged: exit %d\n%s", exit, errOut)
+	}
+}

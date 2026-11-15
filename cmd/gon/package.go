@@ -53,7 +53,7 @@ func expandCheckOperands(operands []string) ([]checkTarget, error) {
 				return nil, err
 			}
 			if !has {
-				return nil, fmt.Errorf("no .gon files in %s", op)
+				return nil, fmt.Errorf("no .gon files in %s (*_test.gon files are not checked in package mode)", op)
 			}
 			out = append(out, checkTarget{path: op, dir: true})
 			continue
@@ -109,6 +109,9 @@ func hasGonFiles(dir string) (bool, error) {
 }
 
 // gonFilesIn lists the .gon files directly inside dir, sorted by name.
+// `*_test.gon` files are not part of package mode, like `*_test.go` for the go
+// tool's non-test package: the package is loaded without tests, so such a file
+// could never join it. Naming one explicitly as a FILE operand still works.
 func gonFilesIn(dir string) ([]string, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -116,7 +119,7 @@ func gonFilesIn(dir string) ([]string, error) {
 	}
 	var names []string
 	for _, e := range entries {
-		if !e.IsDir() && strings.HasSuffix(e.Name(), ".gon") {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), ".gon") && !strings.HasSuffix(e.Name(), "_test.gon") {
 			names = append(names, e.Name())
 		}
 	}

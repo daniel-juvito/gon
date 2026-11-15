@@ -123,7 +123,7 @@ gon check ./internal/foo
 
 - The directory's `.gon` files are type-checked **together, where they live**;
   its `.go` files are loaded as they are, and a `.gon` replaces the `.go` of the
-  same base name (the one `gon transpile` writes next to it). `*_test.go` files
+  same base name (the one `gon transpile` writes next to it). `*_test.go` and `*_test.gon` files
   are not part of the check.
 - A contract written in one file (`!` parameter, field or result) applies in every
   other file of the package.
