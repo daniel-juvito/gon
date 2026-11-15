@@ -213,6 +213,8 @@ s.Client = ordinary      // allowed — ordinary into !T field (conservative)
 
 ```
 gon check|vet <file.gon>     # diagnostics → stderr; exit 1 on errors
+gon check|vet <dir>          # (v1.10) the directory's .gon files checked as ONE package
+gon check|vet ./...          # (v1.10) every directory below with .gon files, each a package
 gon transpile <file.gon>     # write <file>.go; diagnostics → stderr
 gon build <file.gon>         # transpile then go build
 gon version

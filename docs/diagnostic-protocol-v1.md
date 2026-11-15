@@ -321,6 +321,7 @@ testdata/diagnostic-protocol/
 | UTF-8 / emoji before diagnostic position | `positions/utf8/` |
 | Symlink path not implicitly resolved | `paths/symlink/` |
 | Multiple input files            | `multiple-files/`     |
+| Package mode (v1.10): one document, many files | unit tests (`cmd/gon/package_check_test.go`) |
 | Optional `relatedInformation` schema round-trip | unit test (no producer) |
 
 `related/cross-file/` is a **reserved** fixture area for a future producer that

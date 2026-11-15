@@ -138,7 +138,24 @@ func (c *Checker) lookupStructAST(name string) *ast.StructType {
 	if c.file == nil {
 		return nil
 	}
-	for _, decl := range c.file.Decls {
+	if st := structASTIn(c.file, name); st != nil {
+		return st
+	}
+	if c.pkg != nil { // a struct declared in a sibling file of the package
+		for _, f := range c.pkg.files {
+			if f == c.file {
+				continue
+			}
+			if st := structASTIn(f, name); st != nil {
+				return st
+			}
+		}
+	}
+	return nil
+}
+
+func structASTIn(file *ast.File, name string) *ast.StructType {
+	for _, decl := range file.Decls {
 		gd, ok := decl.(*ast.GenDecl)
 		if !ok || gd.Tok != token.TYPE {
 			continue

@@ -1,6 +1,43 @@
 # Changelog
 
-## [Unreleased]
+## [1.10.0] — 2026-11-15
+
+### Added
+
+- **Package-aware checking** — M8 (`docs/rfc-package-check.md`). `gon check`
+  and `gon vet` accept a **directory** (`gon check ./internal/foo`) or a
+  `./...` pattern and check it as one package: the directory's `.gon` files are
+  type-checked together in their real location (via `go/packages`, with each
+  file's clean source overlaid at its real path), declaration contracts
+  (function parameters and results, struct fields) are shared across the files,
+  and each diagnostic is reported against its own file. `--json` is still one
+  Diagnostic Protocol v1 document; the schema is unchanged.
+  - A `.gon` file **replaces the `.go` file of the same base name** (the one
+    `gon transpile` emits next to it); other `.go` files of the directory are
+    loaded as they are; `*_test.go` files are excluded; build constraints apply.
+  - A Go type error in one file does not stop the other files from being
+    checked: contract diagnostics are printed first, then the type errors, then
+    the process exits 1.
+  - `./...` skips `testdata`, `vendor` and names starting with `_` or `.`, as
+    the `go` tool does. A directory without `.gon` files is exit 2.
+- No new syntax, no new diagnostic codes, `.gna` schema stays **1**.
+
+### Compatibility
+
+- **Additive.** A **file** operand behaves as before (one exception, below: `--json` on a Go type error now exits 1); a directory
+  operand used to be rejected (`input must be a .gon file`). Verified with a
+  differential run of `main` against this release over every `.gon` file in the
+  three repositories (file operand, text and `--json`) and a 540-file standard
+  library corpus: identical output.
+- A folder of independent programs (several files each declaring `main`) is
+  *not* a package unless it is named as one; name its files individually.
+- Contracts of **imported** packages are still read from `.gna`, for module-local
+  packages too. Reading a module-local package's contracts straight from its
+  `.gon` sources is a later RFC.
+
+### Changed
+
+- `gon version` reports `1.10.0`; the usage text mentions directory operands.
 
 ### Fixed
 

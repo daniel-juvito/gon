@@ -40,7 +40,7 @@ Full scope contract: [docs/v1-scope.md](docs/v1-scope.md)
 ## Install
 
 ```bash
-go install github.com/daniel-juvito/gon/cmd/gon@v1.9.2
+go install github.com/daniel-juvito/gon/cmd/gon@v1.10.0
 ```
 
 Or from source:
@@ -77,6 +77,10 @@ go build -o gon ./cmd/gon
 # check (alias: vet)
 gon check file.gon
 
+# check a directory as ONE package (its .gon files together)
+gon check ./internal/foo
+gon check ./...           # every directory below here that holds .gon files
+
 # format in place (preserves !)
 gon fmt file.gon
 
@@ -106,6 +110,30 @@ file.gon:20:8: warning GW001: x is non-nil; comparison with nil is always false
 ```
 
 Positions refer to the Gon source (`.gon`), not generated `.go`.
+
+### Checking a package
+
+`gon check file.gon` checks that file **alone**: it is placed in a synthetic
+one-file package, so it cannot use a declaration from a sibling file. To check
+real multi-file packages, name the **directory**:
+
+```bash
+gon check ./internal/foo
+```
+
+- The directory's `.gon` files are type-checked **together, where they live**;
+  its `.go` files are loaded as they are, and a `.gon` replaces the `.go` of the
+  same base name (the one `gon transpile` writes next to it). `*_test.go` files
+  are not part of the check.
+- A contract written in one file (`!` parameter, field or result) applies in every
+  other file of the package.
+- Every diagnostic names its own file; `--json` is still one document. A Go type
+  error in one file does not stop the others from being checked.
+- `./...` (or `dir/...`) checks every directory that holds `.gon` files, skipping
+  `testdata`, `vendor`, and names starting with `_` or `.`, like the `go` tool.
+- Contracts of *imported* packages still come from `.gna`.
+- A folder of independent programs is **not** a package unless you name it as
+  one; give those files as file operands.
 
 ## Syntax
 

@@ -62,7 +62,7 @@ analysis (see v1.6, §4).
 | M5b | Generic `.gna` + generic contract application | M3 + M5a infrastructure — **shipped v1.9** |
 | M6a | `gon fmt` + `gon check` | Core |
 | M7 | Call-site contracts for source-declared methods | M3 + M5b + M8 — **proposed v1.11** |
-| M8 | Package-aware checking | M5b — **accepted v1.10, implementation pending** |
+| M8 | Package-aware checking | M5b — **implemented v1.10, release pending** |
 | M6b | LSP / editor support | M2a — contract tracing |
 
 Full feature inventory and dependency graph rationale are maintained
@@ -164,12 +164,12 @@ M3 nilable rule; concrete kinds per `gna-spec-v1.md`).
 **Breaking risk:** Possibly Yes (inherited from M3).
 **Rationale (R1):** Follows the isolation of M3 as its direct consumer.
 
-### v1.10 — Package-Aware Checking — ACCEPTED (implementation pending)
+### v1.10 — Package-Aware Checking — IMPLEMENTED (release pending)
 **Scope:** M8 — `gon check ./dir` and `./...` type-check a package's `.gon`
 files together in their real directory, share contracts across them, and
 report each diagnostic against its own file. File arguments are unchanged.
-**RFC:** `docs/rfc-package-check.md` (Status: Accepted — owner decisions Q1–Q7
-recorded 2026-11-15; no implementation yet).
+**RFC:** `docs/rfc-package-check.md` (Status: Implemented — owner decisions
+Q1–Q7 recorded 2026-11-15).
 **Dependency:** M5b (v1.9).
 **Breaking risk:** None (additive: a directory argument was an error before).
 **Rationale (R4):** a distinct, isolated feature with its own regression suite;

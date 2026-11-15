@@ -55,6 +55,11 @@ type Checker struct {
 	// symbol as ordinary.
 	droppedContracts map[string]map[string]bool
 
+	// pkg is non-nil when this checker is one file of a package checked
+	// together (CheckPackage, RFC rfc-package-check.md). It carries what the
+	// files share; nil keeps the single-file behaviour exactly.
+	pkg *packageShared
+
 	diagnostics []*Diagnostic
 }
 
@@ -76,8 +81,24 @@ func New(filename string, cleanSrc []byte, nonNilOffsets map[int]bool) (*Checker
 	}, nil
 }
 
+// Check runs both phases for a single file: collect its declarations, then
+// walk it. CheckPackage runs collect() on every file of a package before any
+// file is walked, so contracts declared in one file are visible to the others.
 func (c *Checker) Check() []*Diagnostic {
+	c.collect()
+	return c.walk()
+}
+
+// collect records this file's declaration contracts (function parameters and
+// results, struct field contracts) in the checker's tables. In package mode the
+// tables are shared, so after every file has been collected they hold the whole
+// package's contracts.
+func (c *Checker) collect() {
 	c.collectDecls()
+}
+
+// walk checks this file against the collected contracts.
+func (c *Checker) walk() []*Diagnostic {
 	c.validateAnnotations()
 	c.checkNonNilTypeKinds()
 	c.checkBangInTypeArgsAndConstraints()
@@ -97,8 +118,15 @@ func (c *Checker) isNonNil(typeExpr ast.Expr) bool {
 	if typeExpr == nil {
 		return false
 	}
-	offset := c.fset.Position(typeExpr.Pos()).Offset
-	return c.nonNilOffsets[offset]
+	p := c.fset.Position(typeExpr.Pos())
+	if c.pkg != nil {
+		// `!` positions are byte offsets into ONE file's clean source, so in
+		// package mode they are looked up by the file the node belongs to; a
+		// type expression of a sibling file must not be read against this
+		// file's offsets.
+		return c.pkg.offsets[filepath.Clean(p.Filename)][p.Offset]
+	}
+	return c.nonNilOffsets[p.Offset]
 }
 
 func (c *Checker) addError(pos token.Pos, code, msg string) {
