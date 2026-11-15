@@ -210,16 +210,24 @@ stderr. Consequently:
 
 #### Exit 1 before an envelope exists
 
-For an invocation that reaches Protocol JSON emission, exit 1 comes with the
-envelope. An input that cannot be **parsed at all** (`gon: parse error: …` on
-stderr) stops the run **before** the checker produces any diagnostic and exits 1
-**without** an envelope on stdout. That is a different situation from a Go
-type-checking error: there the source parsed and was checked, and the envelope
-is written. A consumer must therefore not assume that every exit 1 has a
-parseable stdout; an empty stdout with exit 1 means the input did not parse, and
-the reason is on stderr. This describes the current behaviour of v1; whether an
-unparseable input should instead be an exit 2 or a Diagnostic is a separate
-decision and is not made here.
+Two different failures can both be called "a parse error"; they behave differently:
+
+- **Pre-check parse failure.** The checker parses the preprocessed (clean Go)
+  source with the Go parser before any contract check runs. If that fails, the
+  run stops with `gon: parse error: …` on stderr and exit 1, **before** Protocol
+  JSON emission, so stdout contains **no envelope**. (The parser reporting it is
+  Go's, applied to Gon's preprocessed output; it is reported by Gon's own checker
+  step, not by the type-check step below.)
+- **Go toolchain error.** The preprocessed source parsed and the checker ran;
+  the Go type check (or package load) then reported an error. The envelope is
+  written, and the error is on stderr, as described above.
+
+For the documented pre-check parse failure, stdout contains no Protocol JSON
+envelope. Consumers must not assume that every exit 1 produces parseable JSON;
+when no envelope is present, stderr explains the failure. Which other conditions,
+if any, can exit 1 without an envelope has not been audited; this section
+documents only what is known. Whether the pre-check parse failure should instead
+be an exit 2 or a Diagnostic is a separate decision and is not made here.
 
 A consumer that needs the reason for an exit 1 with no error diagnostic reads
 stderr; it must not treat that combination as malformed output or as an exit
