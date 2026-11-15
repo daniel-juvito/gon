@@ -61,6 +61,8 @@ analysis (see v1.6, §4).
 | M5a | `.gna` validation + external contract boundary | M4a — **shipped v1.5** |
 | M5b | Generic `.gna` + generic contract application | M3 + M5a infrastructure — **shipped v1.9** |
 | M6a | `gon fmt` + `gon check` | Core |
+| M7 | Call-site contracts for source-declared methods | M3 + M5b + M8 — **proposed v1.11** |
+| M8 | Package-aware checking | M5b — **accepted v1.10, implementation pending** |
 | M6b | LSP / editor support | M2a — contract tracing |
 
 Full feature inventory and dependency graph rationale are maintained
@@ -161,6 +163,27 @@ M3 nilable rule; concrete kinds per `gna-spec-v1.md`).
 **Dependency:** M3 (v1.8) + M5a infrastructure (v1.5).
 **Breaking risk:** Possibly Yes (inherited from M3).
 **Rationale (R1):** Follows the isolation of M3 as its direct consumer.
+
+### v1.10 — Package-Aware Checking — ACCEPTED (implementation pending)
+**Scope:** M8 — `gon check ./dir` and `./...` type-check a package's `.gon`
+files together in their real directory, share contracts across them, and
+report each diagnostic against its own file. File arguments are unchanged.
+**RFC:** `docs/rfc-package-check.md` (Status: Accepted — owner decisions Q1–Q7
+recorded 2026-11-15; no implementation yet).
+**Dependency:** M5b (v1.9).
+**Breaking risk:** None (additive: a directory argument was an error before).
+**Rationale (R4):** a distinct, isolated feature with its own regression suite;
+ships solo.
+
+### v1.11 — Source Method Contracts — PROPOSED
+**Scope:** M7 — a `!` on a method's parameter or result, written in the checked
+package, is enforced at its call sites, matched by `go/types` object identity.
+**RFC:** `docs/rfc-method-contracts.md` (draft; lands in its own PR). Sequenced
+after M8 on purpose: its single-file scope limit (S9) widens to "the package"
+once M8 ships.
+**Dependency:** M3 (v1.8) + M5b (v1.9) + M8 (v1.10).
+**Breaking risk:** Possibly Yes.
+**Rationale (R1):** solo release.
 
 ## 5. Open Sequencing Notes
 
