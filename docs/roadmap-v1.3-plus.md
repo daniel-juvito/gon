@@ -178,7 +178,8 @@ ships solo.
 ### v1.11 — Source Method Contracts — PROPOSED
 **Scope:** M7 — a `!` on a method's parameter or result, written in the checked
 package, is enforced at its call sites, matched by `go/types` object identity.
-**RFC:** `docs/rfc-method-contracts.md` (draft; lands in its own PR). Sequenced
+**RFC:** `docs/rfc-method-contracts.md` (Status: Draft — S1–S10 proposed, Q1–Q6
+awaiting owner review, 2026-11-14). Sequenced
 after M8 on purpose: its single-file scope limit (S9) widens to "the package"
 once M8 ships.
 **Dependency:** M3 (v1.8) + M5b (v1.9) + M8 (v1.10).

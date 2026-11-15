@@ -56,7 +56,7 @@ other source of the contract — the declaration in the checked file.
 3. **A name-keyed shortcut already cost a bug.** The tables behind call
    resolution were keyed by bare declaration name for functions and methods
    alike; a method overwrote a same-named function's contract and produced
-   false GN001 / GW001 (fixed as v1.9.2, `fix/method-name-collision`).
+   false GN001 / GW001 (fixed in v1.9.2).
    In the same corpus, 10 of 540 files declare a method with the name of a
    plain function and 55 declare one method name on two or more receiver types
    (§12.2) — so the collision is common structure, not an accident. This RFC
