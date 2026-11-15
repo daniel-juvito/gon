@@ -381,3 +381,47 @@ func TestProtocol_HumanCheck_StillWorksWithoutJSON(t *testing.T) {
 		t.Errorf("human check must not emit Protocol JSON without --json")
 	}
 }
+
+// A Go type error is not a Protocol v1 Diagnostic (§7): the document stays a
+// valid envelope with no entry for it, the reason goes to stderr, and the exit
+// code is still 1, so a caller that only checks the exit status does not see a
+// package that does not compile as a success.
+func TestCheckJSONGoTypeErrorExitsOneWithEmptyDiagnostics(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "a.gon")
+	if err := os.WriteFile(path, []byte("package main\n\nfunc main() { undefinedThing() }\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	exit, stdout, stderr := captureRun([]string{"check", "--json", path})
+	if exit != 1 {
+		t.Fatalf("exit = %d, want 1\nstdout: %s\nstderr: %s", exit, stdout, stderr)
+	}
+	var env struct {
+		SchemaVersion int               `json:"schemaVersion"`
+		Diagnostics   []json.RawMessage `json:"diagnostics"`
+	}
+	if err := json.Unmarshal([]byte(stdout), &env); err != nil {
+		t.Fatalf("stdout must be one valid envelope: %v\n%s", err, stdout)
+	}
+	if env.SchemaVersion != 1 || len(env.Diagnostics) != 0 {
+		t.Fatalf("envelope must carry no entry for a Go type error: %+v", env)
+	}
+	if !strings.Contains(stderr, "Go type error") {
+		t.Fatalf("the reason must be on stderr:\n%s", stderr)
+	}
+}
+
+// A contract diagnostic and a Go type error together: both are reported, the
+// document keeps the contract diagnostic, exit 1.
+func TestCheckJSONGoTypeErrorDoesNotHideContractDiagnostics(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "a.gon")
+	src := "package main\n\nfunc f(p !*int) {}\n\nfunc main() { f(nil); undefinedThing() }\n"
+	if err := os.WriteFile(path, []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	exit, stdout, stderr := captureRun([]string{"check", "--json", path})
+	if exit != 1 || !strings.Contains(stdout, `"GN001"`) || !strings.Contains(stderr, "Go type error") {
+		t.Fatalf("exit %d\nstdout: %s\nstderr: %s", exit, stdout, stderr)
+	}
+}
