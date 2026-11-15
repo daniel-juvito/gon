@@ -102,12 +102,6 @@ func (c *Checker) cannotSatisfyBangInterface(expr ast.Expr, target types.Type) b
 	return !types.Identical(srcType, target)
 }
 
-// ordinaryInterfaceValue is the target-agnostic form used when no target type
-// is available. Prefer cannotSatisfyBangInterface when the target type is known.
-func (c *Checker) ordinaryInterfaceValue(expr ast.Expr) bool {
-	return c.cannotSatisfyBangInterface(expr, nil)
-}
-
 // callArgParamType returns the Go type of the formal parameter at position
 // paramIndex (receiver excluded, matching resolveCallParams indexing) for a
 // call whose function expression is fun, or nil when it cannot be determined.

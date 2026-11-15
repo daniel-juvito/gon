@@ -12,8 +12,8 @@ func mk() !R { var v T; return &v }
 
 func f() {
 	var p *T = nil
-	var a !R = p     // OK — concrete operand; the interface value is non-nil
-	var b !R = mk()  // OK — result declared !R
-	var c !R = b     // OK — existing !R source
+	var a !R = p    // OK — concrete operand; the interface value is non-nil
+	var b !R = mk() // OK — result declared !R
+	var c !R = b    // OK — existing !R source
 	fmt.Println(a, c)
 }

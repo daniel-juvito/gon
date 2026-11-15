@@ -3,21 +3,23 @@
 // Executable specification for docs/rfc-field-contracts.md.
 //
 // Normative anchors:
-//   A !T field is an invariant of its declared storage location, not a
-//   one-time property of its construction.
 //
-//   GN002 recursively inspects types according to zero-value containment.
-//   A nested type is traversed when the containing type's zero value contains
-//   an actual value of that nested type. Traversal stops at indirection
-//   boundaries and never follows reachable objects.
+//	A !T field is an invariant of its declared storage location, not a
+//	one-time property of its construction.
 //
-//   Gon validates contracts locally at construction, mutation, and use sites;
-//   it does not reconstruct object state from control flow.
+//	GN002 recursively inspects types according to zero-value containment.
+//	A nested type is traversed when the containing type's zero value contains
+//	an actual value of that nested type. Traversal stops at indirection
+//	boundaries and never follows reachable objects.
+//
+//	Gon validates contracts locally at construction, mutation, and use sites;
+//	it does not reconstruct object state from control flow.
 //
 // Observable discriminants:
-//   GN002  — construction leaves a ! field at zero value
-//   GN001  — explicit/known nil assigned into a ! field
-//   GW001  — selector of a ! field used in nil comparison (non-nil source)
+//
+//	GN002  — construction leaves a ! field at zero value
+//	GN001  — explicit/known nil assigned into a ! field
+//	GW001  — selector of a ! field used in nil comparison (non-nil source)
 //
 // Positive cases that rely on new semantics are expected to FAIL under v1.1
 // and PASS once the feature lands. All existing v1.1 tests must stay green.
