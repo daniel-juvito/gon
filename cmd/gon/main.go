@@ -50,7 +50,7 @@ func run(args []string) int {
 		usage()
 		return 0
 	case "version", "-version", "--version":
-		fmt.Println("gon version 1.9.2")
+		fmt.Println("gon version 1.10.0")
 		return 0
 	}
 
@@ -206,7 +206,29 @@ func runCheck(cmd string, args []string) int {
 	anyDiag := false
 	typeErr := false
 
-	for _, filename := range files {
+	targets, err := expandCheckOperands(files)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "gon: %v\n", err)
+		return 2
+	}
+
+	for _, t := range targets {
+		if t.dir {
+			// Package mode: the directory's .gon files are checked together.
+			out, code := checkPackageDir(t.path, jsonOut, source)
+			if code != 0 {
+				return code
+			}
+			hasErrors = hasErrors || out.hasErrors
+			anyDiag = anyDiag || out.anyDiag
+			allProtocol = append(allProtocol, out.protocol...)
+			for _, te := range out.typeErrors {
+				fmt.Fprintf(os.Stderr, "gon: Go type error: %s\n", te)
+				typeErr = true
+			}
+			continue
+		}
+		filename := t.path
 		if !strings.HasSuffix(filename, ".gon") {
 			fmt.Fprintf(os.Stderr, "gon: input must be a .gon file, got %s\n", filename)
 			return 2
@@ -283,7 +305,7 @@ func runCheck(cmd string, args []string) int {
 		return 0
 	}
 
-	if hasErrors {
+	if hasErrors || typeErr {
 		return 1
 	}
 	if !anyDiag {
@@ -293,10 +315,11 @@ func runCheck(cmd string, args []string) int {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, `Usage: gon <command> [flags] <file.gon>...
+	fmt.Fprintln(os.Stderr, `Usage: gon <command> [flags] <file.gon | dir>...
 
 Commands:
-  check, vet   check for nil-safety violations (exit 1 on errors)
+  check, vet   check for nil-safety violations (exit 1 on errors); a file is
+               checked alone, a directory (or dir/...) as one package
   fmt          format Gon source in place
   lsp          run the language server over stdio
   transpile    emit clean Go source (.go next to the input)

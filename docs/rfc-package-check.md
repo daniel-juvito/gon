@@ -1,9 +1,9 @@
 # RFC: Package-Aware Checking (Gon v1.10 / M8)
 
-**Status:** Accepted — owner decisions Q1–Q7 recorded 2026-11-15, each
-taking the drafted recommendation. Implementation is pending; this document
-authorizes none. The baseline and feasibility figures in §12 were measured on
-2026-11-15, before any decision.
+**Status:** Implemented in Gon v1.10 (2026-11-15). Owner decisions Q1–Q7
+were recorded the same day, each taking the drafted recommendation; §14 lists
+what the implementation did and where it differs from the sketch. The baseline
+and feasibility figures in §12 were measured before any decision.
 **Target:** Gon v1.10
 **Related:** `docs/v1-scope.md`, `docs/roadmap-v1.3-plus.md`,
 `docs/diagnostic-protocol-v1.md`, `docs/rfc-ecosystem-contract-expansion.md`
@@ -388,3 +388,49 @@ measures user projects.
 | `./...` | Go conventions, skips `testdata` etc. (P8) |
 | Schema / diagnostic codes | No change (P11) |
 | Release shape | Solo v1.10; M7 moves to v1.11 (P11, Q6, Q7: accepted) |
+
+---
+
+## 14. Implementation Notes (v1.10)
+
+- **API.** `checker.CheckPackage(dir, []PackageFile, resolver)` in
+  `internal/checker/package.go`; it returns per-file diagnostics sorted by path
+  plus the package's Go errors. The CLI side is `cmd/gon/package.go`
+  (operand classification, `...` expansion, output).
+- **P1.** `expandCheckOperands` classifies each operand: a `...` pattern or an
+  existing directory is package mode; everything else is passed through as a
+  file so the existing path keeps its own errors and wording. A directory or
+  pattern with no `.gon` file is exit 2.
+- **P3.** One `packages.Load(cfg, "file="+<first overlay path>)` with each
+  file's clean source overlaid at `<dir>/<base>.go`; a `.gon` therefore replaces
+  the same-named `.go` and is added when there is none. A file that a build
+  constraint excludes is an error naming it (`… is not part of the package`).
+- **P4 — the refactor was smaller than the sketch.** `Check()` is now
+  `collect()` then `walk()`; in package mode every file's checker shares the
+  three declaration tables (maps passed by reference), so after every file has
+  collected, each one sees the whole package's contracts. `!` offsets are looked
+  up **by the file of the node** (`packageShared.offsets`), not from one table;
+  the only place a checker reads a sibling file's offsets is walking a nested
+  anonymous struct declared there, and a test pins that exact path (a mutation
+  that read the wrong table was caught only by it, not by the general test
+  written first). `lookupStructAST` also searches the sibling files.
+- **P5.** Files are reported sorted by path; in the human output a package
+  file's line is prefixed by its **path** rather than its base name, because
+  `./...` can hold several `main.gon`. `--json` keeps the absolute `file` field.
+- **P6.** Contract diagnostics are printed first, then `Go type error:` lines,
+  then exit 1. `--json` does not carry type errors (Protocol v1 has no field for
+  them), but in package mode the exit code is still 1 when the package does not
+  type-check, with the `gon: Go type error:` lines on stderr and an unchanged
+  Protocol v1 document (possibly empty `diagnostics`) on stdout. This was a
+  review finding on the first implementation, which exited 0. Single-file
+  `--json` had the same gap; it was fixed separately (#22) and Protocol v1 §7
+  was clarified (#20) so that exit 1 with an empty `diagnostics` is valid. Both
+  modes now agree (pinned by `TestFileAndPackageJSONAgreeOnGoTypeError`).
+  Beyond type and parse errors the package's `go list` errors (for example
+  mismatched package clauses) are reported as well.
+- **`*_test.gon` is excluded too** (found in audit of the rebased head): the package is loaded with `Tests: false`, so a `helper_test.gon`, overlaid as `helper_test.go`, could never join it and used to fail with "is not part of the package". `gonFilesIn` now skips the name, so a directory with only `*_test.gon` files is "no .gon files" (exit 2), also for `./...`. A `*_test.gon` named as a FILE operand is checked as before.
+- **M5a validation** runs per file against that file's own imports, so a package
+  imported only by a sibling is not reported twice.
+- **Not done, as decided:** no flag, no cross-package source contracts, no
+  `transpile` / `build` directory form, no editor setting (P7, P9, P10).
+
