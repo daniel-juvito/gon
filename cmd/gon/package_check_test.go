@@ -298,17 +298,25 @@ func TestPackageJSONCleanPackageStillExitsZero(t *testing.T) {
 	}
 }
 
-// FILE mode is unchanged (P1): its --json output still does not report a Go
-// type error. Pinned so the asymmetry with package mode is a recorded fact, not
-// an accident.
-func TestFileJSONTypeErrorBehaviourIsUnchanged(t *testing.T) {
+// FILE mode and package mode agree on a pure Go type error under --json
+// (Protocol v1 §7 as clarified): exit 1, a valid envelope with empty
+// diagnostics, the reason on stderr. File mode got there in the separate fix
+// for #22; this pins that the two modes cannot drift apart again.
+func TestFileAndPackageJSONAgreeOnGoTypeError(t *testing.T) {
 	root := pkgModule(t, map[string]string{
 		"a.gon": "package main\n\nfunc main() { undefinedThing() }\n",
 	})
 	chdir(t, root)
 
-	exit, out, _ := captureRun([]string{"check", "--json", "a.gon"})
-	if exit != 0 || !strings.Contains(out, `"diagnostics":[]`) {
-		t.Fatalf("file mode --json must be unchanged: exit %d\n%s", exit, out)
+	fileExit, fileOut, fileErr := captureRun([]string{"check", "--json", "a.gon"})
+	pkgExit, pkgOut, pkgErr := captureRun([]string{"check", "--json", "."})
+	if fileExit != 1 || pkgExit != 1 {
+		t.Fatalf("both modes must exit 1: file %d, package %d", fileExit, pkgExit)
+	}
+	if fileOut != pkgOut || !strings.Contains(fileOut, `"diagnostics":[]`) {
+		t.Fatalf("envelopes differ:\nfile: %s\npackage: %s", fileOut, pkgOut)
+	}
+	if !strings.Contains(fileErr, "Go type error") || !strings.Contains(pkgErr, "Go type error") {
+		t.Fatalf("the reason must be on stderr in both modes:\nfile: %s\npackage: %s", fileErr, pkgErr)
 	}
 }

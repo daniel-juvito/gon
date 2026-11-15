@@ -423,8 +423,9 @@ measures user projects.
   type-check, with the `gon: Go type error:` lines on stderr and an unchanged
   Protocol v1 document (possibly empty `diagnostics`) on stdout. This was a
   review finding on the first implementation, which exited 0. Single-file
-  `--json` is unchanged (it still exits 0 on a pure type error); aligning it is
-  a separate, compatibility-affecting decision.
+  `--json` had the same gap; it was fixed separately (#22) and Protocol v1 §7
+  was clarified (#20) so that exit 1 with an empty `diagnostics` is valid. Both
+  modes now agree (pinned by `TestFileAndPackageJSONAgreeOnGoTypeError`).
   Beyond type and parse errors the package's `go list` errors (for example
   mismatched package clauses) are reported as well.
 - **M5a validation** runs per file against that file's own imports, so a package
