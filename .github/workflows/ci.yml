@@ -30,6 +30,24 @@ jobs:
             exit 1
           fi
 
+      - name: Format (.gon files)
+        # testdata/diagnostic-protocol/positions/ is excluded on purpose: those
+        # fixtures pin exact line/column positions (for example a `;` that
+        # `gon fmt` would split across lines), so they must stay as written.
+        run: |
+          fail=0
+          for f in $(find . -name '*.gon' -not -path './testdata/diagnostic-protocol/positions/*' | sort); do
+            tmp=$(mktemp --suffix=.gon)
+            cp "$f" "$tmp"
+            ./gon fmt "$tmp" > /dev/null
+            if ! cmp -s "$f" "$tmp"; then
+              echo "needs gon fmt: $f"
+              fail=1
+            fi
+            rm -f "$tmp"
+          done
+          exit $fail
+
       - name: Vet
         run: go vet ./...
 
