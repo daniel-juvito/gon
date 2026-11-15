@@ -1,9 +1,9 @@
-# RFC: Call-Site Contracts for Source-Declared Methods (Gon v1.10 / M7)
+# RFC: Call-Site Contracts for Source-Declared Methods (Gon v1.11 / M7)
 
 **Status:** Draft — awaiting owner review. Decisions S1–S10 are *proposals*;
 §10 lists the questions that need an explicit owner answer. The baseline and
 feasibility figures in §12 were measured on 2026-11-14, before any decision.
-**Target:** Gon v1.10
+**Target:** Gon v1.11 (sequenced after M8, package-aware checking, v1.10 — `docs/rfc-package-check.md`, accepted 2026-11-15)
 **Related:** `docs/gna-spec-v1.md`, `docs/v1-scope.md`,
 `docs/roadmap-v1.3-plus.md`, `docs/rfc-return-value-contracts.md` (v1.1),
 `docs/rfc-field-contracts.md` (v1.2), `docs/rfc-interface-semantics.md`
@@ -139,13 +139,15 @@ RFC. `.gna` `receivers:` stays reserved. Calling a method on a possibly-nil
 receiver is a separate question with its own interaction with I1 and the
 zero-value rules, and deserves its own RFC if wanted.
 
-### S9 — Scope: the checked file
+### S9 — Scope: the files being checked together
 
-Only contracts declared **in the checked file** are applied. A method declared
-in another file of the same package, or in another package, is invisible to the
-source path (an *external* package's contract still comes from `.gna`). This is
-the limit plain functions already have; lifting it is a cross-file design, not
-part of M7.
+Only contracts declared **in the files checked together** are applied: the one
+file in file mode, and **every `.gon` file of the package** in package mode
+(`rfc-package-check.md`, M8, which ships first as v1.10). A method declared in
+a file that is not part of the check, or in another package, is invisible to
+the source path (an *external* package's contract still comes from `.gna`).
+This is the same limit plain functions have, and it moves with M8: M7 adds no
+cross-file mechanism of its own.
 
 ### S10 — Degradation and compatibility
 
@@ -154,7 +156,7 @@ part of M7.
 - **Classification (R1):** possibly breaking in the same sense as the v1.8 and
   v1.9 releases. It reports GN001 / GW001 on code that already violates a
   documented, written contract but was previously not checked. No new syntax,
-  no `.gna` schema change, no new diagnostic code. Ships **solo** as v1.10.
+  no `.gna` schema change, no new diagnostic code. Ships **solo** as v1.11, after M8.
 
 ### S11 — Non-Goals
 
@@ -176,7 +178,8 @@ part of M7.
    concrete declaration** (S5).
 4. **No carrying.** A method value, a callback, or any assignment of a method
    to a variable does not carry its contract (S6).
-5. **One file.** Only declarations in the checked file are consulted (S9).
+5. **Checked files only.** Only declarations in the files being checked
+   together are consulted: one file, or the package in package mode (S9).
 6. **Absent type information means absent contract** (S10).
 
 ## 6. Examples
@@ -270,9 +273,11 @@ Executable spec in `internal/checker/method_contracts_test.go`.
    add a warning when a method with a contract is taken as a value?
 4. **Q4 — S8 receivers.** Defer receiver contracts to their own RFC
    (proposed)?
-5. **Q5 — S9 scope.** Accept the one-file limit for v1.10 (proposed), with
-   cross-file contracts as a later, separate design?
-6. **Q6 — Release shape.** Solo v1.10 (proposed, R1).
+5. **Q5 — S9 scope.** Scope is the files checked together — one file, or the
+   whole package under M8's package mode (proposed), with module-local
+   cross-package contracts as a later, separate design?
+6. **Q6 — Release shape.** Solo v1.11 after M8 (proposed, R1; sequencing already
+   decided in `rfc-package-check.md` Q6).
 
 ## 11. Alternatives Considered
 
@@ -371,6 +376,6 @@ user code.
 | Method values | Not tracked, documented (S6, Q3) |
 | Generic receivers | Through `Origin()` (S7) |
 | Receiver contracts | Out of scope (S8, Q4) |
-| Scope | The checked file (S9, Q5) |
+| Scope | The files checked together: a file, or the package under M8 (S9, Q5) |
 | New diagnostic codes / schema bump | None |
-| Release shape | Solo v1.10 (S10, Q6) |
+| Release shape | Solo v1.11, after M8 (S10, Q6) |
