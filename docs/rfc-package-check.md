@@ -418,7 +418,13 @@ measures user projects.
   file's line is prefixed by its **path** rather than its base name, because
   `./...` can hold several `main.gon`. `--json` keeps the absolute `file` field.
 - **P6.** Contract diagnostics are printed first, then `Go type error:` lines,
-  then exit 1. As in single-file mode, `--json` does not carry type errors.
+  then exit 1. `--json` does not carry type errors (Protocol v1 has no field for
+  them), but in package mode the exit code is still 1 when the package does not
+  type-check, with the `gon: Go type error:` lines on stderr and an unchanged
+  Protocol v1 document (possibly empty `diagnostics`) on stdout. This was a
+  review finding on the first implementation, which exited 0. Single-file
+  `--json` is unchanged (it still exits 0 on a pure type error); aligning it is
+  a separate, compatibility-affecting decision.
   Beyond type and parse errors the package's `go list` errors (for example
   mismatched package clauses) are reported as well.
 - **M5a validation** runs per file against that file's own imports, so a package

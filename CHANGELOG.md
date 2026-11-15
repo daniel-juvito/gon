@@ -17,7 +17,9 @@
     loaded as they are; `*_test.go` files are excluded; build constraints apply.
   - A Go type error in one file does not stop the other files from being
     checked: contract diagnostics are printed first, then the type errors, then
-    the process exits 1.
+    the process exits 1. With `--json` the document still holds only Protocol v1
+    diagnostics, the type errors go to stderr, and the exit code is 1 when the
+    package does not type-check. (Single-file `--json` is unchanged.)
   - `./...` skips `testdata`, `vendor` and names starting with `_` or `.`, as
     the `go` tool does. A directory without `.gon` files is exit 2.
 - No new syntax, no new diagnostic codes, `.gna` schema stays **1**.

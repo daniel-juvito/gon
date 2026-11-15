@@ -235,3 +235,80 @@ func TestMixedFileAndDirectoryOperands(t *testing.T) {
 		t.Fatalf("both operands must be reported:\n%s", errOut)
 	}
 }
+
+// --- Go type errors and the exit code in --json mode -------------------------
+//
+// Protocol v1 has no field for a Go type error, so --json never carries one. The
+// exit code still has to reflect that the package does not type-check, or CI
+// would pass a package that does not compile. (Package mode is new surface, so
+// this adds no compatibility burden; FILE mode is unchanged, see the last test.)
+
+func TestPackageJSONPureTypeErrorExitsOneWithEmptyDiagnostics(t *testing.T) {
+	root := pkgModule(t, map[string]string{
+		"a.gon": "package main\n\nfunc main() { undefinedThing() }\n",
+	})
+	chdir(t, root)
+
+	exit, out, errOut := captureRun([]string{"check", "--json", "."})
+	if exit != 1 {
+		t.Fatalf("a package that does not type-check must exit 1, got %d\nstdout: %s\nstderr: %s", exit, out, errOut)
+	}
+	var doc struct {
+		SchemaVersion int               `json:"schemaVersion"`
+		Diagnostics   []json.RawMessage `json:"diagnostics"`
+	}
+	if err := json.Unmarshal([]byte(out), &doc); err != nil {
+		t.Fatalf("stdout must still be one valid Protocol v1 document: %v\n%s", err, out)
+	}
+	if doc.SchemaVersion != 1 || len(doc.Diagnostics) != 0 {
+		t.Fatalf("the envelope carries only Protocol v1 diagnostics: %+v", doc)
+	}
+	if !strings.Contains(errOut, "Go type error") {
+		t.Fatalf("exit 1 with an empty document needs its reason on stderr:\n%s", errOut)
+	}
+}
+
+func TestPackageJSONTypeErrorAlongsideContractDiagnostics(t *testing.T) {
+	root := pkgModule(t, map[string]string{
+		"a.gon": pkgA,
+		"b.gon": pkgB,
+		"c.gon": "package main\n\nfunc broken() { undefinedThing() }\n",
+	})
+	chdir(t, root)
+
+	exit, out, _ := captureRun([]string{"check", "--json", "."})
+	if exit != 1 {
+		t.Fatalf("exit = %d, want 1", exit)
+	}
+	if !strings.Contains(out, `"GN001"`) || !strings.Contains(out, `"GN002"`) {
+		t.Fatalf("contract diagnostics must still be in the document:\n%s", out)
+	}
+}
+
+func TestPackageJSONCleanPackageStillExitsZero(t *testing.T) {
+	root := pkgModule(t, map[string]string{
+		"a.gon": "package main\n\nfunc main() { helper() }\n",
+		"b.gon": "package main\n\nfunc helper() {}\n",
+	})
+	chdir(t, root)
+
+	exit, out, errOut := captureRun([]string{"check", "--json", "."})
+	if exit != 0 || errOut != "" {
+		t.Fatalf("exit %d, stderr %q\n%s", exit, errOut, out)
+	}
+}
+
+// FILE mode is unchanged (P1): its --json output still does not report a Go
+// type error. Pinned so the asymmetry with package mode is a recorded fact, not
+// an accident.
+func TestFileJSONTypeErrorBehaviourIsUnchanged(t *testing.T) {
+	root := pkgModule(t, map[string]string{
+		"a.gon": "package main\n\nfunc main() { undefinedThing() }\n",
+	})
+	chdir(t, root)
+
+	exit, out, _ := captureRun([]string{"check", "--json", "a.gon"})
+	if exit != 0 || !strings.Contains(out, `"diagnostics":[]`) {
+		t.Fatalf("file mode --json must be unchanged: exit %d\n%s", exit, out)
+	}
+}

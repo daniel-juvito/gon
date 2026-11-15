@@ -193,8 +193,9 @@ func checkPackageDir(dir string, jsonOut bool, source string) (packageOutcome, i
 			}
 		}
 	}
-	if !jsonOut {
-		out.typeErrors = res.TypeErrors
-	}
+	// Recorded in --json mode too: Protocol v1 has no field for a Go type error,
+	// so the document does not carry it, but the exit code must still say the
+	// package does not compile.
+	out.typeErrors = res.TypeErrors
 	return out, 0
 }
