@@ -1,5 +1,43 @@
 # Changelog
 
+## [1.9.2] — 2026-11-14
+
+### Fixed
+
+- **A method could overwrite the contract of a same-named function or of a
+  method on another type.** The tables behind call resolution (`funcParams`,
+  `funcReturns`) were keyed by the bare declaration name, for plain functions
+  and methods alike, and the `return` check inside each body read the same
+  table. The declaration seen last won, which produced false positives on the
+  plain function:
+
+  ```go
+  func Make() *T { return nil }          // GN001 "cannot return nil …" — wrong
+  func (b *Box) Make() !*T { … }
+  Put(nil)                               // GN001 on a plain func — wrong
+  m := Make(); if m == nil {}            // GW001 on a plain func — wrong
+  ```
+
+  and silently lost a contract in the other order. Methods no longer enter the
+  name-keyed tables (a bare identifier can only name a plain function), and a
+  body's `return` contract is read from its own declaration. Present since the
+  tables were introduced.
+
+### Changed
+
+- `gon version` reports `1.9.2`.
+
+### Compatibility
+
+- **Removes false positives** on a plain function whose name is shared with a
+  method that carries a `!`.
+- **Can newly report GN001 in a method body.** A method with a `!` result whose
+  `return nil` was previously masked by a later same-named declaration is now
+  checked. This is the documented contract being applied as written.
+- Call-site contracts for source-declared methods are still **not** tracked
+  (a separate, open design question); this release only stops methods from
+  corrupting the function tables.
+
 ## [1.9.1] — 2026-11-14
 
 ### Fixed

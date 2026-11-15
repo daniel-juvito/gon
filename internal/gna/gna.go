@@ -32,21 +32,21 @@ type File struct {
 	Schema      int
 	Package     string
 	Description string
-	Functions   map[string]*Signature // key: function name
-	Methods     map[string]*Signature // key: TypeName.MethodName
-	Receivers   map[string]bool       // key: TypeName; true => non-nil receiver
+	Functions   map[string]*Signature      // key: function name
+	Methods     map[string]*Signature      // key: TypeName.MethodName
+	Receivers   map[string]bool            // key: TypeName; true => non-nil receiver
 	Types       map[string]*TypeAnnotation // key: TypeName
 }
 
 // raw YAML shapes (all type strings are quoted in the file).
 type rawFile struct {
-	Schema      int                       `yaml:"schema"`
-	Package     string                    `yaml:"package"`
-	Description string                    `yaml:"description"`
-	Functions   map[string]*rawSignature  `yaml:"functions"`
-	Methods     map[string]*rawSignature  `yaml:"methods"`
-	Receivers   map[string]string         `yaml:"receivers"`
-	Types       map[string]*rawType       `yaml:"types"`
+	Schema      int                      `yaml:"schema"`
+	Package     string                   `yaml:"package"`
+	Description string                   `yaml:"description"`
+	Functions   map[string]*rawSignature `yaml:"functions"`
+	Methods     map[string]*rawSignature `yaml:"methods"`
+	Receivers   map[string]string        `yaml:"receivers"`
+	Types       map[string]*rawType      `yaml:"types"`
 }
 
 type rawType struct {

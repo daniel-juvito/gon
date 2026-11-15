@@ -40,7 +40,7 @@ Full scope contract: [docs/v1-scope.md](docs/v1-scope.md)
 ## Install
 
 ```bash
-go install github.com/daniel-juvito/gon/cmd/gon@v1.9.1
+go install github.com/daniel-juvito/gon/cmd/gon@v1.9.2
 ```
 
 Or from source:
@@ -65,6 +65,11 @@ go build -o gon ./cmd/gon
   declares `go 1.21` cannot use language features from a newer Go; for
   example, methods with their own type parameters
   (`func (b Box[X]) Map[Y any](…)`) need `go 1.27` in your `go.mod`.
+- **Which user Go versions are tested.** CI runs a release-style binary with
+  your `go` forced to each of **1.21.13, 1.22.12, 1.23.12, 1.24.7, 1.25.0,
+  1.26.0 and 1.27.0**, on a file inside a module and on one outside any
+  module, and requires identical diagnostics. Older than 1.21 is not tested,
+  and neither is a Go newer than the one Gon was built with.
 
 ## Quickstart
 
