@@ -196,9 +196,10 @@ config.gna   (relatedInformation pointing at the contract declaration)
 #### Exit status and `diagnostics` are related, not equivalent
 
 The `diagnostics` array holds the **contract diagnostics Gon produced**
-(GN001, GN002, GN003 and the GW warnings). A **Go type-checking error** (a
-parse, type or package error reported by the Go toolchain) is **not** an entry
-of that array: it has no Diagnostic representation in v1 and is reported on
+(GN001, GN002, GN003 and the GW warnings). A **Go type-checking error** (a type
+or package-load error reported by the Go toolchain **after** the pre-check parse
+succeeded; see "Exit 1 before an envelope exists" below) is **not** an entry of
+that array: it has no Diagnostic representation in v1 and is reported on
 stderr. Consequently:
 
 - Exit 1 with a contract error in `diagnostics` is the usual case.
