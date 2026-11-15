@@ -3,17 +3,19 @@
 // Executable specification for docs/rfc-return-value-contracts.md.
 //
 // Observable for "is non-nil source":
-//   GW001 fires on `if x == nil` / `if x != nil` only when x is a known
-//   non-nil source. That is the discriminant used by boundary tests.
+//
+//	GW001 fires on `if x == nil` / `if x != nil` only when x is a known
+//	non-nil source. That is the discriminant used by boundary tests.
 //
 // Positive cases that rely on annotated returns becoming non-nil sources
 // are expected to FAIL under v1.0 and PASS once the feature lands.
 // Regression cases must stay green throughout.
 //
 // Normative principle:
-//   v1.1 introduces no new inference. It only promotes explicitly
-//   annotated return positions to non-nil sources at their immediate
-//   use sites.
+//
+//	v1.1 introduces no new inference. It only promotes explicitly
+//	annotated return positions to non-nil sources at their immediate
+//	use sites.
 package checker
 
 import (

@@ -5,10 +5,11 @@
 // is non-nil — nothing about length, contents, or channel state.
 //
 // Observable discriminants:
-//   GN001 — literal nil into a ! reference position; ! type-assertion target
-//   GN002 — bare `var x !S` (nilable ref kind) with no initializer
-//   GN003 — ! on a non-nilable kind (struct, array, basic)
-//   GW001 — nil comparison against a known ! reference source
+//
+//	GN001 — literal nil into a ! reference position; ! type-assertion target
+//	GN002 — bare `var x !S` (nilable ref kind) with no initializer
+//	GN003 — ! on a non-nilable kind (struct, array, basic)
+//	GW001 — nil comparison against a known ! reference source
 package checker
 
 import "testing"

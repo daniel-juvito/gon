@@ -21,8 +21,22 @@ jobs:
       - name: Build
         run: go build -o gon ./cmd/gon
 
+      - name: Format
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "These files need gofmt:"
+            echo "$unformatted"
+            exit 1
+          fi
+
       - name: Vet
         run: go vet ./...
 
       - name: Test
-        run: go test ./... -count=1
+        run: go test ./... -count=1 -coverprofile=coverage.out
+
+      - name: Coverage summary
+        run: |
+          echo "### Test coverage" >> "$GITHUB_STEP_SUMMARY"
+          go tool cover -func=coverage.out | tail -1 | tee -a "$GITHUB_STEP_SUMMARY"

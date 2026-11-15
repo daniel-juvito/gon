@@ -8,12 +8,6 @@ import (
 	"sort"
 )
 
-// checkCompositeLitFields is retained as a v1.2 compatibility alias.
-// v1.3 construction (keyed + unkeyed + new) lives in construction.go.
-func (c *Checker) checkCompositeLitFields(lit *ast.CompositeLit) {
-	c.checkCompositeLitConstruction(lit)
-}
-
 func (c *Checker) fieldsFromStructAST(st *ast.StructType) map[string]bool {
 	fields := make(map[string]bool)
 	if st == nil || st.Fields == nil {

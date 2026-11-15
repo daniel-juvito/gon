@@ -306,3 +306,57 @@ func TestBangOutsideTypeArgumentStillAccepted(t *testing.T) {
 		}
 	}
 }
+
+func TestReceiversParsed(t *testing.T) {
+	src := "schema: 1\npackage: example\nreceivers:\n  A: \"!\"\n  B: \"!B\"\n  C: \"\"\n"
+	f, err := LoadBytes("example.gna", []byte(src))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !f.Receivers["A"] || !f.Receivers["B"] || f.Receivers["C"] {
+		t.Fatalf("receivers = %v, want A and B non-nil, C ordinary", f.Receivers)
+	}
+}
+
+func TestReceiverRejectsOtherValues(t *testing.T) {
+	src := "schema: 1\npackage: example\nreceivers:\n  A: \"nope\"\n"
+	if _, err := LoadBytes("example.gna", []byte(src)); err == nil {
+		t.Fatal("a receivers entry other than \"!\" or \"!T\" must be a load error")
+	}
+}
+
+func TestRegistryPackageLookup(t *testing.T) {
+	f, err := LoadBytes("example.gna", []byte("schema: 1\npackage: example\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	reg := NewRegistry()
+	if err := reg.Add(f); err != nil {
+		t.Fatal(err)
+	}
+	if got, ok := reg.Package("example"); !ok || got != f {
+		t.Fatalf("Package(example) = %v, %v", got, ok)
+	}
+	if _, ok := reg.Package("missing"); ok {
+		t.Fatal("Package(missing) must report false")
+	}
+	var nilReg *Registry
+	if _, ok := nilReg.Package("example"); ok {
+		t.Fatal("a nil registry has no packages")
+	}
+}
+
+func TestDefaultChainOrder(t *testing.T) {
+	c := DefaultChain("/work", "/start")
+	if len(c.Resolvers) != 2 {
+		t.Fatalf("want 2 resolvers, got %d", len(c.Resolvers))
+	}
+	dir, ok := c.Resolvers[0].(*DirResolver)
+	if !ok || dir.Root != "/work/annotations" {
+		t.Fatalf("first resolver = %#v, want the ./annotations directory", c.Resolvers[0])
+	}
+	mod, ok := c.Resolvers[1].(*ModuleResolver)
+	if !ok || mod.StartDir != "/start" {
+		t.Fatalf("second resolver = %#v, want the module resolver", c.Resolvers[1])
+	}
+}
