@@ -1,8 +1,9 @@
 # RFC: Package-Aware Checking (Gon v1.10 / M8)
 
-**Status:** Draft — awaiting owner review. Decisions P1–P11 are *proposals*;
-§10 lists the questions that need an explicit owner answer. The baseline and
-feasibility figures in §12 were measured on 2026-11-15, before any decision.
+**Status:** Accepted — owner decisions Q1–Q7 recorded 2026-11-15, each
+taking the drafted recommendation. Implementation is pending; this document
+authorizes none. The baseline and feasibility figures in §12 were measured on
+2026-11-15, before any decision.
 **Target:** Gon v1.10
 **Related:** `docs/v1-scope.md`, `docs/roadmap-v1.3-plus.md`,
 `docs/diagnostic-protocol-v1.md`, `docs/rfc-ecosystem-contract-expansion.md`
@@ -259,23 +260,33 @@ Executable spec in `cmd/gon/package_check_test.go` and
 8. A package of Gon's own size (the 10-file `internal/checker` converted with
    no `!`) checks with zero diagnostics — the §12.2 result, as a test.
 
-## 10. Open Questions for the Owner
+## 10. Owner Decisions
 
-1. **Q1 — P1 selector.** A directory / `./...` argument selects package mode
-   (proposed), or an explicit flag (`--package`)?
-2. **Q2 — P2 shadowing.** `x.gon` replaces `x.go` (proposed, needed for a
-   converted codebase), or require that no same-named `.go` exists?
-3. **Q3 — P2 tests.** Exclude `*_test.go` (proposed), or include them?
-4. **Q4 — P6 reporting.** Report every file's diagnostics even when another has
-   a type error (proposed), or stop at the first failing file as the multi-file
-   CLI does today?
-5. **Q5 — P7 cross-package.** Keep module-local imports on `.gna` (proposed), or
-   also resolve contracts directly from the imported package's `.gon` sources
-   (a larger feature, needed for full cross-package self-hosting)?
-6. **Q6 — Sequencing.** M8 (this RFC) as **v1.10**, with `rfc-method-contracts.md`
-   (M7) moving to v1.11 because its single-file limit (S9) then lifts
-   (proposed); or the reverse order?
-7. **Q7 — Release shape.** Solo v1.10 (proposed).
+Q1–Q7 were answered on 2026-11-15, each accepting the drafted
+recommendation. They settle the alternatives; they are not implementation
+approval or release sign-off.
+
+1. **Q1 — P1: ACCEPT.** A directory or `./...` argument selects package mode;
+   no flag is added. File arguments keep today's single-file behaviour
+   exactly.
+2. **Q2 — P2: ACCEPT.** `x.gon` shadows the `.go` file of the same base name,
+   which a converted codebase needs (`transpile` writes `x.go` beside `x.gon`).
+3. **Q3 — P2: ACCEPT.** `*_test.go` files are excluded from package mode; the
+   scope is the production package.
+4. **Q4 — P6: ACCEPT.** Every file's diagnostics are reported even when
+   another file has a type error, consistent with Diagnostic Protocol v1 and
+   so that no diagnostic is lost.
+5. **Q5 — P7: ACCEPT `.gna`.** Contracts of imported packages, module-local or
+   external, keep resolving from `.gna`. Package mode widens visibility only
+   *within* one package. Reading a module-local package's contracts straight
+   from its `.gon` sources (or generating `.gna` from them) is **not rejected
+   for good**: it needs its own RFC and is not part of M8. Two large
+   architectural changes are not combined in one release.
+6. **Q6 — Sequencing: ACCEPT.** M8 ships as **v1.10** and
+   `rfc-method-contracts.md` (M7) as **v1.11**, so that M7's single-file limit
+   (its S9) lifts to "the package" before M7 is built.
+7. **Q7 — Release shape: ACCEPT solo v1.10.** The feature is additive, isolated
+   and has its own regression suite.
 
 ## 11. Alternatives Considered
 
@@ -367,13 +378,13 @@ measures user projects.
 
 | Decision | Proposal |
 |----------|----------|
-| Package mode selector | A directory / `./...` argument; a file argument is unchanged (P1, Q1) |
-| Package files | Directory's `.gon` + `.go`, `.gon` shadows same-named `.go`, tests excluded (P2, Q2, Q3) |
+| Package mode selector | A directory / `./...` argument; a file argument is unchanged (P1, Q1: accepted) |
+| Package files | Directory's `.gon` + `.go`, `.gon` shadows same-named `.go`, tests excluded (P2, Q2, Q3: accepted) |
 | Type-check | `go/packages` load of the real package with per-file overlay (P3) |
 | Contracts | Shared across the package's files; `!` offsets keyed per file (P4) |
 | Diagnostics | Per file, deterministic order, one `--json` document (P5) |
-| Type errors | Do not hide contract diagnostics; all files reported (P6, Q4) |
-| Cross-package | Unchanged, `.gna` only (P7, Q5) |
+| Type errors | Do not hide contract diagnostics; all files reported (P6, Q4: accepted) |
+| Cross-package | Unchanged, `.gna` only (P7, Q5: accepted; reading `.gon` is a later RFC) |
 | `./...` | Go conventions, skips `testdata` etc. (P8) |
 | Schema / diagnostic codes | No change (P11) |
-| Release shape | Solo v1.10; M7 moves to v1.11 (P11, Q6, Q7) |
+| Release shape | Solo v1.10; M7 moves to v1.11 (P11, Q6, Q7: accepted) |
