@@ -188,10 +188,29 @@ config.gna   (relatedInformation pointing at the contract declaration)
 
 | Exit | Meaning                                      | JSON envelope |
 |------|----------------------------------------------|---------------|
-| 0    | Check completed; no error diagnostics        | Produced; `diagnostics` may contain only warnings or be empty |
-| 1    | Check completed; at least one error diagnostic | Produced; `diagnostics` contains ≥1 error |
+| 0    | Check completed; no contract error and no Go type-checking error | Produced; `diagnostics` may contain only warnings or be empty |
+| 1    | Check completed; at least one contract error diagnostic **or** a Go type-checking error | Produced; `diagnostics` contains the contract diagnostics Gon produced, which may be empty (see below) |
 | 2    | Invocation / configuration / input error     | May be absent (checker never entered protocol production) |
 | 3    | Internal / compiler failure                  | Not required; consumers must not rely on diagnostics when exit = 3 |
+
+#### Exit status and `diagnostics` are related, not equivalent
+
+The `diagnostics` array holds the **contract diagnostics Gon produced**
+(GN001, GN002, GN003 and the GW warnings). A **Go type-checking error** (a
+parse, type or package error reported by the Go toolchain) is **not** an entry
+of that array: it has no Diagnostic representation in v1 and is reported on
+stderr. Consequently:
+
+- Exit 1 with a contract error in `diagnostics` is the usual case.
+- Exit 1 with `diagnostics` empty, or holding only warnings, is **valid**: the
+  failure was a Go type-checking error, explained on stderr.
+- A contract error diagnostic always implies exit 1; exit 1 does **not** imply
+  that `diagnostics` holds an error.
+- Exit 0 means neither a contract error nor a Go type-checking error was found.
+
+A consumer that needs the reason for an exit 1 with no error diagnostic reads
+stderr; it must not treat that combination as malformed output or as an exit
+code 3. This rule applies to every way of invoking the checker, not to one mode.
 
 Examples:
 
@@ -199,6 +218,7 @@ Examples:
 |-------------------------------|------|
 | Clean file                    | 0    |
 | Warning only (e.g. GW001)     | 0    |
+| Go type-checking error only (`diagnostics` empty) | 1 |
 | GN001 / GN002 / GN003         | 1    |
 | Non-existent input file       | 2    |
 | Malformed CLI invocation      | 2    |
@@ -219,6 +239,11 @@ Injection is test-only (e.g. environment variable such as `GON_TEST_INJECT_FAILU
 - Changing the meaning of an existing field, removing a required field, or altering position/range/path semantics is a breaking change and requires a new schemaVersion.
 - New `source` values are non-breaking for well-behaved consumers.
 - Exit-code meanings are part of the contract; they must not be reassigned.
+- Clarification (v1.10): §7 states explicitly that exit 1 also covers a Go
+  type-checking error, and that exit status and the `diagnostics` array are
+  related but not equivalent. This is a clarification of semantics already
+  implied by the human output, not a new exit code and not a change of JSON
+  shape; `schemaVersion` stays `1`.
 
 ### Relationship to human-readable output
 
