@@ -189,7 +189,7 @@ config.gna   (relatedInformation pointing at the contract declaration)
 | Exit | Meaning                                      | JSON envelope |
 |------|----------------------------------------------|---------------|
 | 0    | Check completed; no contract error and no Go type-checking error | Produced; `diagnostics` may contain only warnings or be empty |
-| 1    | Check completed; at least one contract error diagnostic **or** a Go type-checking error | Produced; `diagnostics` contains the contract diagnostics Gon produced, which may be empty (see below) |
+| 1    | Check completed; at least one contract error diagnostic **or** a Go type-checking error | Produced when emission is reached; `diagnostics` contains the contract diagnostics Gon produced, which may be empty (see below) |
 | 2    | Invocation / configuration / input error     | May be absent (checker never entered protocol production) |
 | 3    | Internal / compiler failure                  | Not required; consumers must not rely on diagnostics when exit = 3 |
 
@@ -207,6 +207,19 @@ stderr. Consequently:
 - A contract error diagnostic always implies exit 1; exit 1 does **not** imply
   that `diagnostics` holds an error.
 - Exit 0 means neither a contract error nor a Go type-checking error was found.
+
+#### Exit 1 before an envelope exists
+
+For an invocation that reaches Protocol JSON emission, exit 1 comes with the
+envelope. An input that cannot be **parsed at all** (`gon: parse error: …` on
+stderr) stops the run **before** the checker produces any diagnostic and exits 1
+**without** an envelope on stdout. That is a different situation from a Go
+type-checking error: there the source parsed and was checked, and the envelope
+is written. A consumer must therefore not assume that every exit 1 has a
+parseable stdout; an empty stdout with exit 1 means the input did not parse, and
+the reason is on stderr. This describes the current behaviour of v1; whether an
+unparseable input should instead be an exit 2 or a Diagnostic is a separate
+decision and is not made here.
 
 A consumer that needs the reason for an exit 1 with no error diagnostic reads
 stderr; it must not treat that combination as malformed output or as an exit
