@@ -204,6 +204,7 @@ func runCheck(cmd string, args []string) int {
 	var allProtocol []protocolDiagnostic
 	hasErrors := false
 	anyDiag := false
+	typeErr := false
 
 	for _, filename := range files {
 		if !strings.HasSuffix(filename, ".gon") {
@@ -256,11 +257,15 @@ func runCheck(cmd string, args []string) int {
 			}
 		}
 
-		if !jsonOut {
-			if err := validateGo(filename, result.Clean); err != nil {
-				fmt.Fprintf(os.Stderr, "gon: Go type error: %v\n", err)
+		if err := validateGo(filename, result.Clean); err != nil {
+			fmt.Fprintf(os.Stderr, "gon: Go type error: %v\n", err)
+			if !jsonOut {
 				return 1
 			}
+			// --json: the document must still be written, and it holds only
+			// Protocol v1 diagnostics. The type error goes to stderr and decides
+			// the exit code (Protocol v1 §7).
+			typeErr = true
 		}
 	}
 
@@ -272,7 +277,7 @@ func runCheck(cmd string, args []string) int {
 			fmt.Fprintf(os.Stderr, "gon: write json: %v\n", err)
 			return 3
 		}
-		if hasErrors {
+		if hasErrors || typeErr {
 			return 1
 		}
 		return 0

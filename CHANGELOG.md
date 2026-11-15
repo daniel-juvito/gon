@@ -1,5 +1,18 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **`gon check --json <file.gon>` exited 0 on a Go type error.** A file whose
+  only problem was a Go type error produced `{"schemaVersion":1,"diagnostics":[]}`
+  and exit 0, so a caller that checked only the exit status saw a file that does
+  not compile as a success. It now exits 1, with `gon: Go type error: …` on
+  stderr and an unchanged Protocol v1 document on stdout (a Go type error is not
+  a Diagnostic). This matches Diagnostic Protocol v1 §7 as clarified in the same
+  release: exit status and the `diagnostics` array are related but not
+  equivalent. Human output is unchanged.
+
 ## [1.9.2] — 2026-11-14
 
 ### Fixed
