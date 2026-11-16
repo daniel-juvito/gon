@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **`gon check <dir>` on a directory with no `.gon` file at all** said
+  `no .gon files in <dir> (*_test.gon files are not checked in package mode)`,
+  blaming test files that were not there. The parenthesis now appears only when
+  the directory does hold `*_test.gon` files.
+
 ## [1.10.0] — 2026-11-15
 
 ### Added

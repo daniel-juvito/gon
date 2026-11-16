@@ -53,7 +53,10 @@ func expandCheckOperands(operands []string) ([]checkTarget, error) {
 				return nil, err
 			}
 			if !has {
-				return nil, fmt.Errorf("no .gon files in %s (*_test.gon files are not checked in package mode)", op)
+				if onlyTestGon(op) {
+					return nil, fmt.Errorf("no .gon files in %s (only *_test.gon files, which are not checked in package mode)", op)
+				}
+				return nil, fmt.Errorf("no .gon files in %s", op)
 			}
 			out = append(out, checkTarget{path: op, dir: true})
 			continue
@@ -101,6 +104,21 @@ func packageDirsUnder(root string) ([]string, error) {
 		return nil
 	})
 	return dirs, err
+}
+
+// onlyTestGon reports whether dir holds *_test.gon files and nothing else that
+// package mode would check, so the "no .gon files" error can say why.
+func onlyTestGon(dir string) bool {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false
+	}
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), "_test.gon") {
+			return true
+		}
+	}
+	return false
 }
 
 func hasGonFiles(dir string) (bool, error) {
