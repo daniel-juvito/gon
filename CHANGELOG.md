@@ -1,5 +1,47 @@
 # Changelog
 
+## [1.12.0] — 2026-11-16
+
+### Added
+
+- **Directory form for `gon transpile` and `gon build`** — M9
+  (`docs/rfc-transpile-dir.md`). `gon transpile <dir>` and `gon transpile
+  ./...` check the directory's `.gon` files as **one package** (the v1.10
+  machinery: contract diagnostics plus the Go type check of the whole package)
+  and write `<stem>.go` next to each `.gon` **only if the package passes**.
+  A package with an error diagnostic or a Go type error writes **nothing**, and
+  an existing same-named `.go` is left as it was. Warnings are printed and do
+  not block.
+  - A `.gon` replaces the `.go` of the same base name; other `.go` files are
+    untouched and no stale `.go` is deleted. `*_test.gon` is not transpiled in
+    directory mode (tests stay `.go`).
+  - With `./...`, packages are transpiled **after the packages of the same
+    module that they import**, so a fresh tree with no `.go` at all works; a
+    failing package does not stop the others, and only the passing ones are
+    written (exit 1 if any failed).
+  - `gon build <dir> [go build flags]` = the above, then `go build [flags]
+    <dir>`; nothing is forced (no `-o`).
+  - A directory with no non-test `.gon` file is exit 2. Mixing a file operand
+    with directories is exit 2.
+- No new syntax, no new diagnostic code, no `.gna` or protocol change.
+
+### Changed
+
+- **Formatting is done in process with `go/format`** instead of running the
+  `gofmt` found on `PATH`. Before, a missing `gofmt`, or one too old to parse the
+  source, made `transpile` silently write the **unformatted** source, so the same
+  `.gon` could emit different bytes on different machines. The output is the same
+  as `gofmt`'s (identical on all 23 non-test sources of this repository), and
+  source that does not parse is now an error instead of being passed through.
+- `gon version` reports `1.12.0`.
+
+### Compatibility
+
+- **Additive.** A directory operand was an error for `transpile` and `build`;
+  the file form is unchanged (exit code, output and emitted `.go` identical on
+  56 `.gon` files, v1.11.0 against this release). The only observable change to
+  the file form is the formatter case above.
+
 ## [1.11.0] — 2026-11-16
 
 ### Added

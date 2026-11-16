@@ -61,8 +61,9 @@ analysis (see v1.6, §4).
 | M5a | `.gna` validation + external contract boundary | M4a — **shipped v1.5** |
 | M5b | Generic `.gna` + generic contract application | M3 + M5a infrastructure — **shipped v1.9** |
 | M6a | `gon fmt` + `gon check` | Core |
-| M7 | Call-site contracts for source-declared methods | M3 + M5b + M8 — **implemented v1.11, release pending** |
-| M8 | Package-aware checking | M5b — **implemented v1.10, release pending** |
+| M7 | Call-site contracts for source-declared methods | M3 + M5b + M8 — **shipped v1.11** |
+| M8 | Package-aware checking | M5b — **shipped v1.10** |
+| M9 | Directory form for `transpile` / `build` | M8 — **implemented v1.12, awaiting audit** |
 | M6b | LSP / editor support | M2a — contract tracing |
 
 Full feature inventory and dependency graph rationale are maintained
@@ -164,7 +165,7 @@ M3 nilable rule; concrete kinds per `gna-spec-v1.md`).
 **Breaking risk:** Possibly Yes (inherited from M3).
 **Rationale (R1):** Follows the isolation of M3 as its direct consumer.
 
-### v1.10 — Package-Aware Checking — IMPLEMENTED (release pending)
+### v1.10 — Package-Aware Checking — SHIPPED
 **Scope:** M8 — `gon check ./dir` and `./...` type-check a package's `.gon`
 files together in their real directory, share contracts across them, and
 report each diagnostic against its own file. File arguments are unchanged.
@@ -175,7 +176,7 @@ Q1–Q7 recorded 2026-11-15).
 **Rationale (R4):** a distinct, isolated feature with its own regression suite;
 ships solo.
 
-### v1.11 — Source Method Contracts — IMPLEMENTED (release pending)
+### v1.11 — Source Method Contracts — SHIPPED
 **Scope:** M7 — a `!` on a method's parameter or result, written in the checked
 package, is enforced at its call sites, matched by `go/types` object identity.
 **RFC:** `docs/rfc-method-contracts.md` (Status: Implemented — owner decisions
@@ -184,6 +185,17 @@ single-file scope limit (S9) widens to "the package" with M8's package mode.
 **Dependency:** M3 (v1.8) + M5b (v1.9) + M8 (v1.10).
 **Breaking risk:** Possibly Yes.
 **Rationale (R1):** solo release.
+
+### v1.12 — Directory Form for `transpile` / `build` — IMPLEMENTED (awaiting audit)
+**Scope:** M9 — `gon transpile <dir>` / `dir/...` and `gon build <dir>` check the
+directory as one package (the M8 machinery) and write `.go` only if it passes;
+in-process `go/format` replaces the `gofmt` on `PATH`. File arguments unchanged.
+**RFC:** `docs/rfc-transpile-dir.md` (Status: Draft until audit — owner
+decisions Q1–Q6 accepted as proposed, 2026-11-16).
+**Dependency:** M8 (v1.10).
+**Breaking risk:** None (additive: a directory argument was an error before).
+**Rationale (R4):** the item M8 left out; needed before a multi-file codebase,
+this repository included, can be written in Gon. Ships solo.
 
 ## 5. Open Sequencing Notes
 

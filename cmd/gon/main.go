@@ -50,7 +50,7 @@ func run(args []string) int {
 		usage()
 		return 0
 	case "version", "-version", "--version":
-		fmt.Println("gon version 1.11.0")
+		fmt.Println("gon version 1.12.0")
 		return 0
 	}
 
@@ -83,6 +83,12 @@ func run(args []string) int {
 		return 2
 	}
 	filename := args[1]
+
+	// v1.12 (M9): a directory, or `dir/...`, selects package mode for the
+	// commands that emit code. A file operand keeps the single-file path below.
+	if (cmd == "transpile" || cmd == "build") && isDirOperand(filename) {
+		return runEmitDir(cmd, args[1:])
+	}
 
 	if !strings.HasSuffix(filename, ".gon") {
 		fmt.Fprintf(os.Stderr, "gon: input must be a .gon file, got %s\n", filename)
@@ -322,8 +328,10 @@ Commands:
                checked alone, a directory (or dir/...) as one package
   fmt          format Gon source in place
   lsp          run the language server over stdio
-  transpile    emit clean Go source (.go next to the input)
-  build        transpile then run go build
+  transpile    emit clean Go source (.go next to the input); a directory
+               (or dir/...) is checked as one package and written only if it
+               passes
+  build        transpile then run go build; a directory builds the package
   version      print version
   help         show this message
 
