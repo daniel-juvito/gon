@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"go/parser"
 	"go/token"
@@ -121,9 +123,33 @@ func emitPackage(dir string) int {
 	return 0
 }
 
+// createExclusive creates a new, uniquely named temporary file next to dst. It
+// is opened with O_EXCL (an existing file is never reused or truncated) and mode
+// 0644, so the process umask applies exactly as it does to os.WriteFile; a
+// forced chmod would ignore the umask.
+func createExclusive(dst string) (*os.File, error) {
+	dir, base := filepath.Dir(dst), filepath.Base(dst)
+	for try := 0; try < 100; try++ {
+		var b [6]byte
+		if _, err := rand.Read(b[:]); err != nil {
+			return nil, err
+		}
+		name := filepath.Join(dir, "."+base+".gon-"+hex.EncodeToString(b[:]))
+		f, err := os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+		if err == nil {
+			return f, nil
+		}
+		if !os.IsExist(err) {
+			return nil, err
+		}
+	}
+	return nil, fmt.Errorf("cannot create a temporary file next to %s", dst)
+}
+
 // writePackage formats every file first, so a formatting failure writes
 // nothing, then writes each through a uniquely named temporary file created
-// (exclusively) in the destination directory and renames it into place. The
+// (exclusively, createExclusive) in the destination directory and renames it
+// into place. The
 // temporary name is never derived from a file that may already exist, and only
 // temporaries this call created are ever removed.
 func writePackage(files []checker.PackageFile) error {
@@ -149,20 +175,15 @@ func writePackage(files []checker.PackageFile) error {
 	}
 	for i := range outs {
 		o := &outs[i]
-		tf, err := os.CreateTemp(filepath.Dir(o.path), "."+filepath.Base(o.path)+".gon-*")
+		tf, err := createExclusive(o.path)
 		if err != nil {
 			cleanup()
 			return err
 		}
 		o.tmp = tf.Name()
 		_, werr := tf.Write(o.data)
-		cerr := tf.Close()
-		if werr == nil {
+		if cerr := tf.Close(); werr == nil {
 			werr = cerr
-		}
-		if werr == nil {
-			// CreateTemp makes the file 0600; emitted sources are 0644.
-			werr = os.Chmod(o.tmp, 0o644)
 		}
 		if werr != nil {
 			cleanup()

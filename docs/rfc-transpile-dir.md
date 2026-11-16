@@ -237,8 +237,10 @@ All six were answered **as proposed**:
   passes.** With the `.go` already present (the usual case) every order works.
 - **Atomicity.** All files of a package are formatted first; each is then
   written to a **uniquely named temporary file created exclusively** in the
-  destination directory (`os.CreateTemp`, `.<name>.go.gon-*`, mode set to 0644)
-  and renamed into place. The name is never derived from a file that may already
+  destination directory (`.<name>.go.gon-<random>`, opened `O_EXCL` with mode
+  0644, so the process **umask applies** exactly as for `os.WriteFile`; a forced
+  `chmod 0644` was tried first and widened a private umask, found in the second
+  audit round) and renamed into place. The name is never derived from a file that may already
   exist, and only temporaries this call created are removed on failure. (The
   first implementation used the fixed name `<out>.gon-tmp`, which silently
   overwrote a user's file of that name; found in the audit and fixed, with

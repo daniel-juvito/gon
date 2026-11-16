@@ -337,23 +337,6 @@ func TestTranspileDirDoesNotTouchAFileNamedLikeTheOldTemporary(t *testing.T) {
 	}
 }
 
-// Emitted sources are readable files, not the 0600 that a temporary starts as.
-func TestTranspileDirWritesReadableFiles(t *testing.T) {
-	root := pkgModule(t, map[string]string{"a.gon": tdTypes})
-	chdir(t, root)
-
-	if exit, _, errOut := captureRun([]string{"transpile", "."}); exit != 0 {
-		t.Fatalf("exit %d\n%s", exit, errOut)
-	}
-	fi, err := os.Stat(filepath.Join(root, "a.go"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if fi.Mode().Perm() != 0o644 {
-		t.Fatalf("a.go mode = %v, want 0644", fi.Mode().Perm())
-	}
-}
-
 // A write that fails part-way removes the temporaries this call created, and only
 // those. Here b.go is a non-empty directory, so renaming b's output onto it fails.
 func TestTranspileDirFailedRenameLeavesNoTemporaries(t *testing.T) {
