@@ -294,3 +294,85 @@ func TestGoPackageArg(t *testing.T) {
 		}
 	}
 }
+
+// --- temporary files ------------------------------------------------------
+
+func leftoverTemps(t *testing.T, dir string) []string {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out []string
+	for _, e := range entries {
+		if strings.Contains(e.Name(), ".gon-") && strings.HasPrefix(e.Name(), ".") {
+			out = append(out, e.Name())
+		}
+	}
+	return out
+}
+
+// A file of the user's that happens to carry the name the temporary used to have
+// (`<out>.gon-tmp`) must not be overwritten (T3: nothing else is touched). Found
+// in the audit of the first implementation.
+func TestTranspileDirDoesNotTouchAFileNamedLikeTheOldTemporary(t *testing.T) {
+	const mine = "USER DATA, not Gon output\n"
+	root := pkgModule(t, map[string]string{
+		"a.gon":        tdTypes,
+		"a.go.gon-tmp": mine,
+	})
+	chdir(t, root)
+
+	if exit, out, errOut := captureRun([]string{"transpile", "."}); exit != 0 {
+		t.Fatalf("exit %d\n%s\n%s", exit, out, errOut)
+	}
+	if got := readFile(t, filepath.Join(root, "a.go.gon-tmp")); got != mine {
+		t.Fatalf("the user's file was modified:\n%s", got)
+	}
+	if !exists(filepath.Join(root, "a.go")) {
+		t.Fatal("a.go was not written")
+	}
+	if left := leftoverTemps(t, root); len(left) != 0 {
+		t.Fatalf("temporaries left behind: %v", left)
+	}
+}
+
+// Emitted sources are readable files, not the 0600 that a temporary starts as.
+func TestTranspileDirWritesReadableFiles(t *testing.T) {
+	root := pkgModule(t, map[string]string{"a.gon": tdTypes})
+	chdir(t, root)
+
+	if exit, _, errOut := captureRun([]string{"transpile", "."}); exit != 0 {
+		t.Fatalf("exit %d\n%s", exit, errOut)
+	}
+	fi, err := os.Stat(filepath.Join(root, "a.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fi.Mode().Perm() != 0o644 {
+		t.Fatalf("a.go mode = %v, want 0644", fi.Mode().Perm())
+	}
+}
+
+// A write that fails part-way removes the temporaries this call created, and only
+// those. Here b.go is a non-empty directory, so renaming b's output onto it fails.
+func TestTranspileDirFailedRenameLeavesNoTemporaries(t *testing.T) {
+	root := pkgModule(t, map[string]string{
+		"a.gon":        tdTypes,
+		"b.gon":        tdUse,
+		"b.go/keep.go": "package keep\n",
+		"c.go.gon-tmp": "mine\n",
+	})
+	chdir(t, root)
+
+	exit, _, errOut := captureRun([]string{"transpile", "."})
+	if exit != 1 || !strings.Contains(errOut, "transpile error") {
+		t.Fatalf("exit %d\n%s", exit, errOut)
+	}
+	if left := leftoverTemps(t, root); len(left) != 0 {
+		t.Fatalf("temporaries left behind: %v", left)
+	}
+	if got := readFile(t, filepath.Join(root, "c.go.gon-tmp")); got != "mine\n" {
+		t.Fatalf("an unrelated file was touched: %q", got)
+	}
+}

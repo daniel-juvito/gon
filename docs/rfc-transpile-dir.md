@@ -235,11 +235,17 @@ All six were answered **as proposed**:
   module the order is unchanged). Result on the same copy: **0 errors, 23 files
   written, all byte-identical to the committed `.go`, and `go build ./...`
   passes.** With the `.go` already present (the usual case) every order works.
-- **Atomicity.** All files of a package are formatted first, then written to a
-  temporary name and renamed; a failure in between removes the temporaries. A
-  failure part-way through the renames can still leave some files replaced (no
-  cross-file transaction on a plain filesystem); the check has already passed by
-  then, so the files are valid.
+- **Atomicity.** All files of a package are formatted first; each is then
+  written to a **uniquely named temporary file created exclusively** in the
+  destination directory (`os.CreateTemp`, `.<name>.go.gon-*`, mode set to 0644)
+  and renamed into place. The name is never derived from a file that may already
+  exist, and only temporaries this call created are removed on failure. (The
+  first implementation used the fixed name `<out>.gon-tmp`, which silently
+  overwrote a user's file of that name; found in the audit and fixed, with
+  `TestTranspileDirDoesNotTouchAFileNamedLikeTheOldTemporary`.) A failure part-way
+  through the renames can still leave some files replaced (no cross-file
+  transaction on a plain filesystem); the check has already passed by then, so
+  the files are valid.
 - **`build`** passes the target to `go build` as a directory pattern (`pkg` →
   `./pkg`, since `go build pkg` reads an import path). It builds only if every
   package passed. For a pattern with several `main` packages `go build` itself

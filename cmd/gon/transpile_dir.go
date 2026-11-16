@@ -122,11 +122,15 @@ func emitPackage(dir string) int {
 }
 
 // writePackage formats every file first, so a formatting failure writes
-// nothing, then writes each through a temporary name and renames it.
+// nothing, then writes each through a uniquely named temporary file created
+// (exclusively) in the destination directory and renames it into place. The
+// temporary name is never derived from a file that may already exist, and only
+// temporaries this call created are ever removed.
 func writePackage(files []checker.PackageFile) error {
 	type out struct {
-		path, tmp string
-		data      []byte
+		path string
+		data []byte
+		tmp  string // set once this call has created it
 	}
 	var outs []out
 	for _, f := range files {
@@ -134,24 +138,44 @@ func writePackage(files []checker.PackageFile) error {
 		if err != nil {
 			return fmt.Errorf("%s: %w", f.Path, err)
 		}
-		dst := strings.TrimSuffix(f.Path, ".gon") + ".go"
-		outs = append(outs, out{path: dst, tmp: dst + ".gon-tmp", data: data})
+		outs = append(outs, out{path: strings.TrimSuffix(f.Path, ".gon") + ".go", data: data})
 	}
-	for _, o := range outs {
-		if err := os.WriteFile(o.tmp, o.data, 0o644); err != nil {
-			for _, p := range outs {
-				_ = os.Remove(p.tmp)
+	cleanup := func() {
+		for _, o := range outs {
+			if o.tmp != "" {
+				_ = os.Remove(o.tmp)
 			}
-			return err
 		}
 	}
-	for _, o := range outs {
+	for i := range outs {
+		o := &outs[i]
+		tf, err := os.CreateTemp(filepath.Dir(o.path), "."+filepath.Base(o.path)+".gon-*")
+		if err != nil {
+			cleanup()
+			return err
+		}
+		o.tmp = tf.Name()
+		_, werr := tf.Write(o.data)
+		cerr := tf.Close()
+		if werr == nil {
+			werr = cerr
+		}
+		if werr == nil {
+			// CreateTemp makes the file 0600; emitted sources are 0644.
+			werr = os.Chmod(o.tmp, 0o644)
+		}
+		if werr != nil {
+			cleanup()
+			return werr
+		}
+	}
+	for i := range outs {
+		o := &outs[i]
 		if err := os.Rename(o.tmp, o.path); err != nil {
-			for _, p := range outs {
-				_ = os.Remove(p.tmp)
-			}
+			cleanup()
 			return err
 		}
+		o.tmp = "" // renamed: nothing left to remove
 		fmt.Printf("transpiled: %s\n", o.path)
 	}
 	return nil
