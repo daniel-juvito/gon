@@ -340,6 +340,11 @@ func (c *Checker) resolveCallResults(fun ast.Expr) []bool {
 // resolveMethodResults is the results counterpart of resolveMethodParams.
 // ok=false means "not a method we can resolve".
 func (c *Checker) resolveMethodResults(selExpr *ast.SelectorExpr) (results []bool, ok bool) {
+	// v1.11 / M7: a `!` written on the method's own declaration (in the checked
+	// files) wins over `.gna`.
+	if m, found := c.sourceMethodFor(selExpr); found {
+		return m.results, true
+	}
 	if c.info == nil || c.resolver == nil {
 		return nil, false
 	}
@@ -408,6 +413,10 @@ func (c *Checker) resolveMethodResults(selExpr *ast.SelectorExpr) (results []boo
 //
 // go/types is used only for identity. Nilability still comes solely from .gna.
 func (c *Checker) resolveMethodParams(selExpr *ast.SelectorExpr) (params []bool, display string, ok bool) {
+	// v1.11 / M7: see resolveMethodResults.
+	if m, found := c.sourceMethodFor(selExpr); found {
+		return m.params, m.display, true
+	}
 	if c.info == nil || c.resolver == nil {
 		return nil, "", false
 	}

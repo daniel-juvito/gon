@@ -60,6 +60,10 @@ type Checker struct {
 	// files share; nil keeps the single-file behaviour exactly.
 	pkg *packageShared
 
+	// methodContracts indexes, by object, the `!` contracts written on the
+	// methods declared in the checked files (v1.11 / M7); built lazily.
+	methodContracts map[*types.Func]*sourceMethod
+
 	diagnostics []*Diagnostic
 }
 

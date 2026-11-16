@@ -1,8 +1,9 @@
 # RFC: Call-Site Contracts for Source-Declared Methods (Gon v1.11 / M7)
 
-**Status:** Draft — awaiting owner review. Decisions S1–S10 are *proposals*;
-§10 lists the questions that need an explicit owner answer. The baseline and
-feasibility figures in §12 were measured on 2026-11-14, before any decision.
+**Status:** Implemented in Gon v1.11 (release pending). Owner decisions
+Q1–Q6 recorded 2026-11-16: all accepted as proposed (§10). The baseline and
+feasibility figures in §12 were measured on 2026-11-14, before any decision;
+§14 records the implementation notes and the differential results.
 **Target:** Gon v1.11 (sequenced after M8, package-aware checking, v1.10 — `docs/rfc-package-check.md`, accepted 2026-11-15)
 **Related:** `docs/gna-spec-v1.md`, `docs/v1-scope.md`,
 `docs/roadmap-v1.3-plus.md`, `docs/rfc-return-value-contracts.md` (v1.1),
@@ -234,7 +235,7 @@ value, or remove the `!`.
   after v1.9.2).
 - **Docs / version:** `v1-scope.md`, `gna-spec-v1.md` (receivers still
   reserved), README diagnostics table, CHANGELOG, roadmap, `gon version` →
-  `1.10.0`; examples and the editor fixture follow.
+  `1.11.0`; examples and the editor fixture follow.
 
 ## 9. Test Requirements
 
@@ -262,21 +263,23 @@ Executable spec in `internal/checker/method_contracts_test.go`.
    produces byte-identical diagnostics (differential run over the repository's
    `.gon` files and the 540-file corpus).
 
-## 10. Open Questions for the Owner
+## 10. Owner Decisions (2026-11-16)
 
-1. **Q1 — S2 scope.** Parameters **and** results together (proposed), or
+All six were answered **as proposed**:
+
+1. **Q1 — S2 scope: ACCEPT parameters and results together.** Parameters **and** results together (proposed), or
    results first and parameters in a follow-up?
-2. **Q2 — S5 interface calls.** A `!` on an interface method signature applies
+2. **Q2 — S5 interface calls: ACCEPT, the interface's `!` applies.** A `!` on an interface method signature applies
    to calls through that interface (proposed), or interface method signatures
    stay documentation only?
-3. **Q3 — S6 method values.** Leave untracked and documented (proposed), or
+3. **Q3 — S6 method values: ACCEPT untracked and documented.** Leave untracked and documented (proposed), or
    add a warning when a method with a contract is taken as a value?
-4. **Q4 — S8 receivers.** Defer receiver contracts to their own RFC
+4. **Q4 — S8 receivers: ACCEPT, deferred to their own RFC.** Defer receiver contracts to their own RFC
    (proposed)?
-5. **Q5 — S9 scope.** Scope is the files checked together — one file, or the
+5. **Q5 — S9 scope: ACCEPT the whole package under M8.** Scope is the files checked together — one file, or the
    whole package under M8's package mode (proposed), with module-local
    cross-package contracts as a later, separate design?
-6. **Q6 — Release shape.** Solo v1.11 after M8 (proposed, R1; sequencing already
+6. **Q6 — Release shape: ACCEPT solo v1.11 after M8.** Solo v1.11 after M8 (proposed, R1; sequencing already
    decided in `rfc-package-check.md` Q6).
 
 ## 11. Alternatives Considered
