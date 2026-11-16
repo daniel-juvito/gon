@@ -28,9 +28,12 @@
   on a method parameter or result and then contradicts it at a call site was
   not reported before and is now (GN001 / GW001). The fix is the same as for a
   plain function: pass a non-nil value, or remove the `!`.
-- Code with **no `!` on any method** produces byte-identical output (verified
-  by a differential run of v1.10.0 against this release; see
-  `docs/rfc-method-contracts.md` §14).
+- Code with **no `!` on any method** produces byte-identical output: a
+  differential run of v1.10.0 against this release over 582 files (the 56
+  `.gon` files of the three repositories and 526 standard-library files), text
+  and `--json`, found 0 differences. None of those files annotates a method, so
+  the run shows no regression, not what the new diagnostics find in real
+  annotated code (`docs/rfc-method-contracts.md` §14).
 - **A method value carries no contract** (`f := b.Set; f(nil)` is not
   checked), and **receiver contracts** (`!` on the receiver) are not part of
   this release (`.gna` `receivers:` stays reserved). Both are documented

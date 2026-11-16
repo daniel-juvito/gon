@@ -382,3 +382,50 @@ user code.
 | Scope | The files checked together: a file, or the package under M8 (S9, Q5) |
 | New diagnostic codes / schema bump | None |
 | Release shape | Solo v1.11, after M8 (S10, Q6) |
+
+## 14. Implementation Notes (v1.11)
+
+- **Where.** `internal/checker/method_contracts.go`. `sourceMethodContracts()`
+  indexes, by `*types.Func`, every method declared in the checked files
+  (`*ast.FuncDecl` with a receiver, and every method of every
+  `*ast.InterfaceType`, named or anonymous), built lazily; keys are objects, so
+  nothing is name-keyed. `resolveMethodParams` / `resolveMethodResults`
+  (`annotations.go`) ask `sourceMethodFor` first, which takes
+  `Selection.Obj().Origin()` and reads the flags with the existing
+  `nonNilFlags`. `checkCallExpr` (the receiver offset for method expressions)
+  and `defineFromCallResults` (result sources) are unchanged.
+- **Package mode.** The index covers every syntax tree of the package
+  (`packageShared.files`); each declaration's `!` is read with the file-aware
+  `isNonNil`, so a method of a sibling file is read against **its own** `!`
+  offsets (`TestMethodContractSiblingDeclarationUsesItsOwnOffsets` fails if that
+  is broken). Methods of plain `.go` files carry no `!`, so they are never a
+  contract.
+- **Precedence with `.gna` (a decision the RFC left open).** A source
+  declaration that carries **at least one `!`** is the contract and wins; a
+  declaration with **no `!`** is treated as absent and falls through to the
+  `.gna` path exactly as before. This keeps `.gna` `methods:` entries that
+  annotate a *local* type working, and is what makes "no `!` on any method ⇒
+  byte-identical output" hold.
+- **Diagnostics.** The message names the method as `Type.Method` (the
+  interface's name for an interface method; `interface.Method` for an anonymous
+  interface). No new code, no `.gna` schema change.
+- **Tests.** `internal/checker/method_contracts_test.go`, one group per decision
+  S1–S10 (33 tests). Mutations checked: with `sourceMethodFor` disabled, 19 fail;
+  with `Origin()` dropped, the two generic tests fail; with the `!` offsets read
+  from the wrong file, the two package-mode tests fail.
+
+### Differential run (v1.10.0 vs this branch)
+
+Built from `main` (`39058dd`) and from this branch, same toolchain and flags;
+FILE operands, `check` and `check --json`, text, exit code and stderr compared:
+
+- 56 `.gon` files of the three repositories and 526 standard-library files
+  (every 4th non-test, non-internal `.go` file under `GOROOT/src`, renamed
+  `.gon`), 582 in all: **582 identical, 0 differing** in both modes.
+- **Positive control:** on the §6 example, v1.10.0 prints `ok` and this branch
+  prints 4 GN001 and 1 GW001, so the harness does detect a difference.
+- **Limit.** None of those files writes a `!` on a method (the repositories'
+  `.gon` files annotate only plain functions, fields and variables; the
+  standard library has no `!`). The run therefore proves that code with no `!`
+  on any method is unaffected (the RFC's gate), not what the new diagnostics
+  would find in real annotated code, of which there is none to measure.
