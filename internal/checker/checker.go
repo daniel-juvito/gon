@@ -616,38 +616,16 @@ func (c *Checker) checkReturnStmt(ret *ast.ReturnStmt) {
 			}
 		}
 	}
-	// v1.7 / M2b: element `!` contracts are construction-time obligations and
-	// fire at composite literals in return position too. The broader M1a/M2a
-	// walks do not visit return expressions; this deliberately applies only the
-	// new element checks so return-site behaviour is otherwise unchanged.
+	// The operands of a return are expressions like any other: calls (GN001 for a
+	// nil to a `!` parameter, method contracts of v1.11), composite literals
+	// (struct fields, and the v1.7 element contracts), comparisons (GW001) and
+	// type assertions are all checked here. Until v1.13 this walk was skipped (only
+	// the element checks ran), an oversight of coverage, not a design exception:
+	// every other statement form was already walked, and `_ = Box{P: nil}` was
+	// reported while `return Box{P: nil}` was not.
 	for _, result := range ret.Results {
-		c.checkElementContractsInExpr(result)
+		c.checkExpr(result)
 	}
-}
-
-// checkElementContractsInExpr walks expr for composite literals and applies
-// only the v1.7 element `!` contract checks (GN001 explicit-nil, GN002
-// fixed-array zero-fill).
-func (c *Checker) checkElementContractsInExpr(expr ast.Expr) {
-	if expr == nil {
-		return
-	}
-	ast.Inspect(expr, func(n ast.Node) bool {
-		lit, ok := n.(*ast.CompositeLit)
-		if !ok {
-			return true
-		}
-		switch t := lit.Type.(type) {
-		case *ast.ArrayType:
-			c.checkElementContracts(lit, nil)
-			if t.Len != nil {
-				c.checkFixedArrayElementShortfall(lit, t)
-			}
-		case *ast.MapType:
-			c.checkElementContracts(lit, nil)
-		}
-		return true
-	})
 }
 
 func (c *Checker) checkCallExpr(call *ast.CallExpr) {

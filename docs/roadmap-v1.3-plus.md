@@ -197,6 +197,17 @@ decisions Q1–Q6 accepted as proposed, 2026-11-16).
 **Rationale (R4):** the item M8 left out; needed before a multi-file codebase,
 this repository included, can be written in Gon. Ships solo.
 
+### v1.13 — Return-Position Contracts — IMPLEMENTED (awaiting audit)
+**Scope:** a coverage fix, not a new feature — the operands of a `return` are
+checked like every other expression (calls, composite literals, `new(T)`,
+comparisons, type assertions, function literals). No RFC: it closes an
+undocumented gap. Found while measuring the dogfood conversion (M9).
+**Dependency:** none.
+**Breaking risk:** Possibly Yes (R1): code that violates a `!` contract inside a
+`return` operand is reported now. A differential over the three repositories'
+`.gon` files and a 526-file standard-library corpus found no new diagnostic.
+**Rationale (R1):** solo release.
+
 ## 5. Open Sequencing Notes
 
 - M4a is dependency-eligible as early as Core, independent of M1a. It is
