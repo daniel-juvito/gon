@@ -40,7 +40,7 @@ Full scope contract: [docs/v1-scope.md](docs/v1-scope.md)
 ## Install
 
 ```bash
-go install github.com/daniel-juvito/gon/cmd/gon@v1.11.0
+go install github.com/daniel-juvito/gon/cmd/gon@v1.12.0
 ```
 
 Or from source:
@@ -89,6 +89,10 @@ gon transpile file.gon    # writes file.go
 
 # transpile then go build
 gon build file.gon
+
+# a package: check it as a whole, write .go only if it passes (v1.12)
+gon transpile ./internal/foo   # or ./... (packages are done after the ones they import)
+gon build ./cmd/app            # transpile, then go build ./cmd/app (flags after the target go to go build)
 
 # minimal stdio language server
 gon lsp

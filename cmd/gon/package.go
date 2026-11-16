@@ -153,28 +153,34 @@ type packageOutcome struct {
 	typeErrors []string
 }
 
-// checkPackageDir checks the .gon files of dir as one package. A non-zero exit
-// code means the package could not be checked at all.
-func checkPackageDir(dir string, jsonOut bool, source string) (packageOutcome, int) {
-	var out packageOutcome
+// loadedPackage is a directory's .gon files, preprocessed and checked together
+// (the M8 machinery), shared by `check`, `transpile` and `build`.
+type loadedPackage struct {
+	files     []checker.PackageFile
+	srcByPath map[string][]byte
+	res       *checker.PackageResult
+}
 
+// loadPackage reads and checks the .gon files of dir as one package. A non-zero
+// exit code means the package could not be checked at all (2: nothing readable,
+// 1: the load itself failed); the message is already printed.
+func loadPackage(dir string) (*loadedPackage, int) {
 	names, err := gonFilesIn(dir)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "gon: read %s: %v\n", dir, err)
-		return out, 2
+		return nil, 2
 	}
-	srcByPath := make(map[string][]byte, len(names))
-	var files []checker.PackageFile
+	lp := &loadedPackage{srcByPath: make(map[string][]byte, len(names))}
 	for _, n := range names {
 		path := filepath.Join(dir, n)
 		src, err := os.ReadFile(path)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "gon: read %s: %v\n", path, err)
-			return out, 2
+			return nil, 2
 		}
 		r := preproc.Process(path, src)
-		srcByPath[path] = src
-		files = append(files, checker.PackageFile{Path: path, Clean: r.Clean, NonNilOffsets: r.NonNilOffsets})
+		lp.srcByPath[path] = src
+		lp.files = append(lp.files, checker.PackageFile{Path: path, Clean: r.Clean, NonNilOffsets: r.NonNilOffsets})
 	}
 
 	dirAbs, err := filepath.Abs(dir)
@@ -187,11 +193,25 @@ func checkPackageDir(dir string, jsonOut bool, source string) (packageOutcome, i
 	}
 	resolver := gna.DefaultChain(wd, dirAbs)
 
-	res, err := checker.CheckPackage(dir, files, resolver)
+	res, err := checker.CheckPackage(dir, lp.files, resolver)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "gon: %v\n", err)
-		return out, 1
+		return nil, 1
 	}
+	lp.res = res
+	return lp, 0
+}
+
+// checkPackageDir checks the .gon files of dir as one package. A non-zero exit
+// code means the package could not be checked at all.
+func checkPackageDir(dir string, jsonOut bool, source string) (packageOutcome, int) {
+	var out packageOutcome
+
+	lp, code := loadPackage(dir)
+	if lp == nil {
+		return out, code
+	}
+	res, srcByPath := lp.res, lp.srcByPath
 
 	for _, f := range res.Files {
 		fileAbs, err := protocolFilePath(f.Path)

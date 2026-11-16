@@ -185,19 +185,21 @@ unformatted source). Classification (R1): not breaking. Ships **solo** as v1.12
 7. Dogfood: transpiling the 23-file copy of this repository (§2) writes `.go`
    files byte-identical to the committed ones.
 
-## 8. Open Questions for the Owner
+## 8. Owner Decisions (2026-11-16)
 
-1. **Q1 — T2 failure policy.** All-or-nothing per package (proposed), or write
+All six were answered **as proposed**:
+
+1. **Q1 — T2 failure policy: ACCEPT all-or-nothing per package.** All-or-nothing per package (proposed), or write
    the files that pass and report the rest?
-2. **Q2 — T4 `build` semantics.** Pass through to `go build <dir>` and force no
+2. **Q2 — T4 `build` semantics: ACCEPT pass-through to `go build <dir>`, no forced `-o`.** Pass through to `go build <dir>` and force no
    `-o` (proposed), or keep forcing `-o <name>` as the file form does?
-3. **Q3 — T7 in-process `go/format`.** Include it in this release (proposed),
+3. **Q3 — T7 in-process `go/format`: ACCEPT.** Include it in this release (proposed),
    or leave the `PATH` `gofmt` and handle the determinism another way?
-4. **Q4 — T3 stale `.go` and a header.** No deletion and no "generated" header
+4. **Q4 — T3 stale `.go` and a header: ACCEPT neither.** No deletion and no "generated" header
    (proposed), or add either?
-5. **Q5 — T8.3 tests.** `*_test.gon` excluded from directory mode, tests stay
+5. **Q5 — T8.3 tests: ACCEPT `*_test.gon` excluded, tests stay `.go`.** `*_test.gon` excluded from directory mode, tests stay
    `.go` (proposed)?
-6. **Q6 — Release shape.** Solo v1.12 (proposed), or fold into the first
+6. **Q6 — Release shape: ACCEPT solo v1.12.** Solo v1.12 (proposed), or fold into the first
    release that converts Gon's own sources?
 
 ## 9. Alternatives Considered
@@ -217,3 +219,37 @@ unformatted source). Classification (R1): not breaking. Ships **solo** as v1.12
 - **I5** — upheld: code generation is still "remove the `!`, format"; no runtime
   behaviour is added.
 - **I7** — upheld: no new syntax; schema stays **1**.
+
+## 11. Implementation Notes (v1.12)
+
+- **Where.** `cmd/gon/transpile_dir.go` (`runEmitDir`, `emitPackage`,
+  `writePackage`, `orderByDependencies`); `loadPackage` in `cmd/gon/package.go`
+  is the M8 check factored out of `checkPackageDir` and shared by `check`,
+  `transpile` and `build`. `transpiler.Transpile` is `go/format.Source`.
+- **A decision the RFC did not make: package order.** `./...` used to be
+  alphabetical. Measured on a copy of this repository with **no `.go` at all**,
+  alphabetical order failed (47 type errors, 5 files written), because a package
+  was checked against the `.go` of a dependency that had not been written yet.
+  The packages of a run are now ordered by the module-local imports of their
+  `.gon` sources (Kahn's algorithm, ties broken by the original order; outside a
+  module the order is unchanged). Result on the same copy: **0 errors, 23 files
+  written, all byte-identical to the committed `.go`, and `go build ./...`
+  passes.** With the `.go` already present (the usual case) every order works.
+- **Atomicity.** All files of a package are formatted first, then written to a
+  temporary name and renamed; a failure in between removes the temporaries. A
+  failure part-way through the renames can still leave some files replaced (no
+  cross-file transaction on a plain filesystem); the check has already passed by
+  then, so the files are valid.
+- **`build`** passes the target to `go build` as a directory pattern (`pkg` →
+  `./pkg`, since `go build pkg` reads an import path). It builds only if every
+  package passed. For a pattern with several `main` packages `go build` itself
+  writes nothing, as for plain Go.
+- **Measured.** On the 23 non-test `.go` files of this repository copied to
+  `.gon`: `gon transpile ./...` with the `.go` present → 23 of 23 byte-identical,
+  exit 0; from a tree with no `.go` → 23 of 23 byte-identical, `go build ./...`
+  passes. File form, 56 `.gon` files, v1.11.0 against this release: output,
+  exit code and emitted `.go` identical.
+- **Not part of this RFC, found on the way.** `return Box{P: nil}` — a composite
+  literal as the operand of a `return` — is not checked for a nil in a `!` field
+  (`_ = Box{P: nil}` and `b := Box{P: nil}` are). Identical on v1.10.0 and
+  v1.11.0, so it is not a regression; it is a separate gap in the checker.

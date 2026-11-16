@@ -219,6 +219,8 @@ gon check|vet <dir>          # (v1.10) the directory's .gon files checked as ONE
 gon check|vet ./...          # (v1.10) every directory below with .gon files, each a package
 gon transpile <file.gon>     # write <file>.go; diagnostics → stderr
 gon build <file.gon>         # transpile then go build
+gon transpile <dir>|dir/...  # (v1.12) check the directory as ONE package; write each .go only if the package passes
+gon build <dir> [go flags]   # (v1.12) transpile the package, then go build <dir>
 gon version
 gon help
 ```
