@@ -381,3 +381,14 @@ func TestFileOperandStillChecksATestGonFile(t *testing.T) {
 		t.Fatalf("file operand must be unchanged: exit %d\n%s", exit, errOut)
 	}
 }
+
+// The "nothing to check" message only blames *_test.gon when there is one.
+func TestPackageModeNoGonFilesMessageDoesNotBlameTestFilesWhenThereAreNone(t *testing.T) {
+	root := pkgModule(t, map[string]string{"main.go": "package main\n\nfunc main() {}\n"})
+	chdir(t, root)
+
+	exit, _, errOut := captureRun([]string{"check", "."})
+	if exit != 2 || !strings.Contains(errOut, "no .gon files") || strings.Contains(errOut, "_test.gon") {
+		t.Fatalf("exit %d, stderr:\n%s", exit, errOut)
+	}
+}
