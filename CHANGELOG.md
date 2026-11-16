@@ -1,5 +1,51 @@
 # Changelog
 
+## [1.11.0] — 2026-11-16
+
+### Added
+
+- **Call-site contracts for source-declared methods** — M7
+  (`docs/rfc-method-contracts.md`). A `!` written on a **method's** parameter or
+  result is now enforced at its callers, like a plain function's. Until now
+  only the method's own body was checked (`return nil` into a `!*T` result,
+  `p` as a non-nil local); none of the ways to call it was.
+  - **GN001** for a literal `nil` (or an ordinary interface value to a `!I`)
+    passed to a `!` parameter; a `!` **result** is a non-nil source at the
+    immediate use site (`g := b.Get(); g == nil` → **GW001**).
+  - Matched through `go/types` **object identity**, never by name: a direct
+    call, a value-receiver call, a method expression (`(*T).M(x, nil)`, with the
+    receiver offset), a call **promoted through embedding**, a call **through an
+    interface** (the interface's own `!` applies; an implementing method need
+    not repeat it), and a generic receiver or a method with its own type
+    parameters (through `Origin()`).
+  - Scope is the files checked together: the file in file mode, **every file of
+    the package** in package mode (v1.10).
+- No new syntax, no new diagnostic code, `.gna` schema stays **1**.
+
+### Compatibility
+
+- **Possibly breaking, in the same sense as v1.8 / v1.9.** Code that writes `!`
+  on a method parameter or result and then contradicts it at a call site was
+  not reported before and is now (GN001 / GW001). The fix is the same as for a
+  plain function: pass a non-nil value, or remove the `!`.
+- Code with **no `!` on any method** produces byte-identical output: a
+  differential run of v1.10.0 against this release over 582 files (the 56
+  `.gon` files of the three repositories and 526 standard-library files), text
+  and `--json`, found 0 differences. None of those files annotates a method, so
+  the run shows no regression, not what the new diagnostics find in real
+  annotated code (`docs/rfc-method-contracts.md` §14).
+- **A method value carries no contract** (`f := b.Set; f(nil)` is not
+  checked), and **receiver contracts** (`!` on the receiver) are not part of
+  this release (`.gna` `receivers:` stays reserved). Both are documented
+  limits, not diagnostics.
+- A source declaration **without any `!`** is treated as absent, so a `.gna`
+  `methods:` entry for a local type keeps working exactly as before; when the
+  declaration does carry a `!`, it wins.
+
+### Changed
+
+- `gon version` reports `1.11.0`.
+
 ## [Unreleased]
 
 ### Fixed

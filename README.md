@@ -40,7 +40,7 @@ Full scope contract: [docs/v1-scope.md](docs/v1-scope.md)
 ## Install
 
 ```bash
-go install github.com/daniel-juvito/gon/cmd/gon@v1.10.0
+go install github.com/daniel-juvito/gon/cmd/gon@v1.11.0
 ```
 
 Or from source:
@@ -286,6 +286,7 @@ Full format: [docs/gna-spec-v1.md](docs/gna-spec-v1.md)
 
 - Named parameters, results, variables, struct fields, receivers
 - Package functions and methods (value, pointer, interface, method expression)
+- A `!` on a method's parameter or result, written in the checked files, is enforced at its call sites (v1.11): matched by `go/types` object identity; a method value carries nothing
 - External packages via `.gna` + module-aware `go/packages`
 - Local, non-flow-sensitive checks only
 - Annotated return positions as non-nil sources at immediate use sites (v1.1)

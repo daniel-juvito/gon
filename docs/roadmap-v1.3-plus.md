@@ -61,7 +61,7 @@ analysis (see v1.6, §4).
 | M5a | `.gna` validation + external contract boundary | M4a — **shipped v1.5** |
 | M5b | Generic `.gna` + generic contract application | M3 + M5a infrastructure — **shipped v1.9** |
 | M6a | `gon fmt` + `gon check` | Core |
-| M7 | Call-site contracts for source-declared methods | M3 + M5b + M8 — **proposed v1.11** |
+| M7 | Call-site contracts for source-declared methods | M3 + M5b + M8 — **implemented v1.11, release pending** |
 | M8 | Package-aware checking | M5b — **implemented v1.10, release pending** |
 | M6b | LSP / editor support | M2a — contract tracing |
 
@@ -175,13 +175,12 @@ Q1–Q7 recorded 2026-11-15).
 **Rationale (R4):** a distinct, isolated feature with its own regression suite;
 ships solo.
 
-### v1.11 — Source Method Contracts — PROPOSED
+### v1.11 — Source Method Contracts — IMPLEMENTED (release pending)
 **Scope:** M7 — a `!` on a method's parameter or result, written in the checked
 package, is enforced at its call sites, matched by `go/types` object identity.
-**RFC:** `docs/rfc-method-contracts.md` (Status: Draft — S1–S10 proposed, Q1–Q6
-awaiting owner review, 2026-11-14). Sequenced
-after M8 on purpose: its single-file scope limit (S9) widens to "the package"
-once M8 ships.
+**RFC:** `docs/rfc-method-contracts.md` (Status: Implemented — owner decisions
+Q1–Q6 accepted as proposed, 2026-11-16). Sequenced after M8 on purpose: its
+single-file scope limit (S9) widens to "the package" with M8's package mode.
 **Dependency:** M3 (v1.8) + M5b (v1.9) + M8 (v1.10).
 **Breaking risk:** Possibly Yes.
 **Rationale (R1):** solo release.

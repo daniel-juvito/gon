@@ -37,6 +37,8 @@ Static checks only. Enforced at `gon check` / `gon vet` time.
 | Struct / composite construction leaving a required `!T` field at zero | GN002 | v1.0 |
 | Literal `nil` assigned into a required `!T` field in a composite literal | GN001 | v1.0 |
 | Annotated external-package function or method parameter (`!T` in `.gna`) receiving literal `nil` | GN001 | v1.0 |
+| Literal `nil` (or an ordinary interface value to a `!I`) passed to a `!T` parameter of a **method declared in the checked files**, by direct call, method expression, promotion through embedding, or through an interface that declares the `!` | GN001 | **v1.11** |
+| `!T` result of a method declared in the checked files is a non-nil source at the immediate use site (GW001 on nil comparison) | GW001 | **v1.11** |
 | Comparison of a known non-nil name with `nil` | GW001 (warning) | v1.0 |
 | Package has `.gna` but the called symbol is not listed | GW002 (warning) | v1.0 |
 | Malformed or schema-mismatched `.gna` while resolving a package | GN003 (error) | v1.0 |

@@ -1,8 +1,9 @@
 # RFC: Call-Site Contracts for Source-Declared Methods (Gon v1.11 / M7)
 
-**Status:** Draft — awaiting owner review. Decisions S1–S10 are *proposals*;
-§10 lists the questions that need an explicit owner answer. The baseline and
-feasibility figures in §12 were measured on 2026-11-14, before any decision.
+**Status:** Implemented in Gon v1.11 (release pending). Owner decisions
+Q1–Q6 recorded 2026-11-16: all accepted as proposed (§10). The baseline and
+feasibility figures in §12 were measured on 2026-11-14, before any decision;
+§14 records the implementation notes and the differential results.
 **Target:** Gon v1.11 (sequenced after M8, package-aware checking, v1.10 — `docs/rfc-package-check.md`, accepted 2026-11-15)
 **Related:** `docs/gna-spec-v1.md`, `docs/v1-scope.md`,
 `docs/roadmap-v1.3-plus.md`, `docs/rfc-return-value-contracts.md` (v1.1),
@@ -234,7 +235,7 @@ value, or remove the `!`.
   after v1.9.2).
 - **Docs / version:** `v1-scope.md`, `gna-spec-v1.md` (receivers still
   reserved), README diagnostics table, CHANGELOG, roadmap, `gon version` →
-  `1.10.0`; examples and the editor fixture follow.
+  `1.11.0`; examples and the editor fixture follow.
 
 ## 9. Test Requirements
 
@@ -262,21 +263,23 @@ Executable spec in `internal/checker/method_contracts_test.go`.
    produces byte-identical diagnostics (differential run over the repository's
    `.gon` files and the 540-file corpus).
 
-## 10. Open Questions for the Owner
+## 10. Owner Decisions (2026-11-16)
 
-1. **Q1 — S2 scope.** Parameters **and** results together (proposed), or
+All six were answered **as proposed**:
+
+1. **Q1 — S2 scope: ACCEPT parameters and results together.** Parameters **and** results together (proposed), or
    results first and parameters in a follow-up?
-2. **Q2 — S5 interface calls.** A `!` on an interface method signature applies
+2. **Q2 — S5 interface calls: ACCEPT, the interface's `!` applies.** A `!` on an interface method signature applies
    to calls through that interface (proposed), or interface method signatures
    stay documentation only?
-3. **Q3 — S6 method values.** Leave untracked and documented (proposed), or
+3. **Q3 — S6 method values: ACCEPT untracked and documented.** Leave untracked and documented (proposed), or
    add a warning when a method with a contract is taken as a value?
-4. **Q4 — S8 receivers.** Defer receiver contracts to their own RFC
+4. **Q4 — S8 receivers: ACCEPT, deferred to their own RFC.** Defer receiver contracts to their own RFC
    (proposed)?
-5. **Q5 — S9 scope.** Scope is the files checked together — one file, or the
+5. **Q5 — S9 scope: ACCEPT the whole package under M8.** Scope is the files checked together — one file, or the
    whole package under M8's package mode (proposed), with module-local
    cross-package contracts as a later, separate design?
-6. **Q6 — Release shape.** Solo v1.11 after M8 (proposed, R1; sequencing already
+6. **Q6 — Release shape: ACCEPT solo v1.11 after M8.** Solo v1.11 after M8 (proposed, R1; sequencing already
    decided in `rfc-package-check.md` Q6).
 
 ## 11. Alternatives Considered
@@ -379,3 +382,50 @@ user code.
 | Scope | The files checked together: a file, or the package under M8 (S9, Q5) |
 | New diagnostic codes / schema bump | None |
 | Release shape | Solo v1.11, after M8 (S10, Q6) |
+
+## 14. Implementation Notes (v1.11)
+
+- **Where.** `internal/checker/method_contracts.go`. `sourceMethodContracts()`
+  indexes, by `*types.Func`, every method declared in the checked files
+  (`*ast.FuncDecl` with a receiver, and every method of every
+  `*ast.InterfaceType`, named or anonymous), built lazily; keys are objects, so
+  nothing is name-keyed. `resolveMethodParams` / `resolveMethodResults`
+  (`annotations.go`) ask `sourceMethodFor` first, which takes
+  `Selection.Obj().Origin()` and reads the flags with the existing
+  `nonNilFlags`. `checkCallExpr` (the receiver offset for method expressions)
+  and `defineFromCallResults` (result sources) are unchanged.
+- **Package mode.** The index covers every syntax tree of the package
+  (`packageShared.files`); each declaration's `!` is read with the file-aware
+  `isNonNil`, so a method of a sibling file is read against **its own** `!`
+  offsets (`TestMethodContractSiblingDeclarationUsesItsOwnOffsets` fails if that
+  is broken). Methods of plain `.go` files carry no `!`, so they are never a
+  contract.
+- **Precedence with `.gna` (a decision the RFC left open).** A source
+  declaration that carries **at least one `!`** is the contract and wins; a
+  declaration with **no `!`** is treated as absent and falls through to the
+  `.gna` path exactly as before. This keeps `.gna` `methods:` entries that
+  annotate a *local* type working, and is what makes "no `!` on any method ⇒
+  byte-identical output" hold.
+- **Diagnostics.** The message names the method as `Type.Method` (the
+  interface's name for an interface method; `interface.Method` for an anonymous
+  interface). No new code, no `.gna` schema change.
+- **Tests.** `internal/checker/method_contracts_test.go`, one group per decision
+  S1–S10 (33 tests). Mutations checked: with `sourceMethodFor` disabled, 19 fail;
+  with `Origin()` dropped, the two generic tests fail; with the `!` offsets read
+  from the wrong file, the two package-mode tests fail.
+
+### Differential run (v1.10.0 vs this branch)
+
+Built from `main` (`39058dd`) and from this branch, same toolchain and flags;
+FILE operands, `check` and `check --json`, text, exit code and stderr compared:
+
+- 56 `.gon` files of the three repositories and 526 standard-library files
+  (every 4th non-test, non-internal `.go` file under `GOROOT/src`, renamed
+  `.gon`), 582 in all: **582 identical, 0 differing** in both modes.
+- **Positive control:** on the §6 example, v1.10.0 prints `ok` and this branch
+  prints 4 GN001 and 1 GW001, so the harness does detect a difference.
+- **Limit.** None of those files writes a `!` on a method (the repositories'
+  `.gon` files annotate only plain functions, fields and variables; the
+  standard library has no `!`). The run therefore proves that code with no `!`
+  on any method is unaffected (the RFC's gate), not what the new diagnostics
+  would find in real annotated code, of which there is none to measure.
