@@ -59,6 +59,9 @@ Static checks only. Enforced at `gon check` / `gon vet` time.
 | Ordinary interface-typed value written into / assigned to an external `!I` field | GN001 | **v1.5** |
 | `.gna` `params`/`results` count disagrees with the resolved Go signature (variadic counts as one) — contract dropped | GN003 (error) | **v1.5** |
 | `.gna` names a `functions:` / `methods:` / `types:` symbol the package does not provide (method set incl. promoted) | GW004 (warning) | **v1.5** |
+| An importer contradicts a `!` contract (result, parameter, field, method, interface method) of an imported **main-module** package that has `.gon` sources; the contract is read from those sources, including exported members of unexported types (no `.gna` needed) | GN001 / GN002 / GW001 | **v1.14** |
+| A `.gna` exists for such a package: it is ignored (the `.gon` sources are authoritative), once per import | GW005 (warning) | **v1.14** |
+| Such a package's `.gon` sources cannot be parsed: no contract of it applies, no fallback to a `.gna`, once per import | GN003 | **v1.14** |
 | Bare `var x !S` (S is `![]T` / `!map` / `!chan` / `!func` / `!*T` or a named type / alias thereof) with no initializer | GN002 | **v1.6** |
 | `!` written on a non-nilable type (struct, array, basic — directly or through a named type / alias) | GN003 | **v1.6** |
 | `x.(!T)` — `!` on any type-assertion target, interface or concrete | GN001 | **v1.6** |

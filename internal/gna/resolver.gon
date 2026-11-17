@@ -152,9 +152,34 @@ func (r *Registry) Resolve(importPath string) (*File, error) {
 // DefaultChain builds the v1 resolver chain for CLI use:
 //  1. ./annotations relative to wd
 //  2. module-root/annotations (via go.mod discovery from startDir)
+//
+// Since v1.14 (M10) a SourceResolver comes first: an import inside the main
+// module whose directory holds .gon sources takes its contracts from them, and
+// a .gna for it in either location is ignored (and reported as GW005).
 func DefaultChain(wd, startDir string) !*Chain {
-	return &Chain{Resolvers: []Resolver{
-		&DirResolver{Root: filepath.Join(wd, "annotations")},
-		&ModuleResolver{StartDir: startDir},
-	}}
+	dir := &DirResolver{Root: filepath.Join(wd, "annotations")}
+	mod := &ModuleResolver{StartDir: startDir}
+	src := &SourceResolver{StartDir: startDir, Shadowing: []Locator{dir, mod}}
+	return &Chain{Resolvers: []Resolver{src, dir, mod}}
+}
+
+// Has reports whether <Root>/<importPath>.gna exists, without reading it.
+func (d *DirResolver) Has(importPath string) bool {
+	if d == nil || d.Root == "" || importPath == "" || strings.Contains(importPath, "..") {
+		return false
+	}
+	fi, err := os.Stat(filepath.Join(d.Root, importPath+".gna"))
+	return err == nil && !fi.IsDir()
+}
+
+// Has reports whether <moduleRoot>/annotations/<importPath>.gna exists.
+func (m *ModuleResolver) Has(importPath string) bool {
+	if m == nil || importPath == "" {
+		return false
+	}
+	root, err := m.findModuleRoot()
+	if err != nil || root == "" {
+		return false
+	}
+	return (&DirResolver{Root: filepath.Join(root, "annotations")}).Has(importPath)
 }

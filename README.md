@@ -40,7 +40,7 @@ Full scope contract: [docs/v1-scope.md](docs/v1-scope.md)
 ## Install
 
 ```bash
-go install github.com/daniel-juvito/gon/cmd/gon@v1.13.0
+go install github.com/daniel-juvito/gon/cmd/gon@v1.14.0
 ```
 
 Or from source:
@@ -280,9 +280,10 @@ Full format: [docs/gna-spec-v1.md](docs/gna-spec-v1.md)
 | GN002 | error    | construction leaves a required non-nil field at zero (including nested / embedded / array; includes `new(T)`; external `pkg.T` incl. one-hop embedded promotion, v1.5); bare `var x !S` of a nilable reference kind with no initializer (v1.6); fixed-array literal leaves a `!` nilable element index at zero (v1.7); construction of an instantiated generic struct leaves a `!` field at zero (v1.8), local or external via `.gna` `types:` (v1.9); `var v !P` with no initializer for a nilable type parameter `P` (v1.8) |
 | GN003 | error    | malformed `.gna`, or (v1.5) a `params`/`results` arity mismatch vs `go/types` — the entry is dropped; `!` on a non-nilable type (v1.6); element `!` on a channel element, map key, or non-nilable element kind (v1.7); `!X` on a type parameter not restricted to nilable kinds, and `!` inside a type argument or constraint (v1.8); a `.gna` `!` flag over a non-nilable kind or type parameter — only that flag is dropped (v1.9) |
 | GW001 | warning  | comparison of a non-nil name or `!T` field selector (local or external, v1.5) with `nil` (always true/false) |
-| GW002 | warning  | calling an un-annotated symbol of an annotated package |
+| GW002 | warning  | calling an un-annotated symbol of an annotated package (never for a package whose contracts come from its `.gon` sources, v1.14) |
 | GW003 | warning  | redundant type assertion on a declared `!T` identifier (v1.3) |
 | GW004 | warning  | `.gna` names a `functions:` / `methods:` / `types:` symbol the package does not provide (v1.5) |
+| GW005 | warning  | a `.gna` exists for an imported package of the main module that has `.gon` sources: the `.gna` is ignored, the `.gon` sources are authoritative (v1.14); once per import |
 
 ## Scope and limitations
 
@@ -300,6 +301,9 @@ Full format: [docs/gna-spec-v1.md](docs/gna-spec-v1.md)
 - Interface value contracts: `!I` is interface-value non-nil only (v1.4)
 - External `.gna` `types:` field contracts across the package boundary, and
   `.gna` validation against `go/types` — GN003 arity, GW004 unknown symbol (v1.5)
+- Cross-package contracts from `.gon` sources: an importer sees the `!`
+  contracts of an imported package of the **main module** that has `.gon`
+  sources, with no `.gna` to write (v1.14); dependencies keep using `.gna`
 - Type coverage: `!` on slice / map / chan / func / pointer and named types /
   aliases means the reference value is non-nil (not length / emptiness /
   channel state); bare `var x !S` needs an initializer (v1.6)

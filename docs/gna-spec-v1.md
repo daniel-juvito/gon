@@ -21,6 +21,13 @@ annotations/net/http.gna
 The import path recorded inside the file must match the path after
 `annotations/`.
 
+**Since v1.14 (M10):** for an imported package of the **main module** that has
+`.gon` sources, the contracts are derived from those sources and a `.gna` for
+it is ignored (GW005). `.gna` remains the only source for every other package:
+the standard library, dependencies in the module cache (even if they ship
+`.gon`), and main-module packages written in plain Go. See
+`docs/rfc-source-contracts.md`.
+
 ## Format
 
 YAML. Every type annotation is a quoted string so that parsers treat

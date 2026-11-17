@@ -64,6 +64,10 @@ type Checker struct {
 	// methods declared in the checked files (v1.11 / M7); built lazily.
 	methodContracts map[*types.Func]*sourceMethod
 
+	// sourceErrs holds, per import path, a module-local package whose .gon
+	// sources could not be read (v1.14 / M10, C6b).
+	sourceErrs map[string]error
+
 	diagnostics []*Diagnostic
 }
 
@@ -103,6 +107,7 @@ func (c *Checker) collect() {
 
 // walk checks this file against the collected contracts.
 func (c *Checker) walk() []*Diagnostic {
+	c.reportSourceContracts()
 	c.validateAnnotations()
 	c.checkNonNilTypeKinds()
 	c.checkBangInTypeArgsAndConstraints()
