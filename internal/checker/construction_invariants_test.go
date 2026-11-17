@@ -6,9 +6,12 @@
 package checker
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/daniel-juvito/gon/internal/gna"
+	"github.com/daniel-juvito/gon/internal/preproc"
 )
 
 // --- P1: withPath and cloneGnaFile never return nil --------------------------
@@ -70,5 +73,80 @@ func TestCloneGnaFileNeverReturnsNil(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// --- P2: every way a Checker is built fills fset ------------------------------
+
+const invariantSrc = "package main\n\nfunc f() !*int {\n\treturn nil\n}\n\nfunc main() {}\n"
+
+// newAt preprocesses invariantSrc written at dir/name and returns New's and
+// NewWithAnnotations' checkers for it.
+func newAt(t *testing.T, dir, name string) (plain, annotated *Checker) {
+	t.Helper()
+	path := filepath.Join(dir, name)
+	if err := os.WriteFile(path, []byte(invariantSrc), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	r := preproc.Process(path, []byte(invariantSrc))
+	plain, err := New(path, r.Clean, r.NonNilOffsets)
+	if err != nil {
+		t.Fatal(err)
+	}
+	annotated, err = NewWithAnnotations(path, r.Clean, r.NonNilOffsets, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return plain, annotated
+}
+
+func TestNewFillsFset(t *testing.T) {
+	inModule := pkgDir(t, map[string]string{})
+	outside := t.TempDir() // no go.mod
+	for name, dir := range map[string]string{"in a module": inModule, "outside a module": outside} {
+		t.Run(name, func(t *testing.T) {
+			plain, annotated := newAt(t, dir, "a.gon")
+			if plain.fset == nil {
+				t.Fatal("New left fset nil")
+			}
+			// NewWithAnnotations type-checks, which may replace fset (the
+			// fallback parses again into a new FileSet).
+			if annotated.fset == nil {
+				t.Fatal("NewWithAnnotations left fset nil")
+			}
+			if annotated.info == nil {
+				t.Fatal("type check did not run; the path under test was not exercised")
+			}
+		})
+	}
+}
+
+// typeCheckFallback replaces fset with the one it parsed into.
+func TestTypeCheckFallbackKeepsFset(t *testing.T) {
+	plain, _ := newAt(t, t.TempDir(), "a.gon")
+	plain.typeCheckFallback()
+	if plain.fset == nil || plain.info == nil {
+		t.Fatalf("fset=%v info=%v", plain.fset, plain.info)
+	}
+}
+
+// CheckPackage builds one Checker per file with the package's FileSet. Its
+// checkers are not exposed, so this locks the observable consequence: every
+// diagnostic is positioned through fset (a nil fset would panic in
+// Position), in each file.
+func TestCheckPackageCheckersHaveFset(t *testing.T) {
+	dir := pkgDir(t, map[string]string{
+		"a.gon": invariantSrc,
+		"b.gon": "package main\n\nfunc g() !*int {\n\treturn nil\n}\n",
+	})
+	res := mustPkg(t, dir, "a.gon", "b.gon")
+	for _, f := range res.Files {
+		if len(f.Diagnostics) != 1 {
+			t.Fatalf("%s: %v", f.Path, f.Diagnostics)
+		}
+		d := f.Diagnostics[0]
+		if d.Code != "GN001" || d.Line != 4 || d.Col != 9 {
+			t.Fatalf("%s: got %s at %d:%d, want GN001 at 4:9", f.Path, d.Code, d.Line, d.Col)
+		}
 	}
 }

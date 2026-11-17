@@ -13,7 +13,7 @@ import (
 )
 
 type Checker struct {
-	fset          *token.FileSet
+	fset          !*token.FileSet
 	file          *ast.File
 	filename      string
 	cleanSrc      []byte

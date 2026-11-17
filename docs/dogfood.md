@@ -56,7 +56,7 @@ Tests stay `.go` (`*_test.gon` is not part of the directory form).
 | `internal/preproc` | 1 | yes (byte-identical transpile) | `Process` → `!*Result` (#40) |
 | `internal/gna` | 2 | yes (byte-identical transpile; first multi-file package) | `NewRegistry` → `!*Registry`, `DefaultChain` → `!*Chain` (package-local before v1.14; importers also see them since M10) |
 | `cmd/gon` | 4 | yes (byte-identical transpile) | none yet |
-| `internal/checker` | 12 | yes (byte-identical transpile) | `withPath` → `!*ContractTrace`, `cloneGnaFile(!*gna.File) !*gna.File` (P1) |
+| `internal/checker` | 12 | yes (byte-identical transpile) | `withPath` → `!*ContractTrace`, `cloneGnaFile(!*gna.File) !*gna.File` (P1); `Checker.fset` → `!*token.FileSet` (P2) |
 
 ## Annotations (D5) and what they reach
 
@@ -96,6 +96,7 @@ does not make a value that comes from outside those paths non-nil.
 | Group | Contracts | `gon check ./...` delta | Violation probe | Invariant test |
 |-------|-----------|-------------------------|-----------------|----------------|
 | P1 | `(*ContractTrace).withPath` → `!*ContractTrace`; `cloneGnaFile(f !*gna.File) !*gna.File` (its only caller skips a nil file) | none | `return nil` / `cloneGnaFile(nil)` → GN001 | `TestWithPathNeverReturnsNil` (nil and non-nil receiver), `TestCloneGnaFileNeverReturnsNil` |
+| P2 | `Checker.fset` → `!*token.FileSet` (built by `New` and `CheckPackage` with `token.NewFileSet`, replaced only by `typeCheckFallback` with another `NewFileSet`) | none | a `Checker` literal without `fset` → GN002; `c.fset = nil` → GN001 | `TestNewFillsFset` (`New`, `NewWithAnnotations`, in and outside a module), `TestTypeCheckFallbackKeepsFset`, `TestCheckPackageCheckersHaveFset` (positions of each file's diagnostic; `CheckPackage`'s checkers are not exposed) |
 
 P4 (`Checker.file`) is deferred: production never leaves it nil, but the
 annotation makes three `c.file == nil` guards GW001, and one of them is the
