@@ -50,7 +50,7 @@ Tests stay `.go` (`*_test.gon` is not part of the directory form).
 | Package | Files | Converted | `!` contracts |
 |---------|-------|-----------|---------------|
 | `transpiler` | 1 | yes (byte-identical transpile) | none yet |
-| `internal/goenv` | 1 | — | — |
+| `internal/goenv` | 1 | yes (byte-identical transpile) | none yet |
 | `internal/fmt` | 1 | — | — |
 | `internal/lsp` | 1 | — | — |
 | `internal/preproc` | 1 | — | — |
@@ -59,5 +59,5 @@ Tests stay `.go` (`*_test.gon` is not part of the directory form).
 | `internal/checker` | 12 | — (last, D4) | — |
 
 `internal/extlib` is a test fixture that stands for an *external* Go library in
-the `.gna` tests; converting it would blur that role, so it is proposed to stay
-`.go` (pending the owner's confirmation).
+the `.gna` tests; converting it would blur that role, so it stays
+`.go` (confirmed by the owner, 2026-11-17).
