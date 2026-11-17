@@ -1,5 +1,57 @@
 # Changelog
 
+## [1.13.0] — 2026-11-17
+
+### Fixed
+
+- **The operands of a `return` were not checked.** `_ = Box{P: nil}` was GN001,
+  but `return Box{P: nil}` was silently accepted, and so were the other checks
+  that every other statement form already had. Measured: of 17 syntactic
+  positions (conditions, `switch` tags and cases, `defer`, `go`, channel sends,
+  `range`, op-assignments, `var` declarations, …) only `return` was skipped; the
+  only thing checked there was the v1.7 element contracts. This was an oversight
+  of coverage, not a design exception: it was never documented, and the code
+  comment that excused it described the v1.7 change, not a rule.
+  Now every operand of a `return` is checked like any other expression:
+  - **GN001** — `return Put(nil)` (a nil to a `!` parameter, plain functions,
+    `.gna` functions and, since v1.11, methods), `return Box{P: nil}` (a nil in a
+    `!` field), `return v.(!*T)`;
+  - **GN002** — `return Box{}` and `return new(Box)` when `Box` has a required
+    `!` field;
+  - **GW001** — `return p == nil` / `p != nil` for a non-nil `p`;
+  - the body of a function literal in the operand, and a `return` inside one.
+  Element contracts (v1.7) are still reported exactly once.
+- **A function literal is checked as a function, not scanned.** Found in the audit
+  of the change above, and not limited to `return`: since v1.0 a closure's body
+  was only scanned for calls and composite literals, in the scope and with the
+  result contract of the **enclosing** function. Measured on v1.12.0:
+  - a closure parameter that shadows an outer `!` parameter was taken for it (a
+    **false GW001**): `func f(p !*T) { g := func(p *T) bool { return p == nil } }`;
+  - a `return nil` in a closure with a `!` result was never reported
+    (`g := func() !*T { return nil }`);
+  - a closure's own `!` parameter was not a non-nil name (no GW001 on
+    `q == nil`).
+  Now a function literal gets a scope of its own with its parameters (so a
+  parameter shadows as in Go), its `return` statements answer to **its own** result
+  contract, the enclosing function's contract is restored afterwards, and its body
+  is walked as statements (so a local `var p !*T = nil` inside a closure is
+  GN001 too). This applies wherever a closure appears, not only in a `return`.
+- `gon version` reports `1.13.0`.
+
+### Compatibility
+
+- **Possibly breaking, in the same sense as v1.8 / v1.9 / v1.11 (R1).** Code that
+  violates a `!` contract inside a `return` operand, or inside the body of a
+  function literal, was not reported and is now. One false positive goes away
+  (the shadowed closure parameter above).
+  The fix is the same as anywhere else: pass a non-nil value, or remove the `!`.
+- Code with no `!` produces byte-identical output: a differential run of v1.12.0
+  against this release over 582 files (the 56 `.gon` files of the three
+  repositories and 526 standard-library files), text and `--json`, found **0
+  differences**. That means none of the repositories' own `.gon` code violates a
+  contract in a `return`; it does not measure what other annotated code would
+  report.
+
 ## [1.12.0] — 2026-11-16
 
 ### Added

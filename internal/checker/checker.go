@@ -378,6 +378,57 @@ func (c *Checker) checkFuncDecl(d *ast.FuncDecl) {
 	c.currentFuncResultTypes = prevTypes
 }
 
+// checkFuncLit checks a function literal as the function it is: its parameters
+// are defined in a scope of their own (so a closure parameter shadows an outer
+// one of the same name, as in Go), its `return` statements answer to ITS result
+// contract, and its body is walked as statements. Before v1.13 the body was only
+// scanned for calls and composite literals, in the enclosing function's scope and
+// with the enclosing function's result contract, so a closure parameter could be
+// mistaken for the outer `!` parameter it shadows, and a `return nil` in a closure
+// with a `!` result was never reported.
+func (c *Checker) checkFuncLit(lit *ast.FuncLit) {
+	prev := c.currentFuncReturns
+	prevTypes := c.currentFuncResultTypes
+	c.currentFuncReturns = nonNilFlags(c, lit.Type.Results)
+	c.currentFuncResultTypes = nil
+	if c.info != nil {
+		if tv, ok := c.info.Types[lit]; ok {
+			if sig, ok := tv.Type.(*types.Signature); ok {
+				res := sig.Results()
+				c.currentFuncResultTypes = make([]types.Type, res.Len())
+				for i := 0; i < res.Len(); i++ {
+					c.currentFuncResultTypes[i] = res.At(i).Type()
+				}
+			}
+		}
+	}
+	c.pushScope()
+	if lit.Type.Params != nil {
+		for _, field := range lit.Type.Params.List {
+			nn := c.isNonNil(field.Type)
+			for _, name := range field.Names {
+				c.define(name.Name, nn)
+			}
+		}
+	}
+	// A named result is a variable of the closure too (an unnamed one has no name
+	// to define; `_` is ignored by define).
+	if lit.Type.Results != nil {
+		for _, field := range lit.Type.Results.List {
+			nn := c.isNonNil(field.Type)
+			for _, name := range field.Names {
+				c.define(name.Name, nn)
+			}
+		}
+	}
+	if lit.Body != nil {
+		c.checkBlockScope(lit.Body)
+	}
+	c.popScope()
+	c.currentFuncReturns = prev
+	c.currentFuncResultTypes = prevTypes
+}
+
 func (c *Checker) checkBlockScope(block *ast.BlockStmt) {
 	c.pushScope()
 	for _, stmt := range block.List {
@@ -616,38 +667,16 @@ func (c *Checker) checkReturnStmt(ret *ast.ReturnStmt) {
 			}
 		}
 	}
-	// v1.7 / M2b: element `!` contracts are construction-time obligations and
-	// fire at composite literals in return position too. The broader M1a/M2a
-	// walks do not visit return expressions; this deliberately applies only the
-	// new element checks so return-site behaviour is otherwise unchanged.
+	// The operands of a return are expressions like any other: calls (GN001 for a
+	// nil to a `!` parameter, method contracts of v1.11), composite literals
+	// (struct fields, and the v1.7 element contracts), comparisons (GW001) and
+	// type assertions are all checked here. Until v1.13 this walk was skipped (only
+	// the element checks ran), an oversight of coverage, not a design exception:
+	// every other statement form was already walked, and `_ = Box{P: nil}` was
+	// reported while `return Box{P: nil}` was not.
 	for _, result := range ret.Results {
-		c.checkElementContractsInExpr(result)
+		c.checkExpr(result)
 	}
-}
-
-// checkElementContractsInExpr walks expr for composite literals and applies
-// only the v1.7 element `!` contract checks (GN001 explicit-nil, GN002
-// fixed-array zero-fill).
-func (c *Checker) checkElementContractsInExpr(expr ast.Expr) {
-	if expr == nil {
-		return
-	}
-	ast.Inspect(expr, func(n ast.Node) bool {
-		lit, ok := n.(*ast.CompositeLit)
-		if !ok {
-			return true
-		}
-		switch t := lit.Type.(type) {
-		case *ast.ArrayType:
-			c.checkElementContracts(lit, nil)
-			if t.Len != nil {
-				c.checkFixedArrayElementShortfall(lit, t)
-			}
-		case *ast.MapType:
-			c.checkElementContracts(lit, nil)
-		}
-		return true
-	})
 }
 
 func (c *Checker) checkCallExpr(call *ast.CallExpr) {
@@ -693,6 +722,11 @@ func (c *Checker) checkExpr(expr ast.Expr) {
 			return false
 		}
 		switch x := n.(type) {
+		case *ast.FuncLit:
+			// A closure is a function: check it in its own context and do not
+			// let this walk descend into it with the enclosing one.
+			c.checkFuncLit(x)
+			return false
 		case *ast.CallExpr:
 			c.checkCallExpr(x)
 		case *ast.CompositeLit:
