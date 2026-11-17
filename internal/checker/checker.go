@@ -378,6 +378,57 @@ func (c *Checker) checkFuncDecl(d *ast.FuncDecl) {
 	c.currentFuncResultTypes = prevTypes
 }
 
+// checkFuncLit checks a function literal as the function it is: its parameters
+// are defined in a scope of their own (so a closure parameter shadows an outer
+// one of the same name, as in Go), its `return` statements answer to ITS result
+// contract, and its body is walked as statements. Before v1.13 the body was only
+// scanned for calls and composite literals, in the enclosing function's scope and
+// with the enclosing function's result contract, so a closure parameter could be
+// mistaken for the outer `!` parameter it shadows, and a `return nil` in a closure
+// with a `!` result was never reported.
+func (c *Checker) checkFuncLit(lit *ast.FuncLit) {
+	prev := c.currentFuncReturns
+	prevTypes := c.currentFuncResultTypes
+	c.currentFuncReturns = nonNilFlags(c, lit.Type.Results)
+	c.currentFuncResultTypes = nil
+	if c.info != nil {
+		if tv, ok := c.info.Types[lit]; ok {
+			if sig, ok := tv.Type.(*types.Signature); ok {
+				res := sig.Results()
+				c.currentFuncResultTypes = make([]types.Type, res.Len())
+				for i := 0; i < res.Len(); i++ {
+					c.currentFuncResultTypes[i] = res.At(i).Type()
+				}
+			}
+		}
+	}
+	c.pushScope()
+	if lit.Type.Params != nil {
+		for _, field := range lit.Type.Params.List {
+			nn := c.isNonNil(field.Type)
+			for _, name := range field.Names {
+				c.define(name.Name, nn)
+			}
+		}
+	}
+	// A named result is a variable of the closure too (an unnamed one has no name
+	// to define; `_` is ignored by define).
+	if lit.Type.Results != nil {
+		for _, field := range lit.Type.Results.List {
+			nn := c.isNonNil(field.Type)
+			for _, name := range field.Names {
+				c.define(name.Name, nn)
+			}
+		}
+	}
+	if lit.Body != nil {
+		c.checkBlockScope(lit.Body)
+	}
+	c.popScope()
+	c.currentFuncReturns = prev
+	c.currentFuncResultTypes = prevTypes
+}
+
 func (c *Checker) checkBlockScope(block *ast.BlockStmt) {
 	c.pushScope()
 	for _, stmt := range block.List {
@@ -671,6 +722,11 @@ func (c *Checker) checkExpr(expr ast.Expr) {
 			return false
 		}
 		switch x := n.(type) {
+		case *ast.FuncLit:
+			// A closure is a function: check it in its own context and do not
+			// let this walk descend into it with the enclosing one.
+			c.checkFuncLit(x)
+			return false
 		case *ast.CallExpr:
 			c.checkCallExpr(x)
 		case *ast.CompositeLit:

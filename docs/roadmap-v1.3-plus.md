@@ -200,8 +200,9 @@ this repository included, can be written in Gon. Ships solo.
 ### v1.13 — Return-Position Contracts — IMPLEMENTED (awaiting audit)
 **Scope:** a coverage fix, not a new feature — the operands of a `return` are
 checked like every other expression (calls, composite literals, `new(T)`,
-comparisons, type assertions, function literals). No RFC: it closes an
-undocumented gap. Found while measuring the dogfood conversion (M9).
+comparisons, type assertions) and a function literal is checked as a function
+(its own scope, parameters and result contract). No RFC: it closes undocumented
+gaps; the closure part was found in the audit. Found while measuring the dogfood conversion (M9).
 **Dependency:** none.
 **Breaking risk:** Possibly Yes (R1): code that violates a `!` contract inside a
 `return` operand is reported now. A differential over the three repositories'

@@ -41,6 +41,7 @@ Static checks only. Enforced at `gon check` / `gon vet` time.
 | `!T` result of a method declared in the checked files is a non-nil source at the immediate use site (GW001 on nil comparison) | GW001 | **v1.11** |
 | Comparison of a known non-nil name with `nil` | GW001 (warning) | v1.0 |
 | **Every check above also applies to the operands of a `return`**: a call passing `nil` to a `!` parameter (GN001), a composite literal with a nil or missing `!` field (GN001 / GN002), `new(T)` of a struct with a required field (GN002), a comparison of a non-nil name with `nil` (GW001), `x.(!T)` (GN001), and a function literal's body. Before v1.13 only the v1.7 element contracts were checked in return position; the rest was an oversight of coverage, not a design exception | GN001 / GN002 / GW001 | **v1.13** |
+| **A function literal is checked as a function:** its parameters are in a scope of their own (a parameter shadows an outer `!` one, no false GW001), its `return` statements answer to its own `!` result contract (`return nil` → GN001), its own `!` parameters are non-nil names (GW001), and its body is walked as statements. Before v1.13 the body was scanned in the enclosing function's scope and result contract | GN001 / GW001 | **v1.13** |
 | Package has `.gna` but the called symbol is not listed | GW002 (warning) | v1.0 |
 | Malformed or schema-mismatched `.gna` while resolving a package | GN003 (error) | v1.0 |
 | Annotated `!T` result position used in a short declaration / untyped `var` is a non-nil source (GW001 on nil comparison) | GW001 | **v1.1** |
