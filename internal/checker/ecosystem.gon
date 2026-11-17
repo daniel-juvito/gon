@@ -461,7 +461,7 @@ func lookupMethod(named *types.Named, name string) *types.Func {
 
 // cloneGnaFile deep-copies everything validation may clear: the per-position
 // flags of functions and methods and the per-field flags of types.
-func cloneGnaFile(f *gna.File) *gna.File {
+func cloneGnaFile(f !*gna.File) !*gna.File {
 	cp := *f
 	cp.Functions = make(map[string]*gna.Signature, len(f.Functions))
 	for k, v := range f.Functions {
