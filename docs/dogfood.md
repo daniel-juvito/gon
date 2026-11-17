@@ -56,7 +56,7 @@ Tests stay `.go` (`*_test.gon` is not part of the directory form).
 | `internal/preproc` | 1 | yes (byte-identical transpile) | `Process` → `!*Result` (#40) |
 | `internal/gna` | 2 | yes (byte-identical transpile; first multi-file package) | `NewRegistry` → `!*Registry`, `DefaultChain` → `!*Chain` (package-local before v1.14; importers also see them since M10) |
 | `cmd/gon` | 4 | yes (byte-identical transpile) | none yet |
-| `internal/checker` | 12 | yes (byte-identical transpile) | none yet |
+| `internal/checker` | 12 | yes (byte-identical transpile) | `withPath` → `!*ContractTrace`, `cloneGnaFile(!*gna.File) !*gna.File` (P1); `Checker.fset` → `!*token.FileSet` (P2); the seven declaration maps → `!map` (P3) |
 
 ## Annotations (D5) and what they reach
 
@@ -83,6 +83,26 @@ removed), and `lsp.New` → `!*Server` (no importer compares it with nil, so no
 diagnostic changed). Further annotations (invariant fields, parameters that are
 never nil) need the author's judgement rather than a syntactic proof, and are
 proposed package by package with the same measurements before any code.
+
+**Judgement-based annotations, `internal/checker` (Proposal A, owner decision
+2026-11-17: P1–P3 approved, P4 deferred).** Each group was measured before any
+code: every constructor and composite literal (production and tests), every
+assignment and nil comparison, the delta of `gon check ./...`, and a deliberate
+violation proving the contract is enforced. What a contract guarantees is
+static: Gon rejects a `nil` returned, passed or stored in its place in the
+`.gon` sources. That the values are non-nil at run time rests on the
+construction invariants, which a Go test locks for each group; the contract
+does not make a value that comes from outside those paths non-nil.
+
+| Group | Contracts | `gon check ./...` delta | Violation probe | Invariant test |
+|-------|-----------|-------------------------|-----------------|----------------|
+| P1 | `(*ContractTrace).withPath` → `!*ContractTrace`; `cloneGnaFile(f !*gna.File) !*gna.File` (its only caller skips a nil file) | none | `return nil` / `cloneGnaFile(nil)` → GN001 | `TestWithPathNeverReturnsNil` (nil and non-nil receiver), `TestCloneGnaFileNeverReturnsNil` |
+| P2 | `Checker.fset` → `!*token.FileSet` (built by `New` and `CheckPackage` with `token.NewFileSet`, replaced only by `typeCheckFallback` with another `NewFileSet`) | none | a `Checker` literal without `fset` → GN002; `c.fset = nil` → GN001 | `TestNewFillsFset` (`New`, `NewWithAnnotations`, in and outside a module), `TestTypeCheckFallbackKeepsFset`, `TestCheckPackageCheckersHaveFset` (positions of each file's diagnostic; `CheckPackage`'s checkers are not exposed) |
+| P3 | `Checker.funcParams`, `.funcReturns`, `.structFields` and `packageShared.offsets`, `.funcParams`, `.funcReturns`, `.structFields` → `!map` (built with `make` by `New` and by `CheckPackage`'s one `packageShared` literal, whose maps every file's `Checker` shares; never assigned or compared with nil; written by `collect`) | none | `&packageShared{}` → 4×GN002; a `Checker` literal without them → 3×GN002; assigning `nil` → GN001 | `TestNewFillsDeclarationMaps` (`New`, `NewWithAnnotations`), `TestCheckPackageFillsSharedDeclarationMaps` (a contract declared in one file applied in another through each map; neither `packageShared` nor the package's checkers are exposed) |
+
+P4 (`Checker.file`) is deferred: production never leaves it nil, but the
+annotation makes three `c.file == nil` guards GW001, and one of them is the
+behaviour `TestTypeCheckFallbackWithoutSourceIsNoOp` locks.
 
 Why C (as measured before M10): with the M8 model, a package that **imports** a module-local package
 reads that package's contracts from `.gna`, never from its `.gon` sources.

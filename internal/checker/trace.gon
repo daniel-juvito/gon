@@ -42,7 +42,7 @@ func (t *ContractTrace) Clone() *ContractTrace {
 }
 
 // withPath returns a clone with an additional path segment appended.
-func (t *ContractTrace) withPath(seg string) *ContractTrace {
+func (t *ContractTrace) withPath(seg string) !*ContractTrace {
 	if t == nil {
 		return &ContractTrace{Path: []string{seg}}
 	}

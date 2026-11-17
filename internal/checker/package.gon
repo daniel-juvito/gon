@@ -54,14 +54,14 @@ type packageShared struct {
 	// offsets maps a file's (cleaned) overlay path to the byte offsets of its
 	// `!` types: they are offsets into one file's clean source, so they cannot
 	// be one table for the package.
-	offsets map[string]map[int]bool
+	offsets !map[string]map[int]bool
 	// files holds every syntax tree of the package, for cross-file lookups.
 	files []*ast.File
 	// The declaration tables, filled by every file's collect() before any file
 	// is walked.
-	funcParams   map[string][]bool
-	funcReturns  map[string][]bool
-	structFields map[string]map[string]bool
+	funcParams   !map[string][]bool
+	funcReturns  !map[string][]bool
+	structFields !map[string]map[string]bool
 }
 
 // CheckPackage checks the .gon files of one directory as a package.
