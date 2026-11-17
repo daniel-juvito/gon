@@ -58,3 +58,30 @@ jobs:
         run: |
           echo "### Test coverage" >> "$GITHUB_STEP_SUMMARY"
           go tool cover -func=coverage.out | tail -1 | tee -a "$GITHUB_STEP_SUMMARY"
+
+  # Gon's own sources (dogfood, D2/D3): the committed .go next to every .gon
+  # must be exactly what a PINNED gon release transpiles it to. The checker
+  # built from this commit is not used, so a broken checker cannot pass itself.
+  gon-sources:
+    runs-on: ubuntu-latest
+    env:
+      GON_VERSION: v1.13.0
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.0'
+
+      - name: Install the pinned gon
+        run: |
+          go install "github.com/daniel-juvito/gon/cmd/gon@${GON_VERSION}"
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: gon version
+        run: gon version
+
+      - name: .go files match their .gon sources
+        run: scripts/check-gon-sources.sh
+
