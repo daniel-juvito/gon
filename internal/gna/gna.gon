@@ -1,0 +1,367 @@
+// Package gna loads and validates .gna nilability annotation files.
+//
+// A .gna file supplies nilability metadata only. go/types remains the
+// authority for Go semantics. See docs/gna-spec-v1.md.
+package gna
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"gopkg.in/yaml.v3"
+)
+
+const SupportedSchema = 1
+
+// Signature is positional non-nil flags for parameters and results.
+// true means the position carries an explicit non-nil claim ("!T").
+type Signature struct {
+	Params  []bool
+	Results []bool
+}
+
+// TypeAnnotation holds field-level nilability contracts for a named type.
+type TypeAnnotation struct {
+	Fields map[string]bool // field name -> non-nil claim
+}
+
+// File is the validated contents of one .gna file.
+type File struct {
+	Schema      int
+	Package     string
+	Description string
+	Functions   map[string]*Signature      // key: function name
+	Methods     map[string]*Signature      // key: TypeName.MethodName
+	Receivers   map[string]bool            // key: TypeName; true => non-nil receiver
+	Types       map[string]*TypeAnnotation // key: TypeName
+}
+
+// raw YAML shapes (all type strings are quoted in the file).
+type rawFile struct {
+	Schema      int                      `yaml:"schema"`
+	Package     string                   `yaml:"package"`
+	Description string                   `yaml:"description"`
+	Functions   map[string]*rawSignature `yaml:"functions"`
+	Methods     map[string]*rawSignature `yaml:"methods"`
+	Receivers   map[string]string        `yaml:"receivers"`
+	Types       map[string]*rawType      `yaml:"types"`
+}
+
+type rawType struct {
+	Fields map[string]string `yaml:"fields"`
+}
+
+type rawSignature struct {
+	Params  []string `yaml:"params"`
+	Results []string `yaml:"results"`
+}
+
+// Load reads and validates a .gna file from disk.
+func Load(path string) (*File, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	return LoadBytes(filepath.Base(path), data)
+}
+
+// LoadBytes parses and validates .gna content.
+func LoadBytes(name string, data []byte) (*File, error) {
+	var raw rawFile
+	if err := yaml.Unmarshal(data, &raw); err != nil {
+		return nil, fmt.Errorf("%s: yaml: %w", name, err)
+	}
+
+	if raw.Schema == 0 {
+		return nil, fmt.Errorf("%s: missing required field schema", name)
+	}
+	if raw.Schema != SupportedSchema {
+		return nil, fmt.Errorf("%s: unsupported schema version %d (supported: %d)", name, raw.Schema, SupportedSchema)
+	}
+	if raw.Package == "" {
+		return nil, fmt.Errorf("%s: missing required field package", name)
+	}
+
+	f := &File{
+		Schema:      raw.Schema,
+		Package:     raw.Package,
+		Description: raw.Description,
+		Functions:   make(map[string]*Signature),
+		Methods:     make(map[string]*Signature),
+		Receivers:   make(map[string]bool),
+		Types:       make(map[string]*TypeAnnotation),
+	}
+
+	for nameFn, rs := range raw.Functions {
+		if rs == nil {
+			return nil, fmt.Errorf("%s: function %q: empty signature", name, nameFn)
+		}
+		if _, dup := f.Functions[nameFn]; dup {
+			return nil, fmt.Errorf("%s: duplicate function %q", name, nameFn)
+		}
+		sig, err := convertSig(name, "function "+nameFn, rs)
+		if err != nil {
+			return nil, err
+		}
+		f.Functions[nameFn] = sig
+	}
+
+	for nameM, rs := range raw.Methods {
+		if rs == nil {
+			return nil, fmt.Errorf("%s: method %q: empty signature", name, nameM)
+		}
+		if !strings.Contains(nameM, ".") {
+			return nil, fmt.Errorf("%s: method key %q must be TypeName.MethodName", name, nameM)
+		}
+		if _, dup := f.Methods[nameM]; dup {
+			return nil, fmt.Errorf("%s: duplicate method %q", name, nameM)
+		}
+		sig, err := convertSig(name, "method "+nameM, rs)
+		if err != nil {
+			return nil, err
+		}
+		f.Methods[nameM] = sig
+	}
+
+	for typeName, ann := range raw.Receivers {
+		nn, err := parseReceiver(name, typeName, ann)
+		if err != nil {
+			return nil, err
+		}
+		f.Receivers[typeName] = nn
+	}
+
+	for typeName, rt := range raw.Types {
+		if rt == nil {
+			return nil, fmt.Errorf("%s: type %q: empty type annotation", name, typeName)
+		}
+		ta := &TypeAnnotation{Fields: make(map[string]bool)}
+		for fieldName, ann := range rt.Fields {
+			nn, err := parseTypeAnn(name, fmt.Sprintf("types.%s.fields.%s", typeName, fieldName), ann)
+			if err != nil {
+				return nil, err
+			}
+			ta.Fields[fieldName] = nn
+		}
+		f.Types[typeName] = ta
+	}
+
+	return f, nil
+}
+
+func convertSig(file, label string, rs *rawSignature) (*Signature, error) {
+	sig := &Signature{}
+	for i, p := range rs.Params {
+		nn, err := parseTypeAnn(file, fmt.Sprintf("%s params[%d]", label, i), p)
+		if err != nil {
+			return nil, err
+		}
+		sig.Params = append(sig.Params, nn)
+	}
+	for i, r := range rs.Results {
+		nn, err := parseTypeAnn(file, fmt.Sprintf("%s results[%d]", label, i), r)
+		if err != nil {
+			return nil, err
+		}
+		sig.Results = append(sig.Results, nn)
+	}
+	return sig, nil
+}
+
+// parseTypeAnn accepts "T" or "!T". Returns whether non-nil was claimed.
+//
+// A leading "!" binds only the outermost type constructor
+// (rfc-type-coverage.md C10 / §4.9). Since v1.7 (M2b,
+// rfc-element-contract-construction.md E8) an "!" in element / value position
+// ("[]!*T", "map[string]!V", "[8]!*Slot") is also legal; the returned flag
+// still reflects only the outermost "!" — element nilability is not enforced
+// across the `.gna` boundary (O5). An "!" on a channel element ("chan !*T")
+// remains a load error (E11).
+func parseTypeAnn(file, label, s string) (bool, error) {
+	if s == "" {
+		return false, fmt.Errorf("%s: %s: empty type annotation", file, label)
+	}
+	nn := false
+	rest := s
+	if strings.HasPrefix(s, "!") {
+		if len(s) == 1 {
+			return false, fmt.Errorf("%s: %s: invalid type annotation %q", file, label, s)
+		}
+		nn = true
+		rest = s[1:]
+	}
+	// inTypeArgs[k] is true when the k-th currently open '[' starts a
+	// type-argument list (`Box[`, `pkg.Box[`) rather than a slice / array
+	// bracket or a map-key bracket.
+	var inTypeArgs []bool
+	for i := 0; i < len(rest); i++ {
+		switch rest[i] {
+		case '[':
+			inTypeArgs = append(inTypeArgs, opensTypeArgs(rest, i))
+			continue
+		case ']':
+			if n := len(inTypeArgs); n > 0 {
+				inTypeArgs = inTypeArgs[:n-1]
+			}
+			continue
+		case '!':
+		default:
+			continue
+		}
+		// v1.9 (M5b / X5): a type argument carries no contract — `!` anywhere
+		// inside one is rejected, even in an otherwise legal element position
+		// (`Box[[]!*T]`). Mirrors the source-level rule (M3 G4).
+		for _, ta := range inTypeArgs {
+			if ta {
+				return false, fmt.Errorf("%s: %s: non-nil marker in %q is not valid inside a type-argument list; type arguments carry no contract", file, label, s)
+			}
+		}
+		// An element / value-position "!" follows the "]" that closes a slice,
+		// array, or map-key bracket. Anywhere else (channel element, map key)
+		// is not a construction site and is rejected.
+		j := i - 1
+		for j >= 0 && (rest[j] == ' ' || rest[j] == '\t') {
+			j--
+		}
+		if j < 0 || rest[j] != ']' {
+			return false, fmt.Errorf("%s: %s: non-nil marker %q is only valid at the outermost position or on a slice/array/map element; channel-element and map-key contracts are not supported", file, label, s)
+		}
+	}
+	return nn, nil
+}
+
+func parseReceiver(file, typeName, s string) (bool, error) {
+	switch s {
+	case "!":
+		return true, nil
+	case "":
+		return false, nil
+	default:
+		// also accept "!T" form for consistency
+		if strings.HasPrefix(s, "!") {
+			return true, nil
+		}
+		return false, fmt.Errorf("%s: receivers.%s: expected \"!\" or \"!T\", got %q", file, typeName, s)
+	}
+}
+
+// Registry holds loaded annotations keyed by package import path.
+type Registry struct {
+	byPackage map[string]*File
+}
+
+// NewRegistry returns an empty annotation registry.
+func NewRegistry() *Registry {
+	return &Registry{byPackage: make(map[string]*File)}
+}
+
+// Add registers a validated File. Duplicate package → error.
+func (r *Registry) Add(f *File) error {
+	if f == nil {
+		return fmt.Errorf("nil File")
+	}
+	if _, ok := r.byPackage[f.Package]; ok {
+		return fmt.Errorf("duplicate annotations for package %q", f.Package)
+	}
+	r.byPackage[f.Package] = f
+	return nil
+}
+
+// LoadDir loads every *.gna file under dir (non-recursive).
+// Packages already present in the registry are skipped (first load wins).
+// Missing dir is not an error.
+func (r *Registry) LoadDir(dir string) error {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".gna") {
+			continue
+		}
+		path := filepath.Join(dir, e.Name())
+		f, err := Load(path)
+		if err != nil {
+			return err
+		}
+		if r.HasPackage(f.Package) {
+			continue // first load wins
+		}
+		if err := r.Add(f); err != nil {
+			return fmt.Errorf("%s: %w", path, err)
+		}
+	}
+	return nil
+}
+
+// LookupFunc returns the signature for package-level function name, if any.
+func (r *Registry) LookupFunc(pkg, name string) (*Signature, bool) {
+	if r == nil {
+		return nil, false
+	}
+	f, ok := r.byPackage[pkg]
+	if !ok {
+		return nil, false
+	}
+	sig, ok := f.Functions[name]
+	return sig, ok
+}
+
+// LookupMethod returns the signature for TypeName.MethodName in pkg, if any.
+func (r *Registry) LookupMethod(pkg, typeName, method string) (*Signature, bool) {
+	if r == nil {
+		return nil, false
+	}
+	f, ok := r.byPackage[pkg]
+	if !ok {
+		return nil, false
+	}
+	sig, ok := f.Methods[typeName+"."+method]
+	return sig, ok
+}
+
+// HasPackage reports whether any annotations were loaded for pkg.
+func (r *Registry) HasPackage(pkg string) bool {
+	if r == nil {
+		return false
+	}
+	_, ok := r.byPackage[pkg]
+	return ok
+}
+
+// Package returns the File for pkg, if loaded.
+func (r *Registry) Package(pkg string) (*File, bool) {
+	if r == nil {
+		return nil, false
+	}
+	f, ok := r.byPackage[pkg]
+	return f, ok
+}
+
+// opensTypeArgs reports whether the '[' at rest[i] opens a type-argument list:
+// it directly follows an identifier (`Box[`, `pkg.Box[`) that is not the
+// `map` keyword. A '[' after nothing, `*`, `]`, `(` or `,` is a slice / array
+// bracket, and `map[` is a map-key bracket.
+func opensTypeArgs(rest string, i int) bool {
+	j := i - 1
+	for j >= 0 && (rest[j] == ' ' || rest[j] == '\t') {
+		j--
+	}
+	if j < 0 || !isIdentByte(rest[j]) {
+		return false
+	}
+	end := j + 1
+	for j >= 0 && isIdentByte(rest[j]) {
+		j--
+	}
+	return rest[j+1:end] != "map"
+}
+
+func isIdentByte(b byte) bool {
+	return b == '_' || (b >= '0' && b <= '9') || (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z')
+}
