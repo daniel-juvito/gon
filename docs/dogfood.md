@@ -67,7 +67,13 @@ module-local package's `.gon` sources is written and accepted. Rejected (B):
 copying the same contracts into an `annotations/…/internal/gna.gna`, because
 nothing would keep the two copies' `!` flags equal.
 
-Why C: with the M8 model, a package that **imports** a module-local package
+**C is implemented in v1.14 (M10, `docs/rfc-source-contracts.md`):** an
+importer now reads a main-module package's contracts from its `.gon` sources,
+so `gna.DefaultChain`'s `!*Chain` reaches `cmd/gon` and `internal/lsp`. The
+annotation PRs for the other exported candidates (`preproc.Process`, `lsp.New`)
+can resume once v1.14 is released and the pinned `gon` of the gate is bumped.
+
+Why C (as measured before M10): with the M8 model, a package that **imports** a module-local package
 reads that package's contracts from `.gna`, never from its `.gon` sources.
 Measured: with `!*Chain` on `DefaultChain`, `c := gna.DefaultChain(…); c == nil`
 is **not** a GW001 in `cmd/gon` (the importer), and **is** one inside package

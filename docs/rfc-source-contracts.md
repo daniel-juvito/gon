@@ -1,9 +1,9 @@
 # RFC: Cross-Package Contracts from Module-Local `.gon` Sources (Gon v1.14 / M10)
 
-**Status:** Draft — owner decisions Q1–Q6 and the amendment of I4 recorded
-2026-11-17 (§9, §10). The normative text below is under the owner's review; the
-RFC is opened as a PR only after that review. The figures in §2 were measured
-on 2026-11-17 (Gon v1.13.0 and a throwaway spike), before any decision.
+**Status:** Implemented for v1.14 (awaiting the owner's audit). Owner
+decisions Q1–Q6 and the amendment of I4 recorded 2026-11-17 (§9, §10). The
+figures in §2 were measured before any decision; §11 holds the implementation
+notes and the differential.
 **Target:** Gon v1.14
 **Related:** `docs/rfc-package-check.md` (M8: Q5 kept imported packages on
 `.gna`, and named this RFC as later work), `docs/rfc-method-contracts.md` (M7),
@@ -353,3 +353,68 @@ generic methods as part of this RFC.
   `.gon`: Q1 still limits it to the main module.
 - **I5** upheld. **I6** upheld. **I7** upheld (no syntax; `.gna` schema 1; one
   new warning code, GW005).
+
+## 11. Implementation Notes (v1.14)
+
+- **Where.** `internal/gna/source.gon` (`SourceResolver`, `SourceError`,
+  `Locator`, the derivation); `DirResolver.Has` / `ModuleResolver.Has` and the
+  chain order in `internal/gna/resolver.gon`; `File.SourceDerived` /
+  `File.ShadowedGNA` in `gna.gon`; the checker's `reportSourceContracts`,
+  the GW002 exemption and the `SourceError` handling in
+  `internal/checker/annotations.gon`. Edited as `.gon` and the `.go`
+  regenerated with the pinned `gon` v1.13.0 (dogfood D2/D3); the gate passes.
+- **Self-exclusion (C2)** compares directories: the resolver never serves the
+  directory it was started from (the package in package mode, the file's
+  directory in file mode). `DefaultChain(wd, startDir)` passes `startDir`, so
+  every existing caller gets it. Measured need beyond §2: without it, a
+  package's own derived file shadowed a hand-written `.gna` that annotates the
+  package itself (`TestSourceContractsOwnGnaStillAppliesInsideThePackage`).
+- **GW002 exemption (C4)** matters for a package that **mixes** `.gon` and
+  plain `.go` files: a symbol from the `.go` file is not derived (it can carry
+  no `!`) and calling it is ordinary, not GW002
+  (`TestSourceContractsMixedPackageNoGW002`).
+- **Correction to T3 (Gon syntax, measured on v1.13.0).** Gon has no syntax for
+  a `!` on an embedded field (`struct{ !*Inner }` does not parse) nor on a
+  variadic element (`...!*T` does not parse). The embedded case is therefore a
+  `!` field **promoted** from an embedded struct (`o.Q = nil` → GN001 in the
+  importer), and the embedded field itself is derived, ordinary, under its type
+  name. No change to the decisions.
+- **Tests.** `internal/gna/source_test.go` (7: the derived surface, the generic
+  method key, embedded and promoted fields, test files and determinism, scope
+  C1/C2, shadowing and `Has`, a malformed source) and
+  `cmd/gon/source_contracts_test.go` (11, through the CLI): T1/T3/T4 in one
+  importer with every kind (functions, a `!` result, a struct field built and
+  mutated, an interface method, an exported method and field of an unexported
+  type, an exported method of an unexported interface, generic receivers with
+  one and two type parameters, a promoted field, an embedded interface,
+  an ordinary symbol with no GW002), T10 the same in file mode, T3 a Go 1.27
+  generic method, T2 the importer follows the source, T5 no self-resolution in
+  both modes and the own-`.gna` case, T6 a `.gna` stating the **opposite**
+  contracts is ignored in both directions and a malformed one is GW005, T7 the
+  GW005 unit over 15 runs, T8 a `.go`+`.gna` main-module package keeps its
+  `.gna` and a `replace`d dependency's `.gon` is not read, T9 a malformed
+  `.gon` is one GN003 at the import, plus the mixed-package case. T11: the v1.1
+  tests pass unchanged.
+- **Mutations** (each restored afterwards): no source resolver → 11 tests fail;
+  no self-exclusion → 2; GW002 not exempted → 1; a malformed `.gon` not handled
+  once at the import → 1; no GW005 → 4; methods only on exported type names
+  (the limit found in the RFC audit) → 3.
+
+### Differential (v1.13.0 vs this branch)
+
+`check` and `check --json`, text + exit code + stderr, file mode: the 86 `.gon`
+files of the three repositories (now including Gon's 24 production sources)
+and 526 standard-library files: **611 identical, 1 differing**. The one is
+`internal/checker/annotations.gon`, whose **content** changed between the two
+runs (this change added an import, so a type error's line moved from 24 to 25);
+run on the current file, v1.13.0 and this branch give byte-identical output.
+Package mode: `gon check ./...` on this repository is `ok` with both, and
+`gon-examples/package-check ./...` is identical. With a probe
+`c := gna.DefaultChain(…); c == nil` added to `cmd/gon`, this branch reports
+exactly one diagnostic, that GW001, and v1.13.0 reports `ok`.
+
+What that shows: no existing code changes behaviour, and the intended change
+appears where it should. What it does not show: Gon's sources carry only two
+exported `!` results today, so the run exercises little of the new surface; the
+tests carry that part.
+
