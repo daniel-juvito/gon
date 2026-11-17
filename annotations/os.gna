@@ -8,6 +8,17 @@ description: "Nilability metadata for package os (conservative)"
 # (conditional), which is out of scope for v1.
 
 methods:
+  # Used by Gon's own sources (dogfood); ordinary.
+  File.Name:
+    params: []
+    results:
+      - "string"
+
+  File.Close:
+    params: []
+    results:
+      - "error"
+
   File.Write:
     params:
       - "[]byte"
@@ -44,3 +55,89 @@ methods:
     results:
       - "int"
       - "error"
+
+# Package functions used by Gon's own sources (dogfood). All ordinary: none of
+# them promises a non-nil result in every case, and none rejects nil. Listed so
+# that a call to them is a known, deliberately unannotated symbol rather than a
+# GW002 "no .gna annotation".
+functions:
+  ReadFile:
+    params:
+      - "string"
+    results:
+      - "[]byte"
+      - "error"
+
+  WriteFile:
+    params:
+      - "string"
+      - "[]byte"
+      - "FileMode"
+    results:
+      - "error"
+
+  ReadDir:
+    params:
+      - "string"
+    results:
+      - "[]DirEntry"
+      - "error"
+
+  Stat:
+    params:
+      - "string"
+    results:
+      - "FileInfo"
+      - "error"
+
+  Getwd:
+    params: []
+    results:
+      - "string"
+      - "error"
+
+  Getenv:
+    params:
+      - "string"
+    results:
+      - "string"
+
+  IsNotExist:
+    params:
+      - "error"
+    results:
+      - "bool"
+
+  Exit:
+    params:
+      - "int"
+    results: []
+
+  OpenFile:
+    params:
+      - "string"
+      - "int"
+      - "FileMode"
+    results:
+      - "*File"
+      - "error"
+
+  IsExist:
+    params:
+      - "error"
+    results:
+      - "bool"
+
+  Remove:
+    params:
+      - "string"
+    results:
+      - "error"
+
+  Rename:
+    params:
+      - "string"
+      - "string"
+    results:
+      - "error"
+

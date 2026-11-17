@@ -26,3 +26,15 @@ methods:
     results:
       - "int"
       - "error"
+
+# Package functions used by Gon's own sources (dogfood). Ordinary: a nil buffer
+# is a valid argument (ReadFull reads nothing), and the Reader is not claimed.
+functions:
+  ReadFull:
+    params:
+      - "Reader"
+      - "[]byte"
+    results:
+      - "int"
+      - "error"
+
