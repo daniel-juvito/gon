@@ -52,9 +52,9 @@ Tests stay `.go` (`*_test.gon` is not part of the directory form).
 | `transpiler` | 1 | yes (byte-identical transpile) | none yet |
 | `internal/goenv` | 1 | yes (byte-identical transpile) | none yet |
 | `internal/fmt` | 1 | yes (byte-identical transpile) | none yet |
-| `internal/lsp` | 1 | yes (byte-identical transpile) | none yet |
-| `internal/preproc` | 1 | yes (byte-identical transpile) | none yet |
-| `internal/gna` | 2 | yes (byte-identical transpile; first multi-file package) | `NewRegistry` → `!*Registry`, `DefaultChain` → `!*Chain` (local only, see below) |
+| `internal/lsp` | 1 | yes (byte-identical transpile) | `New` → `!*Server` |
+| `internal/preproc` | 1 | yes (byte-identical transpile) | `Process` → `!*Result` (#40) |
+| `internal/gna` | 2 | yes (byte-identical transpile; first multi-file package) | `NewRegistry` → `!*Registry`, `DefaultChain` → `!*Chain` (package-local before v1.14; importers also see them since M10) |
 | `cmd/gon` | 4 | yes (byte-identical transpile) | none yet |
 | `internal/checker` | 12 | yes (byte-identical transpile) | none yet |
 
@@ -71,9 +71,17 @@ nothing would keep the two copies' `!` flags equal.
 importer now reads a main-module package's contracts from its `.gon` sources,
 so `gna.DefaultChain`'s `!*Chain` reaches `cmd/gon` and `internal/lsp`. The
 gate's pinned `gon` is **v1.14.0** (bumped 2026-11-17; with it, `gon check
-./...` on this repository is `ok` and every `.go` still matches its `.gon`), so
-the annotation PRs for the other exported candidates (`preproc.Process`,
-`lsp.New`) can resume.
+./...` on this repository is `ok` and every `.go` still matches its `.gon`).
+That bump is what let the annotations of the two remaining exported
+candidates go ahead; both are done (below).
+
+**All four syntactic candidates are now annotated:** `gna.NewRegistry` →
+`!*Registry` and `gna.DefaultChain` → `!*Chain` (#36), `preproc.Process` →
+`!*Result` (#40; its importer `internal/fmt` had an unreachable nil check,
+removed), and `lsp.New` → `!*Server` (no importer compares it with nil, so no
+diagnostic changed). Further annotations (invariant fields, parameters that are
+never nil) need the author's judgement rather than a syntactic proof, and are
+proposed package by package with the same measurements before any code.
 
 Why C (as measured before M10): with the M8 model, a package that **imports** a module-local package
 reads that package's contracts from `.gna`, never from its `.gon` sources.
