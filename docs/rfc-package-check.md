@@ -405,6 +405,10 @@ measures user projects.
   file's clean source overlaid at `<dir>/<base>.go`; a `.gon` therefore replaces
   the same-named `.go` and is added when there is none. A file that a build
   constraint excludes is an error naming it (`… is not part of the package`).
+  *(v1.15: the message is `excluded by build constraints: <files>` whatever the
+  file order, and the exit code is 2, a package that cannot be loaded; a file
+  the loader cannot parse is a Go error of the package instead. See
+  `docs/diagnostic-protocol-v1.md` §7.)*
 - **P4 — the refactor was smaller than the sketch.** `Check()` is now
   `collect()` then `walk()`; in package mode every file's checker shares the
   three declaration tables (maps passed by reference), so after every file has

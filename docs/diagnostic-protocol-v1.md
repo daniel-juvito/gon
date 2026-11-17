@@ -189,16 +189,16 @@ config.gna   (relatedInformation pointing at the contract declaration)
 | Exit | Meaning                                      | JSON envelope |
 |------|----------------------------------------------|---------------|
 | 0    | Check completed; no contract error and no Go type-checking error | Produced; `diagnostics` may contain only warnings or be empty |
-| 1    | Check completed; at least one contract error diagnostic **or** a Go type-checking error | Produced when emission is reached; `diagnostics` contains the contract diagnostics Gon produced, which may be empty (see below) |
-| 2    | Invocation / configuration / input error     | May be absent (checker never entered protocol production) |
+| 1    | Check completed; at least one contract error diagnostic **or** a Go type-checking error | Produced when emission is reached; `diagnostics` contains the contract diagnostics Gon produced, which may be empty (see below). The one exit 1 with no envelope is the file-mode pre-check parse failure |
+| 2    | Invocation / configuration / input error, including a package that cannot be loaded | May be absent (checker never entered protocol production) |
 | 3    | Internal / compiler failure                  | Not required; consumers must not rely on diagnostics when exit = 3 |
 
 #### Exit status and `diagnostics` are related, not equivalent
 
 The `diagnostics` array holds the **contract diagnostics Gon produced**
-(GN001, GN002, GN003 and the GW warnings). A **Go type-checking error** (a type
-or package-load error reported by the Go toolchain **after** the pre-check parse
-succeeded; see "Exit 1 before an envelope exists" below) is **not** an entry of
+(GN001, GN002, GN003 and the GW warnings). A **Go type-checking error** (a Go
+parse, type or package error reported by the Go toolchain for source that was
+checked; see "Failures, envelope and exit code" below) is **not** an entry of
 that array: it has no Diagnostic representation in v1 and is reported on
 stderr. Consequently:
 
@@ -209,30 +209,61 @@ stderr. Consequently:
   that `diagnostics` holds an error.
 - Exit 0 means neither a contract error nor a Go type-checking error was found.
 
-#### Exit 1 before an envelope exists
+#### Failures, envelope and exit code
 
-Two different failures can both be called "a parse error"; they behave differently:
+Three kinds of failure that can all look like "it did not parse" or "it did not
+load" behave differently:
 
-- **Pre-check parse failure.** The checker parses the preprocessed (clean Go)
-  source with the Go parser before any contract check runs. If that fails, the
-  run stops with `gon: parse error: …` on stderr and exit 1, **before** Protocol
-  JSON emission, so stdout contains **no envelope**. (The parser reporting it is
-  Go's, applied to Gon's preprocessed output; it is reported by Gon's own checker
-  step, not by the type-check step below.)
-- **Go toolchain error.** The preprocessed source parsed and the checker ran;
-  the Go type check (or package load) then reported an error. The envelope is
-  written, and the error is on stderr, as described above.
+| Situation | Envelope | Exit |
+|-----------|----------|------|
+| File-mode pre-check parse failure | No | 1 |
+| Package-mode Go parse / type / package error reported by the loader for a package it loaded | Yes | 1 |
+| Package-loading, environment or configuration failure (no package was loaded) | No | 2 |
 
-For the documented pre-check parse failure, stdout contains no Protocol JSON
-envelope. Consumers must not assume that every exit 1 produces parseable JSON;
-when no envelope is present, stderr explains the failure. Which other conditions,
-if any, can exit 1 without an envelope has not been audited; this section
-documents only what is known. Whether the pre-check parse failure should instead
-be an exit 2 or a Diagnostic is a separate decision and is not made here.
+- **File-mode pre-check parse failure.** For a **file** operand, the checker
+  parses the preprocessed (clean Go) source with the Go parser before any
+  contract check runs. If that fails, the run stops with `gon: parse error: …`
+  on stderr and exit 1, **before** Protocol JSON emission, so stdout contains
+  **no envelope**. (The parser is Go's, applied to Gon's preprocessed output; it
+  is Gon's own checker step, not the type-check step.) Whether this should
+  instead be an exit 2 or a Diagnostic is a separate decision and is not made
+  here.
+- **Package-mode loader errors.** For a **directory** or `...` operand there is
+  no per-file pre-check: the Go package loader parses and type-checks the
+  package. A parse error it reports (a syntax error, or an invalid `package`
+  clause), a type error, or a package error (for example two package names in
+  one directory) is a Go type-checking error of a checked package: the
+  envelope is written with the contract diagnostics of the files that could be
+  checked, the exit code is 1, and stderr carries the loader's message. That
+  stderr line is labelled `gon: Go type error:` for parse errors too, and its
+  position names the overlaid `<base>.go` path, not the `.gon` file.
+- **Package-loading failures.** When no package could be loaded at all, the run
+  is exit 2 with **no envelope** and the reason on stderr: the `go` command is
+  missing or fails, the module configuration is invalid (for example an
+  unparsable `go.mod`), a `.gon` file in the directory is excluded by build
+  constraints (`excluded by build constraints: <files>`, whatever the file
+  order), or the loader returned no type information. These are not Go
+  type-checking errors. The same applies to the directory form of
+  `gon transpile` and `gon build`.
+
+Consumers must not assume that every exit 1 produces parseable JSON: the
+file-mode pre-check parse failure is the exception, and stderr explains it. It
+is the only exit 1 without an envelope (audited for v1.15: every exit-1 path of
+`gon check` / `gon vet`).
 
 A consumer that needs the reason for an exit 1 with no error diagnostic reads
 stderr; it must not treat that combination as malformed output or as an exit
 code 3. This rule applies to every way of invoking the checker, not to one mode.
+
+#### All or nothing
+
+One invocation writes **one** envelope holding the diagnostics of **every**
+operand, or none. When an operand fails before emission (a file-mode pre-check
+parse failure, exit 1, or a package that cannot be loaded, exit 2), no envelope
+is written and the diagnostics already collected from earlier operands are
+**not** sent, in `--json` mode or anywhere else. A consumer that receives an
+envelope therefore has the complete result of the invocation; Protocol v1 has
+no partial result.
 
 Examples:
 
@@ -242,8 +273,11 @@ Examples:
 | Warning only (e.g. GW001)     | 0    |
 | Go type-checking error only (`diagnostics` empty) | 1 |
 | GN001 / GN002 / GN003         | 1    |
+| File-mode pre-check parse failure (no envelope) | 1 |
+| Package-mode syntax error or invalid `package` clause (envelope) | 1 |
 | Non-existent input file       | 2    |
 | Malformed CLI invocation      | 2    |
+| Package cannot be loaded (`go` missing, invalid `go.mod`, file excluded by build constraints) | 2 |
 | Controlled internal failure   | 3    |
 
 Warnings alone never produce exit 1.

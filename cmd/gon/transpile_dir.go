@@ -91,7 +91,8 @@ func goPackageArg(op string) string {
 }
 
 // emitPackage checks one package and, only if it passes, writes its .go files.
-// The return value is an exit code: 0 written, 1 did not pass, 2 unreadable.
+// The return value is an exit code: 0 written, 1 did not pass, 2 unreadable or
+// not loadable (see loadPackage).
 func emitPackage(dir string) int {
 	lp, code := loadPackage(dir)
 	if lp == nil {

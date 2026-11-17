@@ -61,6 +61,13 @@ methods:
 # that a call to them is a known, deliberately unannotated symbol rather than a
 # GW002 "no .gna annotation".
 functions:
+  Open:
+    params:
+      - "string"
+    results:
+      - "*File"
+      - "error"
+
   ReadFile:
     params:
       - "string"

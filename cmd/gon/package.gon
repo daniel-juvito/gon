@@ -162,8 +162,11 @@ type loadedPackage struct {
 }
 
 // loadPackage reads and checks the .gon files of dir as one package. A non-zero
-// exit code means the package could not be checked at all (2: nothing readable,
-// 1: the load itself failed); the message is already printed.
+// exit code means the package could not be checked at all and is always 2
+// (Protocol v1 §7): a .gon file is unreadable, or the package could not be
+// loaded (the go command or the module is broken, a file is excluded by build
+// constraints). checker.CheckPackage reports parse, type and contract errors
+// in its result, never as an error. The message is already printed.
 func loadPackage(dir string) (*loadedPackage, int) {
 	names, err := gonFilesIn(dir)
 	if err != nil {
@@ -196,7 +199,7 @@ func loadPackage(dir string) (*loadedPackage, int) {
 	res, err := checker.CheckPackage(dir, lp.files, resolver)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "gon: %v\n", err)
-		return nil, 1
+		return nil, 2
 	}
 	lp.res = res
 	return lp, 0

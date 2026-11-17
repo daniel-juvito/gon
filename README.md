@@ -40,7 +40,7 @@ Full scope contract: [docs/v1-scope.md](docs/v1-scope.md)
 ## Install
 
 ```bash
-go install github.com/daniel-juvito/gon/cmd/gon@v1.14.0
+go install github.com/daniel-juvito/gon/cmd/gon@v1.15.0
 ```
 
 Or from source:
