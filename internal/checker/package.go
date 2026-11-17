@@ -1,10 +1,14 @@
 package checker
 
 import (
+	"bytes"
 	"fmt"
 	"go/ast"
+	"go/build"
 	"go/token"
 	"go/types"
+	"io"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -66,6 +70,13 @@ type packageShared struct {
 // same-named .go file (a `.gon` shadows the `.go` that `gon transpile` emitted
 // next to it) or is added to the package when there is none. The package's other
 // .go files are loaded as they are. Test files are not part of the check.
+//
+// A non-nil error means the package could not be loaded or set up at all (the
+// go command failed, the module is misconfigured, a .gon file is excluded by
+// build constraints, the loader returned no type information): no
+// PackageResult exists, and `gon` exits 2 for it. Go parse, type and package
+// errors that the loader reports are NOT errors here: they are in
+// PackageResult.TypeErrors, next to the contract diagnostics.
 func CheckPackage(dir string, files []PackageFile, resolver gna.Resolver) (*PackageResult, error) {
 	if len(files) == 0 {
 		return nil, fmt.Errorf("no .gon files to check")
@@ -105,6 +116,11 @@ func CheckPackage(dir string, files []PackageFile, resolver gna.Resolver) (*Pack
 		return nil, fmt.Errorf("loading package %s: %w", dir, err)
 	}
 	if len(pkgs) == 0 || pkgs[0].TypesInfo == nil || pkgs[0].Types == nil {
+		// The loader left every file out (the query names the first file; when
+		// that one is excluded by build constraints the answer is empty).
+		if err := excludedError(dirAbs, overlay, overlayPath, sorted); err != nil {
+			return nil, fmt.Errorf("loading package %s: %w", dir, err)
+		}
 		return nil, fmt.Errorf("loading package %s: no type information", dir)
 	}
 	pkg := pkgs[0]
@@ -117,17 +133,48 @@ func CheckPackage(dir string, files []PackageFile, resolver gna.Resolver) (*Pack
 		structFields: make(map[string]map[string]bool),
 	}
 	for _, syn := range pkg.Syntax {
-		byPath[filepath.Clean(fset.Position(syn.Pos()).Filename)] = syn
+		name := fset.Position(syn.Pos()).Filename
+		if name == "" {
+			// The loader's placeholder for a file it could not parse at all
+			// (e.g. an invalid package clause); that file's parse error is in
+			// pkg.Errors.
+			continue
+		}
+		byPath[filepath.Clean(name)] = syn
 		shared.files = append(shared.files, syn)
 	}
 
-	checkers := make([]*Checker, 0, len(sorted))
+	// A file the loader did not return a syntax tree for is either unparsable
+	// (its own parse error is in pkg.Errors and reaches TypeErrors below; the
+	// other files are still checked) or was not loaded at all, which is a load
+	// failure.
+	var missing []PackageFile
+	checked := make([]PackageFile, 0, len(sorted))
 	for _, f := range sorted {
 		op := overlayPath(f)
-		syn := byPath[op]
-		if syn == nil {
-			return nil, fmt.Errorf("%s is not part of the package (excluded by a build constraint?)", f.Path)
+		if byPath[op] != nil {
+			checked = append(checked, f)
+			continue
 		}
+		if !hasOwnParseError(pkg.Errors, op) {
+			missing = append(missing, f)
+		}
+	}
+	if len(missing) > 0 {
+		if err := excludedError(dirAbs, overlay, overlayPath, missing); err != nil {
+			return nil, fmt.Errorf("loading package %s: %w", dir, err)
+		}
+		paths := make([]string, len(missing))
+		for i, f := range missing {
+			paths[i] = f.Path
+		}
+		return nil, fmt.Errorf("loading package %s: not part of the loaded package: %s", dir, strings.Join(paths, ", "))
+	}
+
+	checkers := make([]*Checker, 0, len(checked))
+	for _, f := range checked {
+		op := overlayPath(f)
+		syn := byPath[op]
 		shared.offsets[op] = f.NonNilOffsets
 
 		c := &Checker{
@@ -165,7 +212,7 @@ func CheckPackage(dir string, files []PackageFile, resolver gna.Resolver) (*Pack
 	}
 	res := &PackageResult{}
 	for i, c := range checkers {
-		res.Files = append(res.Files, FileDiagnostics{Path: sorted[i].Path, Diagnostics: c.walk()})
+		res.Files = append(res.Files, FileDiagnostics{Path: checked[i].Path, Diagnostics: c.walk()})
 	}
 
 	for _, e := range pkg.Errors {
@@ -175,4 +222,85 @@ func CheckPackage(dir string, files []PackageFile, resolver gna.Resolver) (*Pack
 		}
 	}
 	return res, nil
+}
+
+// excludedError explains why the loader left files out, when that can be shown:
+// the candidates that the build context rejects (file name suffix or
+// `//go:build` line, read from the overlaid clean source) are reported as
+// excluded by build constraints, sorted, in one message whatever their names.
+// It is only a diagnosis of a load that already failed; the loader decides what
+// the package is. go/build's context can differ from the go command's (GOFLAGS
+// tags, toolchain version), so a candidate it accepts is never called excluded,
+// and nil is returned when no candidate is rejected: the caller then reports a
+// generic load failure.
+func excludedError(dirAbs string, overlay map[string][]byte, overlayPath func(PackageFile) string, candidates []PackageFile) error {
+	ctx := build.Default
+	ctx.OpenFile = func(path string) (io.ReadCloser, error) {
+		if src, ok := overlay[filepath.Clean(path)]; ok {
+			return io.NopCloser(bytes.NewReader(src)), nil
+		}
+		return os.Open(path)
+	}
+	var excluded []string
+	for _, f := range candidates {
+		match, err := ctx.MatchFile(dirAbs, filepath.Base(overlayPath(f)))
+		if err == nil && !match {
+			excluded = append(excluded, f.Path)
+		}
+	}
+	if len(excluded) == 0 {
+		return nil
+	}
+	sort.Strings(excluded)
+	return fmt.Errorf("excluded by build constraints: %s (package mode checks every .gon file in the directory)", strings.Join(excluded, ", "))
+}
+
+// hasOwnParseError reports whether errs holds a parse error positioned in the
+// file at overlay path op. Only such an error makes a missing syntax tree a
+// reportable source error; a parse error of another file does not.
+func hasOwnParseError(errs []packages.Error, op string) bool {
+	for _, e := range errs {
+		if e.Kind != packages.ParseError {
+			continue
+		}
+		if samePath(errorFile(e.Pos), op) {
+			return true
+		}
+	}
+	return false
+}
+
+// errorFile is the file part of a packages.Error position ("file:line:col",
+// "file:line", "file" or "-").
+func errorFile(pos string) string {
+	for i := 0; i < 2; i++ {
+		j := strings.LastIndex(pos, ":")
+		if j < 0 {
+			break
+		}
+		if _, err := fmt.Sscanf(pos[j+1:], "%d", new(int)); err != nil {
+			break
+		}
+		pos = pos[:j]
+	}
+	return pos
+}
+
+// samePath compares two file paths after cleaning them and, when they still
+// differ, after resolving symbolic links in their directories (the file itself
+// may exist only in the overlay).
+func samePath(a, b string) bool {
+	if a == "" || a == "-" || b == "" {
+		return false
+	}
+	a, b = filepath.Clean(a), filepath.Clean(b)
+	if a == b {
+		return true
+	}
+	if !filepath.IsAbs(a) || !filepath.IsAbs(b) || filepath.Base(a) != filepath.Base(b) {
+		return false
+	}
+	da, errA := filepath.EvalSymlinks(filepath.Dir(a))
+	db, errB := filepath.EvalSymlinks(filepath.Dir(b))
+	return errA == nil && errB == nil && da == db
 }

@@ -38,3 +38,8 @@ functions:
       - "int"
       - "error"
 
+  NopCloser:
+    params:
+      - "Reader"
+    results:
+      - "ReadCloser"
