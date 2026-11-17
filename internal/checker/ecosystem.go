@@ -44,6 +44,11 @@ func namedOf(t types.Type) *types.Named {
 		return namedOf(u.Elem())
 	case *types.Named:
 		return u
+	case *types.Alias:
+		// `type A = B` denotes B itself: look its contracts up under B. Gon is
+		// built with Go 1.27, where go/types materializes aliases, so before
+		// v1.14 an alias silently had no external field contract.
+		return namedOf(types.Unalias(u))
 	default:
 		return nil
 	}
@@ -142,6 +147,13 @@ func (c *Checker) namedFromTypeExpr(expr ast.Expr) *types.Named {
 func (c *Checker) selectorTypeAnnotation(sel *ast.SelectorExpr) *gna.TypeAnnotation {
 	if c.resolver == nil || sel == nil || sel.Sel == nil {
 		return nil
+	}
+	// Through go/types first, so `pkg.Alias` finds the contracts of the type
+	// the alias denotes (v1.14); by the written name otherwise.
+	if named := c.namedFromTypeExpr(sel); named != nil {
+		if ann := c.externalTypeAnn(named); ann != nil {
+			return ann
+		}
 	}
 	x, ok := sel.X.(*ast.Ident)
 	if !ok {

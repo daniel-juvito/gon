@@ -349,3 +349,42 @@ func TestSourceContractsMixedPackageNoGW002(t *testing.T) {
 	_, _, errOut := captureRun([]string{"check", "./app"})
 	wantDiags(t, errOut, "app/main.gon:6 GN001")
 }
+
+// A defined type over a struct (one and two hops) and an alias reach the
+// importer with the base's field contracts (audit of #38).
+func TestSourceContractsDefinedTypesAndAliases(t *testing.T) {
+	root := scModule(t, "1.21", map[string]string{
+		"lib/lib.gon": "package lib\n\ntype T struct{}\n\ntype Base struct {\n\tField !*T\n\tPlain *T\n}\n\n" +
+			"type Derived Base\ntype Twice Derived\ntype Alias = Base\n\n" +
+			"func NewDerived() Derived { return Derived{Field: &T{}} }\nfunc NewTwice() Twice     { return Twice{Field: &T{}} }\n",
+		"app/main.gon": "package main\n\nimport \"ex/lib\"\n\nfunc main() {\n" +
+			"\tx := lib.NewDerived()\n" + //  6
+			"\tx.Field = nil\n" + //           7 GN001
+			"\tx.Plain = nil\n" + //           8 ok
+			"\t_ = lib.Derived{}\n" + //       9 GN002
+			"\ty := lib.NewTwice()\n" + //    10
+			"\ty.Field = nil\n" + //          11 GN001
+			"\tvar a lib.Alias\n" + //        12 GN002 (bare var, as for lib.Base)
+			"\ta.Field = nil\n" + //          13 GN001
+			"\t_ = lib.Alias{}\n" + //        14 GN002
+			"}\n",
+	})
+	chdir(t, root)
+	_, _, errOut := captureRun([]string{"check", "./app"})
+	wantDiags(t, errOut, "app/main.gon:7 GN001", "app/main.gon:9 GN002", "app/main.gon:11 GN001",
+		"app/main.gon:12 GN002", "app/main.gon:13 GN001", "app/main.gon:14 GN002")
+}
+
+// The alias part was a pre-existing bug of the .gna path too (v1.13.0 reported
+// none of these): an alias of an annotated external type now finds the type it
+// denotes.
+func TestGnaContractsReachAnAlias(t *testing.T) {
+	root := scModule(t, "1.21", map[string]string{
+		"lib/lib.go":             "package lib\n\ntype T struct{}\n\ntype Base struct{ Field *T }\n\ntype Alias = Base\n",
+		"annotations/ex/lib.gna": "schema: 1\npackage: ex/lib\ntypes:\n  Base:\n    fields:\n      Field: \"!*T\"\n",
+		"app/main.gon":           "package main\n\nimport \"ex/lib\"\n\nfunc main() {\n\tvar a lib.Alias\n\ta.Field = nil\n\t_ = lib.Alias{}\n}\n",
+	})
+	chdir(t, root)
+	_, _, errOut := captureRun([]string{"check", "./app"})
+	wantDiags(t, errOut, "app/main.gon:6 GN002", "app/main.gon:7 GN001", "app/main.gon:8 GN002")
+}

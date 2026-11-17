@@ -29,17 +29,32 @@
   - GW002 never applies to a package whose contracts come from its `.gon`
     sources (a symbol declared in a plain `.go` file of such a package is
     ordinary, not "unannotated").
+  - A **defined type** whose underlying type is a struct of the same package
+    (`type Derived Base`, two hops, `type GI G[int]`) carries that struct's
+    field contracts under its own name (no methods: Go gives it none of the
+    base's). A base declared in another package is not followed.
   - Unchanged: the standard library, dependencies in the module cache (even if
     they ship `.gon`) and main-module packages without `.gon` keep using
     `.gna`.
 - File mode and package mode alike. `gon version` reports `1.14.0`.
+
+### Fixed
+
+- **An alias of an annotated external type had no field contract.** With a
+  `.gna` stating `Base.Field` is `!*T`, `type Alias = Base` let `var a
+  lib.Alias`, `a.Field = nil` and `lib.Alias{}` through (v1.13.0 reported
+  none). Gon is built with Go 1.27, where `go/types` gives an alias its own
+  type, and the external field lookup did not see through it. Now an alias
+  finds the contracts of the type it denotes, on both the `.gna` and the `.gon`
+  path. Found in the audit of the v1.14 work.
 
 ### Compatibility
 
 - **Possibly breaking (R1).** An importer that contradicts an exported `!`
   contract of a main-module `.gon` package is reported now; a `.gna` you kept
   for such a package is ignored (GW005) and, if it stated other contracts, they
-  no longer apply. Invariant I4 is amended accordingly (RFC §10).
+  no longer apply. Invariant I4 is amended accordingly (RFC §10). Code that
+  uses an alias of a type with `!` fields is now checked like the type itself.
 - A differential of v1.13.0 against this release over the three repositories'
   86 `.gon` files and the 526-file standard-library corpus, and `gon check
   ./...` on this repository, is reported in the RFC's §11.

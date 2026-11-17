@@ -379,10 +379,28 @@ generic methods as part of this RFC.
   `!` field **promoted** from an embedded struct (`o.Q = nil` → GN001 in the
   importer), and the embedded field itself is derived, ordinary, under its type
   name. No change to the decisions.
-- **Tests.** `internal/gna/source_test.go` (7: the derived surface, the generic
+- **Defined types over a struct (audit of #38).** `type Derived Base` is a
+  different named type from `Base`, and the external field lookup keys by the
+  selector's named type, so the derivation now gives a defined type whose
+  underlying type is a struct **of the same package** that struct's exported
+  fields under its own name: one hop, several hops (also across files of the
+  package), and a generic base (`type GI G[int]`). No method is copied: Go gives
+  a defined type none of its base's methods. **Limit:** a base declared in
+  another package (`type D other.S`) is not followed; `other.S`'s contracts still
+  apply under `S` wherever `other.S` itself is used.
+- **Aliases (audit of #38; a pre-existing bug of the `.gna` path too).** Gon is
+  built with Go 1.27, where `go/types` materializes `type A = B` as its own
+  `*types.Alias`; the external field lookup (`namedOf`, and the composite-
+  literal lookup by written name) did not see through it, so an alias of an
+  annotated type had **no** field contract on v1.13.0 even with a hand-written
+  `.gna`. `namedOf` now unaliases, and the composite-literal lookup resolves the
+  type through `go/types` first (by written name as a fallback).
+- **Tests.** `internal/gna/source_test.go` (8, including defined types: the derived surface, the generic
   method key, embedded and promoted fields, test files and determinism, scope
   C1/C2, shadowing and `Has`, a malformed source) and
-  `cmd/gon/source_contracts_test.go` (12, through the CLI): T1/T3/T4 in one
+  `cmd/gon/source_contracts_test.go` (14, through the CLI; including defined
+  types over a struct and an alias on the `.gon` path, and an alias on the
+  `.gna` path): T1/T3/T4 in one
   importer with every kind (functions, a `!` result, a struct field built and
   mutated, an interface method, an exported method and field of an unexported
   type, an exported method of an unexported interface, generic receivers with
@@ -398,7 +416,9 @@ generic methods as part of this RFC.
 - **Mutations** (each restored afterwards): no source resolver → 11 tests fail;
   no self-exclusion → 2; GW002 not exempted → 1; a malformed `.gon` not handled
   once at the import → 1; no GW005 → 4; methods only on exported type names
-  (the limit found in the RFC audit) → 3.
+  (the limit found in the RFC audit) → 3; no derivation for defined struct
+  types → 2; `namedOf` not seeing through an alias → 2; composite literals
+  looked up by written name only → 2.
 
 ### Differential (v1.13.0 vs this branch)
 

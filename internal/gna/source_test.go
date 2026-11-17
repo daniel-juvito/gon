@@ -280,3 +280,41 @@ func dumpT(m map[string]*TypeAnnotation) map[string]map[string]bool {
 	}
 	return out
 }
+
+// A defined type whose underlying type is a struct of the same package has that
+// struct's fields (audit of #38): one hop, two hops, and a generic base. Go gives
+// a defined type none of its base's methods, so no method is copied. An alias
+// declares nothing of its own (it IS the base), and a base from another package
+// is not followed.
+func TestSourceDefinedStructTypes(t *testing.T) {
+	f := deriveOne(t, map[string]string{
+		"go.mod": "module ex\n\ngo 1.21\n",
+		"lib/a.gon": "package lib\n\nimport \"strings\"\n\ntype T struct{}\n\n" +
+			"type Base struct {\n\tField !*T\n\tPlain *T\n\tlow   !*T\n}\n\n" +
+			"func (b Base) M(p !*T) {}\n\n" +
+			"type Derived Base\n" +
+			"type Alias = Base\n" +
+			"type G[X any] struct{ V !*X }\n" +
+			"type GI G[int]\n" +
+			"type Foreign strings.Builder\n",
+		// the second hop is declared in another file of the package
+		"lib/b.gon":    "package lib\n\ntype Twice Derived\n",
+		"app/main.gon": "package main\n",
+	}, "ex/lib")
+	want := map[string]*TypeAnnotation{
+		"Base":    {Fields: map[string]bool{"Field": true, "Plain": false}},
+		"Derived": {Fields: map[string]bool{"Field": true, "Plain": false}},
+		"Twice":   {Fields: map[string]bool{"Field": true, "Plain": false}},
+		"G":       {Fields: map[string]bool{"V": true}},
+		"GI":      {Fields: map[string]bool{"V": true}},
+	}
+	if !reflect.DeepEqual(f.Types, want) {
+		t.Fatalf("types:\n got %v\nwant %v", dumpT(f.Types), dumpT(want))
+	}
+	if _, ok := f.Methods["Derived.M"]; ok {
+		t.Fatal("a defined type does not inherit its base's methods")
+	}
+	if _, ok := f.Methods["Base.M"]; !ok {
+		t.Fatal("Base.M must be derived")
+	}
+}

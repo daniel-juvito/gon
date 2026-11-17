@@ -182,6 +182,12 @@ func deriveFile(importPath string, names []string) (*File, error) {
 		Types:         make(map[string]*TypeAnnotation),
 		SourceDerived: true,
 	}
+	// The exported fields of every struct type of the package, and the type
+	// expression of every defined type that is not itself a struct or an
+	// interface (`type Derived Base`): resolved after all files are read, since
+	// the base may be declared in another file.
+	structs := make(map[string]map[string]bool)
+	defined := make(map[string]ast.Expr)
 	for _, name := range names {
 		src, err := os.ReadFile(name)
 		if err != nil {
@@ -249,9 +255,12 @@ func deriveFile(importPath string, names []string) (*File, error) {
 								}
 							}
 						}
+						structs[ts.Name.Name] = fields
 						if len(fields) > 0 {
 							f.Types[ts.Name.Name] = &TypeAnnotation{Fields: fields}
 						}
+					case *ast.Ident, *ast.ParenExpr, *ast.IndexExpr, *ast.IndexListExpr:
+						defined[ts.Name.Name] = t
 					case *ast.InterfaceType:
 						for _, fd := range t.Methods.List {
 							ft, ok := fd.Type.(*ast.FuncType)
@@ -269,7 +278,61 @@ func deriveFile(importPath string, names []string) (*File, error) {
 			}
 		}
 	}
+	// A defined type whose underlying type is a struct of this package has that
+	// struct's fields (Go gives it no methods of the base, so only fields are
+	// copied): `type Derived Base`, `type Twice Derived`, `type D Base[int]`.
+	// A base declared in another package is not followed (it has its own
+	// contracts under its own name; see the RFC's implementation notes).
+	for dname := range defined {
+		if fields := definedStructFields(dname, defined, structs); len(fields) > 0 {
+			cp := make(map[string]bool, len(fields))
+			for k, v := range fields {
+				cp[k] = v
+			}
+			f.Types[dname] = &TypeAnnotation{Fields: cp}
+		}
+	}
 	return f, nil
+}
+
+// definedStructFields follows a chain of same-package defined types to the
+// struct it ends in and returns that struct's exported field flags, or nil.
+func definedStructFields(name string, defined map[string]ast.Expr, structs map[string]map[string]bool) map[string]bool {
+	seen := make(map[string]bool)
+	for !seen[name] {
+		seen[name] = true
+		if fields, ok := structs[name]; ok {
+			return fields
+		}
+		e, ok := defined[name]
+		if !ok {
+			return nil
+		}
+		if _, isSel := e.(*ast.SelectorExpr); isSel {
+			return nil
+		}
+		next := typeNameOf(e)
+		if next == "" {
+			return nil
+		}
+		if sel, ok := unparen(e).(*ast.IndexExpr); ok {
+			if _, isSel := sel.X.(*ast.SelectorExpr); isSel {
+				return nil
+			}
+		}
+		name = next
+	}
+	return nil // a cycle cannot compile; nothing to derive
+}
+
+func unparen(e ast.Expr) ast.Expr {
+	for {
+		p, ok := e.(*ast.ParenExpr)
+		if !ok {
+			return e
+		}
+		e = p.X
+	}
 }
 
 // typeNameOf is the name of the type an expression denotes, without `*`,
