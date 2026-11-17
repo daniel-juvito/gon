@@ -44,3 +44,20 @@ scripts/check-gon-sources.sh
 ```
 
 Tests stay `.go` (`*_test.gon` is not part of the directory form).
+
+## Progress
+
+| Package | Files | Converted | `!` contracts |
+|---------|-------|-----------|---------------|
+| `transpiler` | 1 | yes (byte-identical transpile) | none yet |
+| `internal/goenv` | 1 | — | — |
+| `internal/fmt` | 1 | — | — |
+| `internal/lsp` | 1 | — | — |
+| `internal/preproc` | 1 | — | — |
+| `internal/gna` | 2 | — | — |
+| `cmd/gon` | 4 | — | — |
+| `internal/checker` | 12 | — (last, D4) | — |
+
+`internal/extlib` is a test fixture that stands for an *external* Go library in
+the `.gna` tests; converting it would blur that role, so it is proposed to stay
+`.go` (pending the owner's confirmation).
