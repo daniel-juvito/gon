@@ -29,9 +29,6 @@ import (
 // risk a mis-placed `!`.
 func Format(filename string, src []byte) ([]byte, error) {
 	result := preproc.Process(filename, src)
-	if result == nil || result.Clean == nil {
-		return nil, fmt.Errorf("preprocess failed")
-	}
 
 	formatted, err := goformat.Source(result.Clean)
 	if err != nil {

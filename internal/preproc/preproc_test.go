@@ -264,3 +264,28 @@ func TestIndexUnaryNotUntouched(t *testing.T) {
 		t.Fatalf("expected no offsets, got %v", r.NonNilOffsets)
 	}
 }
+
+// Process never returns nil, and its Clean is never nil, for any input: the
+// `!*Result` contract (dogfood D5) and the reason fmt.Format needs no nil check.
+// Clean is built with make([]byte, 0, len(src)), so even an empty source gives
+// a non-nil, empty slice.
+func TestProcessResultAndCleanAreNeverNil(t *testing.T) {
+	for _, src := range []string{
+		"",
+		"   \n\t",
+		"!",
+		"!!!",
+		"\x00\xff not Go at all",
+		"package p\n",
+		"package p\n\nvar x !*int\n",
+		"package p\n\nfunc f( {\n",
+	} {
+		r := Process("x.gon", []byte(src))
+		if r == nil {
+			t.Fatalf("Process(%q) returned nil", src)
+		}
+		if r.Clean == nil {
+			t.Fatalf("Process(%q).Clean is nil", src)
+		}
+	}
+}
