@@ -1,6 +1,7 @@
 package checker
 
 import (
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/importer"
@@ -237,6 +238,18 @@ func (c *Checker) resolvePackage(importPath string) (*gna.File, error) {
 	}
 	f, err := c.resolver.Resolve(importPath)
 	if err != nil {
+		// v1.14 (C6b): a module-local package whose .gon sources cannot be
+		// read applies no contract, with no fallback to a .gna. The error is
+		// reported once per import by reportSourceContracts, not at each use.
+		var se *gna.SourceError
+		if errors.As(err, &se) {
+			if c.sourceErrs == nil {
+				c.sourceErrs = make(map[string]error)
+			}
+			c.sourceErrs[importPath] = se
+			c.resolvedMiss[importPath] = true
+			return nil, nil
+		}
 		return nil, err
 	}
 	if f == nil {
@@ -281,7 +294,11 @@ func (c *Checker) resolveCallParams(fun ast.Expr) ([]bool, string) {
 		}
 		sig, ok := file.Functions[f.Sel.Name]
 		if !ok {
-			c.addWarning(f.Pos(), "GW002", "no .gna annotation for "+pkgPath+"."+f.Sel.Name+"; treating as ordinary")
+			// A file derived from .gon sources lists the whole surface (v1.14,
+			// C4): GW002 ("the .gna forgot this symbol") never applies to it.
+			if !file.SourceDerived {
+				c.addWarning(f.Pos(), "GW002", "no .gna annotation for "+pkgPath+"."+f.Sel.Name+"; treating as ordinary")
+			}
 			return nil, ""
 		}
 		if c.contractDropped(pkgPath, f.Sel.Name) {
@@ -480,8 +497,10 @@ func (c *Checker) resolveMethodParams(selExpr *ast.SelectorExpr) (params []bool,
 	methodName := fn.Name()
 	msig, found := file.Methods[typeName+"."+methodName]
 	if !found {
-		c.addWarning(selExpr.Pos(), "GW002",
-			fmt.Sprintf("no .gna annotation for %s.%s.%s; treating as ordinary", resolvedAs, typeName, methodName))
+		if !file.SourceDerived { // v1.14, C4: see resolveCallParams
+			c.addWarning(selExpr.Pos(), "GW002",
+				fmt.Sprintf("no .gna annotation for %s.%s.%s; treating as ordinary", resolvedAs, typeName, methodName))
+		}
 		return nil, "", true
 	}
 	if c.contractDropped(resolvedAs, typeName+"."+methodName) {
@@ -489,4 +508,29 @@ func (c *Checker) resolveMethodParams(selExpr *ast.SelectorExpr) (params []bool,
 	}
 	display = resolvedAs + "." + typeName + "." + methodName
 	return msig.Params, display, true
+}
+
+// reportSourceContracts reports, once per import declaration of this file
+// (v1.14 / M10, C5 and C6b), what the source resolver found for a module-local
+// import: GN003 at the import when its .gon sources cannot be read (and no
+// contract applies), or GW005 at the import when a .gna for the same path was
+// ignored because the .gon sources are authoritative. The unit is the pair
+// (file being checked, import path): however many selectors or .gon files,
+// at most one diagnostic per pair. Imports are visited in sorted order.
+func (c *Checker) reportSourceContracts() {
+	if c.resolver == nil {
+		return
+	}
+	for _, path := range sortedKeys(c.importPos) {
+		file, _ := c.resolvePackage(path)
+		pos := c.importPos[path]
+		if err := c.sourceErrs[path]; err != nil {
+			c.addError(pos, "GN003", err.Error())
+			continue
+		}
+		if file != nil && file.SourceDerived && file.ShadowedGNA {
+			c.addWarning(pos, "GW005",
+				fmt.Sprintf(".gna for %s is ignored: the package has .gon sources, which are authoritative", path))
+		}
+	}
 }

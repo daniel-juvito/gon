@@ -63,7 +63,8 @@ analysis (see v1.6, §4).
 | M6a | `gon fmt` + `gon check` | Core |
 | M7 | Call-site contracts for source-declared methods | M3 + M5b + M8 — **shipped v1.11** |
 | M8 | Package-aware checking | M5b — **shipped v1.10** |
-| M9 | Directory form for `transpile` / `build` | M8 — **implemented v1.12, awaiting audit** |
+| M9 | Directory form for `transpile` / `build` | M8 — **shipped v1.12** |
+| M10 | Cross-package contracts from module-local `.gon` sources | M8 — **implemented v1.14, awaiting audit** |
 | M6b | LSP / editor support | M2a — contract tracing |
 
 Full feature inventory and dependency graph rationale are maintained
@@ -186,7 +187,7 @@ single-file scope limit (S9) widens to "the package" with M8's package mode.
 **Breaking risk:** Possibly Yes.
 **Rationale (R1):** solo release.
 
-### v1.12 — Directory Form for `transpile` / `build` — IMPLEMENTED (awaiting audit)
+### v1.12 — Directory Form for `transpile` / `build` — SHIPPED
 **Scope:** M9 — `gon transpile <dir>` / `dir/...` and `gon build <dir>` check the
 directory as one package (the M8 machinery) and write `.go` only if it passes;
 in-process `go/format` replaces the `gofmt` on `PATH`. File arguments unchanged.
@@ -197,7 +198,7 @@ decisions Q1–Q6 accepted as proposed, 2026-11-16).
 **Rationale (R4):** the item M8 left out; needed before a multi-file codebase,
 this repository included, can be written in Gon. Ships solo.
 
-### v1.13 — Return-Position Contracts — IMPLEMENTED (awaiting audit)
+### v1.13 — Return-Position Contracts — SHIPPED
 **Scope:** a coverage fix, not a new feature — the operands of a `return` are
 checked like every other expression (calls, composite literals, `new(T)`,
 comparisons, type assertions) and a function literal is checked as a function
@@ -207,6 +208,16 @@ gaps; the closure part was found in the audit. Found while measuring the dogfood
 **Breaking risk:** Possibly Yes (R1): code that violates a `!` contract inside a
 `return` operand is reported now. A differential over the three repositories'
 `.gon` files and a 526-file standard-library corpus found no new diagnostic.
+**Rationale (R1):** solo release.
+
+### v1.14 — Cross-Package Contracts from `.gon` Sources — IMPLEMENTED (awaiting audit)
+**Scope:** M10 — an importer sees the `!` contracts of an imported main-module
+package that has `.gon` sources, derived from those sources and applied through
+the existing `.gna` machinery. Amends invariant I4. New warning GW005.
+**RFC:** `docs/rfc-source-contracts.md` (owner decisions Q1–Q6 and the I4
+amendment, 2026-11-17).
+**Dependency:** M8 (v1.10); motivated by the dogfood conversion.
+**Breaking risk:** Possibly Yes (R1).
 **Rationale (R1):** solo release.
 
 ## 5. Open Sequencing Notes

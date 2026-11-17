@@ -36,6 +36,15 @@ type File struct {
 	Methods     map[string]*Signature      // key: TypeName.MethodName
 	Receivers   map[string]bool            // key: TypeName; true => non-nil receiver
 	Types       map[string]*TypeAnnotation // key: TypeName
+
+	// SourceDerived marks a file derived from a module-local package's .gon
+	// sources (v1.14 / M10) rather than read from a .gna. Such a file lists the
+	// package's whole importer-reachable surface, so GW002 never applies to it.
+	SourceDerived bool
+	// ShadowedGNA is set on a source-derived file when a .gna for the same
+	// import path exists: the .gna is ignored (the .gon is authoritative) and
+	// the importer gets one GW005 at its import.
+	ShadowedGNA bool
 }
 
 // raw YAML shapes (all type strings are quoted in the file).

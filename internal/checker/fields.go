@@ -177,20 +177,10 @@ func (c *Checker) reportExternalTypeFields(pos token.Pos, sel *ast.SelectorExpr,
 	if c.resolver == nil || sel == nil || sel.X == nil || sel.Sel == nil {
 		return
 	}
-	x, ok := sel.X.(*ast.Ident)
-	if !ok {
-		return
-	}
-	pkgPath, ok := c.imports[x.Name]
-	if !ok {
-		return
-	}
-	file, err := c.resolvePackage(pkgPath)
-	if err != nil || file == nil || file.Types == nil {
-		return
-	}
-	typeAnn, ok := file.Types[sel.Sel.Name]
-	if !ok || typeAnn == nil {
+	// Through go/types (so an alias finds the type it denotes, v1.14), by the
+	// written name otherwise.
+	typeAnn := c.selectorTypeAnnotation(sel)
+	if typeAnn == nil {
 		return
 	}
 	for _, name := range sortedKeys(typeAnn.Fields) {

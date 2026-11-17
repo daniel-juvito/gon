@@ -348,15 +348,21 @@ func TestRegistryPackageLookup(t *testing.T) {
 
 func TestDefaultChainOrder(t *testing.T) {
 	c := DefaultChain("/work", "/start")
-	if len(c.Resolvers) != 2 {
-		t.Fatalf("want 2 resolvers, got %d", len(c.Resolvers))
+	if len(c.Resolvers) != 3 {
+		t.Fatalf("want 3 resolvers, got %d", len(c.Resolvers))
 	}
-	dir, ok := c.Resolvers[0].(*DirResolver)
+	// v1.14 (M10): the source resolver comes first, and locates (never reads)
+	// a .gna in the two directory locations to report GW005.
+	src, ok := c.Resolvers[0].(*SourceResolver)
+	if !ok || src.StartDir != "/start" || len(src.Shadowing) != 2 {
+		t.Fatalf("first resolver = %#v, want the source resolver", c.Resolvers[0])
+	}
+	dir, ok := c.Resolvers[1].(*DirResolver)
 	if !ok || dir.Root != "/work/annotations" {
-		t.Fatalf("first resolver = %#v, want the ./annotations directory", c.Resolvers[0])
+		t.Fatalf("second resolver = %#v, want the ./annotations directory", c.Resolvers[1])
 	}
-	mod, ok := c.Resolvers[1].(*ModuleResolver)
+	mod, ok := c.Resolvers[2].(*ModuleResolver)
 	if !ok || mod.StartDir != "/start" {
-		t.Fatalf("second resolver = %#v, want the module resolver", c.Resolvers[1])
+		t.Fatalf("third resolver = %#v, want the module resolver", c.Resolvers[2])
 	}
 }
