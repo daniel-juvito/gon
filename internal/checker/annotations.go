@@ -44,9 +44,6 @@ func (c *Checker) collectImports() {
 	if c.importPos == nil {
 		c.importPos = make(map[string]token.Pos)
 	}
-	if c.file == nil {
-		return
-	}
 	for _, imp := range c.file.Imports {
 		path := strings.Trim(imp.Path.Value, `"`)
 		c.importPos[path] = imp.Pos()
@@ -175,9 +172,6 @@ func (c *Checker) typeCheckFallback() {
 			c.fset = fset
 			c.file = f
 		}
-	}
-	if c.file == nil {
-		return
 	}
 	pkgPath := "main"
 	if c.file.Name != nil {
