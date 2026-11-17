@@ -53,7 +53,7 @@ Tests stay `.go` (`*_test.gon` is not part of the directory form).
 | `internal/goenv` | 1 | yes (byte-identical transpile) | none yet |
 | `internal/fmt` | 1 | yes (byte-identical transpile) | none yet |
 | `internal/lsp` | 1 | yes (byte-identical transpile) | none yet |
-| `internal/preproc` | 1 | — | — |
+| `internal/preproc` | 1 | yes (byte-identical transpile) | none yet |
 | `internal/gna` | 2 | — | — |
 | `cmd/gon` | 4 | — | — |
 | `internal/checker` | 12 | — (last, D4) | — |
