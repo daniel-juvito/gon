@@ -56,7 +56,11 @@ Tests stay `.go` (`*_test.gon` is not part of the directory form).
 | `internal/preproc` | 1 | yes (byte-identical transpile) | none yet |
 | `internal/gna` | 2 | yes (byte-identical transpile; first multi-file package) | none yet |
 | `cmd/gon` | 4 | yes (byte-identical transpile) | none yet |
-| `internal/checker` | 12 | — (last, D4) | — |
+| `internal/checker` | 12 | yes (byte-identical transpile) | none yet |
+
+**Conversion complete:** every production package is written in Gon; the
+`.go` files are what the pinned `gon` emits for them, checked by CI. The next
+step is D5's annotation PRs, one per package.
 
 `internal/extlib` is a test fixture that stands for an *external* Go library in
 the `.gna` tests; converting it would blur that role, so it stays
