@@ -70,10 +70,11 @@ nothing would keep the two copies' `!` flags equal.
 **C is implemented in v1.14 (M10, `docs/rfc-source-contracts.md`):** an
 importer now reads a main-module package's contracts from its `.gon` sources,
 so `gna.DefaultChain`'s `!*Chain` reaches `cmd/gon` and `internal/lsp`. The
-gate's pinned `gon` is **v1.14.0** (bumped 2026-11-17; with it, `gon check
-./...` on this repository is `ok` and every `.go` still matches its `.gon`).
-That bump is what let the annotations of the two remaining exported
-candidates go ahead; both are done (below).
+gate was pinned to **v1.14.0** for that (2026-11-17), which is what let the
+annotations of the two remaining exported candidates go ahead; both are done
+(below). The pin is now **v1.15.0**, the latest release (bumped 2026-11-17;
+with it, `gon check ./...` on this repository is `ok` and every `.go` still
+matches its `.gon`).
 
 **All four syntactic candidates are now annotated:** `gna.NewRegistry` →
 `!*Registry` and `gna.DefaultChain` → `!*Chain` (#36), `preproc.Process` →
