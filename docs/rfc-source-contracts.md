@@ -64,7 +64,8 @@ Reading of the results:
    packages' `.gon` sources once per check).
 
 Limits: one repository, a spike that skipped interface methods, type
-parameters on receivers and embedded fields, **derived members only of
+parameters on receivers, Go 1.27 generic methods (none exists in Gon's sources)
+and embedded fields, **derived members only of
 exported type names** (narrower than C3, so the counts above do not cover
 exported members of unexported types), and no external module that ships
 `.gon`.
@@ -137,7 +138,7 @@ from a hand-written `.gna` for the same contracts:
   without type arguments or receiver type parameters
   (`func (b *Box[T]) Put(…)` → `Box.Put`; `func (m *Map[K, V]) Set(…)` →
   `Map.Set`), as M5b keys `.gna` methods;
-- a **generic method**, i.e. a method that declares its own type parameters
+- a **generic method**, i.e. a concrete method that declares its own type parameters
   (`func (b Box[X]) Map[Y any](…)`), is keyed the same way (`Box.Map`): its own
   type parameters do not change the key. This syntax exists since **Go 1.27**
   (verified 2026-11-17: accepted in a `go 1.27` module, rejected in a `go 1.26`
@@ -151,9 +152,16 @@ from a hand-written `.gna` for the same contracts:
   from the struct that declares it, and the existing `types:` path resolves the
   promotion.
 
-These four cases (generic receivers, receiver type parameters, embedded fields,
-interface methods) were **not** proven by the spike (§2, limits); they are
-mandatory tests (§7, T3) before the implementation is considered ready.
+These five cases (generic receivers, receiver type parameters, Go 1.27 generic
+methods, embedded fields, interface methods) were **not** proven by the spike
+(§2, limits); they are mandatory tests (§7, T3) before the implementation is
+considered ready.
+
+Generic methods are **concrete** methods only. An interface method cannot
+declare type parameters in Go 1.27 either (verified: `interface method must have
+no type parameters`), so the interface-method derivation never involves a
+method's own type parameters, and this RFC does not describe or imply support
+for "generic interface methods".
 
 ### C4 — A derived file is complete; GW002 does not apply to it
 
@@ -323,8 +331,13 @@ package under check (C2); the derivation represents the whole contract surface
 unexported types (C3, from the owner's RFC audit); GW005 is deterministic and
 not repeated, with a defined unit (C5).
 Open evidence the owner requires before readiness: generic receivers, receiver
-type parameters, embedded fields and interface methods (T3), and a test that a
-`.gna` stating a **different** contract is really ignored (T6).
+type parameters, Go 1.27 generic methods (concrete methods only), embedded
+fields, interface methods and exported members of unexported types (T3), and a
+test that a `.gna` stating a **different** contract is really ignored (T6).
+
+The owner verified against the Go documentation (2026-11-17) that Go 1.27 allows
+type parameters on concrete methods and not on interface methods, and accepted
+generic methods as part of this RFC.
 
 ## 10. Invariant Check (I1–I7)
 
