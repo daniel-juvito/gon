@@ -35,7 +35,7 @@ type tokInfo struct {
 //     — covering multi-return forms such as func Open() (!*string, error)
 //
 // Unary ! in expressions (f(a, !b), (!flag), !ok) is left untouched.
-func Process(filename string, src []byte) *Result {
+func Process(filename string, src []byte) !*Result {
 	fset := token.NewFileSet()
 	file := fset.AddFile(filename, 1, len(src))
 

@@ -251,3 +251,26 @@ func f() {
 		t.Fatalf("not idempotent:\n%s", out2)
 	}
 }
+
+// Removing the nil check on Process's result (it is never nil, see
+// preproc.TestProcessResultAndCleanAreNeverNil) changes no reachable behaviour.
+// Measured on main before the removal, these are exactly what Format returned:
+// an empty source formats to an empty output, an unparsable one is an error
+// from the formatter, never a panic.
+func TestFormatEdgeInputsAreUnchanged(t *testing.T) {
+	for _, tc := range []struct {
+		src     string
+		want    string
+		wantErr bool
+	}{
+		{"", "", false},
+		{"package p\n", "package p\n", false},
+		{"!", "", true},
+		{"package p\n\nfunc f( {\n", "", true},
+	} {
+		out, err := Format("x.gon", []byte(tc.src))
+		if (err != nil) != tc.wantErr || string(out) != tc.want {
+			t.Fatalf("Format(%q) = %q, %v; want %q, error=%v", tc.src, out, err, tc.want, tc.wantErr)
+		}
+	}
+}
