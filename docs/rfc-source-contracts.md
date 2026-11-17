@@ -382,7 +382,7 @@ generic methods as part of this RFC.
 - **Tests.** `internal/gna/source_test.go` (7: the derived surface, the generic
   method key, embedded and promoted fields, test files and determinism, scope
   C1/C2, shadowing and `Has`, a malformed source) and
-  `cmd/gon/source_contracts_test.go` (11, through the CLI): T1/T3/T4 in one
+  `cmd/gon/source_contracts_test.go` (12, through the CLI): T1/T3/T4 in one
   importer with every kind (functions, a `!` result, a struct field built and
   mutated, an interface method, an exported method and field of an unexported
   type, an exported method of an unexported interface, generic receivers with
