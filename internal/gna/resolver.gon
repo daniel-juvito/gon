@@ -152,7 +152,7 @@ func (r *Registry) Resolve(importPath string) (*File, error) {
 // DefaultChain builds the v1 resolver chain for CLI use:
 //  1. ./annotations relative to wd
 //  2. module-root/annotations (via go.mod discovery from startDir)
-func DefaultChain(wd, startDir string) *Chain {
+func DefaultChain(wd, startDir string) !*Chain {
 	return &Chain{Resolvers: []Resolver{
 		&DirResolver{Root: filepath.Join(wd, "annotations")},
 		&ModuleResolver{StartDir: startDir},
