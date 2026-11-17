@@ -1,5 +1,56 @@
 # Changelog
 
+## [1.15.0] — 2026-11-17
+
+Exit codes of package loading, aligned with Diagnostic Protocol v1 §7 (audit of
+every exit-1 path of `gon check --json`). Protocol v1 is unchanged:
+`schemaVersion` stays 1, the envelope has the same shape, there is no new
+diagnostic code or severity, and exit 0/1/2/3 keep their meaning.
+
+### Changed
+
+- **A package that cannot be loaded is now exit 2, not exit 1.** In package
+  mode (a directory or `...` operand), these used to end in exit 1 with no
+  envelope, the code §7 reserves for a check that completed; they are now
+  exit 2 (input / configuration error), still with no envelope:
+  - the `go` command is missing or fails;
+  - the module configuration is invalid (for example an unparsable `go.mod`);
+  - a `.gon` file in the directory is excluded by build constraints;
+  - with `./...` or several operands, any of the above in one package: the
+    whole invocation is exit 2 (it used to be exit 1).
+  Scripts that read the exit code of `gon check` / `gon vet` on a directory
+  should treat 2 as "could not check". The **directory form of `gon transpile`
+  and `gon build`** shares the loading step and is exit 2 for the same
+  packages (it was 1); nothing is written, as before.
+- **One message for a file excluded by build constraints**, whatever the file
+  order: `excluded by build constraints: <files> (package mode checks every
+  .gon file in the directory)`, every such file listed, sorted. It used to be
+  "no type information" when the excluded file sorted first and "is not part of
+  the package (excluded by a build constraint?)" otherwise. The message is only
+  used when Go's build rules (`go/build`) reject the file; when the go command
+  left a file out for another reason (for example a tag in `GOFLAGS`), the
+  failure is reported generically, still exit 2.
+
+### Fixed
+
+- **An invalid `package` clause in package mode is a parse error**, reported
+  like any other package-mode syntax error: the envelope is written (with the
+  diagnostics of the package's other files, which are still checked), exit 1,
+  and the Go loader's message (`expected 'package', found …`) on stderr. It
+  used to be exit 1 with no envelope and the misleading "is not part of the
+  package (excluded by a build constraint?)". In `gon transpile` /
+  `gon build` on a directory it is exit 1 and nothing is written.
+
+### Documentation
+
+- Protocol v1 §7 separates three cases: the file-mode pre-check parse failure
+  (exit 1, no envelope; the only exit 1 without one), package-mode loader
+  errors (exit 1, envelope, message on stderr, labelled `gon: Go type error:`
+  and positioned in the overlaid `.go` path), and package-loading failures
+  (exit 2, no envelope). It states the **all-or-nothing** rule: one envelope
+  with every operand's diagnostics, or none when an operand fails before
+  emission; diagnostics of earlier operands are then not sent.
+
 ## [1.14.0] — 2026-11-17
 
 ### Added
