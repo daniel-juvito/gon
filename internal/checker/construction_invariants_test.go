@@ -177,3 +177,77 @@ func TestCheckPackageFillsSharedDeclarationMaps(t *testing.T) {
 	wantCodes(t, res, "b.gon", "GN001", "GN001", "GN002", "GW001")
 	wantCodes(t, res, "a.gon")
 }
+
+// --- P4: every Checker holds a file -------------------------------------------
+//
+// A Checker is only built from a source that parsed; a source that cannot be
+// obtained or parsed is rejected before any Checker exists. These tests lock
+// that, and that type-checking afterwards never takes the file away.
+
+// Source that cannot be parsed builds no Checker at all.
+func TestNewWithoutParsableSourceBuildsNoChecker(t *testing.T) {
+	for name, src := range map[string]string{
+		"empty":             "",
+		"no package clause": "func f() {}\n",
+		"syntax error":      "package p\n\nfunc f( {\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			r := preproc.Process("x.gon", []byte(src))
+			if c, err := New("x.gon", r.Clean, r.NonNilOffsets); err == nil || c != nil {
+				t.Fatalf("New: checker=%v err=%v", c, err)
+			}
+			if c, err := NewWithAnnotations("x.gon", r.Clean, r.NonNilOffsets, nil); err == nil || c != nil {
+				t.Fatalf("NewWithAnnotations: checker=%v err=%v", c, err)
+			}
+		})
+	}
+}
+
+// New and NewWithAnnotations, in a module and outside one, hold a file, and
+// so does a Checker after the fallback type check.
+func TestCheckerAlwaysHasFile(t *testing.T) {
+	for name, dir := range map[string]string{"in a module": pkgDir(t, map[string]string{}), "outside a module": t.TempDir()} {
+		t.Run(name, func(t *testing.T) {
+			plain, annotated := newAt(t, dir, "a.gon")
+			if plain.file == nil {
+				t.Fatal("New left file nil")
+			}
+			if annotated.file == nil {
+				t.Fatal("NewWithAnnotations left file nil")
+			}
+			plain.typeCheckFallback()
+			if plain.file == nil {
+				t.Fatal("typeCheckFallback left file nil")
+			}
+			annotated.typeCheckFallback()
+			if annotated.file == nil {
+				t.Fatal("typeCheckFallback (after NewWithAnnotations) left file nil")
+			}
+		})
+	}
+}
+
+// What TestTypeCheckFallbackWithoutSourceIsNoOp meant, on a Checker that can
+// exist: when the fallback has no usable source to parse again (none, or one
+// that does not parse), it does not panic, keeps the file the Checker holds
+// (the same pointer) and type-checks that file.
+func TestTypeCheckFallbackWithoutUsableSourceKeepsFile(t *testing.T) {
+	for name, src := range map[string][]byte{
+		"no source":         nil,
+		"unparsable source": []byte("package p\n\nfunc f( {\n"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			c, _ := newAt(t, t.TempDir(), "a.gon")
+			before := c.file
+			c.cleanSrc = src
+			c.info = nil
+			c.typeCheckFallback()
+			if c.file != before {
+				t.Fatal("the file the Checker holds was replaced")
+			}
+			if c.info == nil || len(c.info.Defs) == 0 {
+				t.Fatal("the file the Checker holds was not type-checked")
+			}
+		})
+	}
+}

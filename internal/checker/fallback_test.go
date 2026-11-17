@@ -1,7 +1,6 @@
 package checker
 
 import (
-	"go/token"
 	"testing"
 
 	"github.com/daniel-juvito/gon/internal/preproc"
@@ -23,14 +22,6 @@ func TestTypeCheckFallbackResolvesStdlibSelectors(t *testing.T) {
 	}
 	if len(c.info.Selections) == 0 && len(c.info.Uses) == 0 {
 		t.Fatal("fallback recorded nothing for fmt.Println")
-	}
-}
-
-func TestTypeCheckFallbackWithoutSourceIsNoOp(t *testing.T) {
-	c := &Checker{fset: token.NewFileSet()}
-	c.typeCheckFallback() // no file, no source: must not panic
-	if c.info != nil {
-		t.Fatal("expected no type information")
 	}
 }
 

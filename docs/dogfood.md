@@ -56,7 +56,7 @@ Tests stay `.go` (`*_test.gon` is not part of the directory form).
 | `internal/preproc` | 1 | yes (byte-identical transpile) | `Process` → `!*Result` (#40) |
 | `internal/gna` | 2 | yes (byte-identical transpile; first multi-file package) | `NewRegistry` → `!*Registry`, `DefaultChain` → `!*Chain` (package-local before v1.14; importers also see them since M10) |
 | `cmd/gon` | 4 | yes (byte-identical transpile) | none yet |
-| `internal/checker` | 12 | yes (byte-identical transpile) | `withPath` → `!*ContractTrace`, `cloneGnaFile(!*gna.File) !*gna.File` (P1); `Checker.fset` → `!*token.FileSet` (P2); the seven declaration maps → `!map` (P3) |
+| `internal/checker` | 12 | yes (byte-identical transpile) | `withPath` → `!*ContractTrace`, `cloneGnaFile(!*gna.File) !*gna.File` (P1); `Checker.fset` → `!*token.FileSet` (P2); the seven declaration maps → `!map` (P3); `Checker.file` → `!*ast.File` (P4) |
 
 ## Annotations (D5) and what they reach
 
@@ -85,7 +85,7 @@ never nil) need the author's judgement rather than a syntactic proof, and are
 proposed package by package with the same measurements before any code.
 
 **Judgement-based annotations, `internal/checker` (Proposal A, owner decision
-2026-11-17: P1–P3 approved, P4 deferred).** Each group was measured before any
+2026-11-17: P1–P3 approved; P4 approved after its own proposal).** Each group was measured before any
 code: every constructor and composite literal (production and tests), every
 assignment and nil comparison, the delta of `gon check ./...`, and a deliberate
 violation proving the contract is enforced. What a contract guarantees is
@@ -100,9 +100,41 @@ does not make a value that comes from outside those paths non-nil.
 | P2 | `Checker.fset` → `!*token.FileSet` (built by `New` and `CheckPackage` with `token.NewFileSet`, replaced only by `typeCheckFallback` with another `NewFileSet`) | none | a `Checker` literal without `fset` → GN002; `c.fset = nil` → GN001 | `TestNewFillsFset` (`New`, `NewWithAnnotations`, in and outside a module), `TestTypeCheckFallbackKeepsFset`, `TestCheckPackageCheckersHaveFset` (positions of each file's diagnostic; `CheckPackage`'s checkers are not exposed) |
 | P3 | `Checker.funcParams`, `.funcReturns`, `.structFields` and `packageShared.offsets`, `.funcParams`, `.funcReturns`, `.structFields` → `!map` (built with `make` by `New` and by `CheckPackage`'s one `packageShared` literal, whose maps every file's `Checker` shares; never assigned or compared with nil; written by `collect`) | none | `&packageShared{}` → 4×GN002; a `Checker` literal without them → 3×GN002; assigning `nil` → GN001 | `TestNewFillsDeclarationMaps` (`New`, `NewWithAnnotations`), `TestCheckPackageFillsSharedDeclarationMaps` (a contract declared in one file applied in another through each map; neither `packageShared` nor the package's checkers are exposed) |
 
-P4 (`Checker.file`) is deferred: production never leaves it nil, but the
-annotation makes three `c.file == nil` guards GW001, and one of them is the
-behaviour `TestTypeCheckFallbackWithoutSourceIsNoOp` locks.
+**P4 (`Checker.file`)** was proposed on its own, because the annotation alone
+makes three `c.file == nil` guards GW001 and one of them was what
+`TestTypeCheckFallbackWithoutSourceIsNoOp` locked. A Checker is only built from
+a source that parsed: `New` keeps `parser.ParseFile`'s file only when `err ==
+nil` (`ParseFile` returns nil only when it cannot read the source, with an
+error), `CheckPackage` only builds checkers for files whose syntax tree the
+loader returned, and the two later assignments (`typeCheckPackages`,
+`typeCheckFallback`) store a loaded or parsed file. A source that cannot be
+obtained or parsed is rejected before any Checker exists. A Checker without a
+file was already unusable: `collectDecls`, `walk` and others dereference
+`c.file` without a guard. So the three guards protected a state no
+constructor produces, and they are removed:
+
+| Guard | Protected | After the invariant | Removing it |
+|-------|-----------|---------------------|-------------|
+| `collectImports` (`annotations.gon:47`) | skip the imports loop for a nil file | unreachable: called by `NewWithAnnotations` and `CheckPackage`, both with a file | no reachable change |
+| `typeCheckFallback` (`annotations.gon:179`) | stop when the re-parse was skipped (no source) or failed and there was no file | unreachable: both branches keep the Checker's existing file, which `New` set; an empty source never passes `New` | the only user was the test that built a Checker without a file; it is replaced (below) |
+| `lookupStructAST` (`fields.gon:138`) | report "no struct" for a nil file | unreachable even before: every caller runs inside `walk`, after `collectDecls` ranged over `c.file.Decls` | no change |
+
+Tests (added first, passing on main without any production change):
+`TestNewWithoutParsableSourceBuildsNoChecker` (empty source, no package
+clause, syntax error: `New` and `NewWithAnnotations` return `(nil, err)`),
+`TestCheckerAlwaysHasFile` (`New` and `NewWithAnnotations`, in and outside a
+module, also after `typeCheckFallback`), and
+`TestTypeCheckFallbackWithoutUsableSourceKeepsFile`, which replaces
+`TestTypeCheckFallbackWithoutSourceIsNoOp` on a Checker that can exist: with no
+source, or one that does not parse, the fallback does not panic, keeps the same
+file pointer and type-checks that file. Delta of `gon check ./...`: none after
+the guards are removed (with the annotation alone, 3×GW001 at the guards). A
+`Checker` literal without `file` is GN002 and `c.file = nil` is GN001.
+Mutating the transpiled `.go` (bypassing Gon) so that `New`,
+`typeCheckPackages` or `typeCheckFallback` stores a nil file makes
+`TestCheckerAlwaysHasFile` fail; doing so in `CheckPackage` makes
+`TestCheckPackageCheckersHaveFset` fail. No production hook was added for the
+tests.
 
 Why C (as measured before M10): with the M8 model, a package that **imports** a module-local package
 reads that package's contracts from `.gna`, never from its `.gon` sources.

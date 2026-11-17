@@ -14,7 +14,7 @@ import (
 
 type Checker struct {
 	fset          !*token.FileSet
-	file          *ast.File
+	file          !*ast.File
 	filename      string
 	cleanSrc      []byte
 	nonNilOffsets map[int]bool

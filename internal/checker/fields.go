@@ -135,9 +135,6 @@ func (c *Checker) reportMissingNonNilFields(pos token.Pos, typExpr ast.Expr, pro
 }
 
 func (c *Checker) lookupStructAST(name string) *ast.StructType {
-	if c.file == nil {
-		return nil
-	}
 	if st := structASTIn(c.file, name); st != nil {
 		return st
 	}
