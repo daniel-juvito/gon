@@ -54,9 +54,27 @@ Tests stay `.go` (`*_test.gon` is not part of the directory form).
 | `internal/fmt` | 1 | yes (byte-identical transpile) | none yet |
 | `internal/lsp` | 1 | yes (byte-identical transpile) | none yet |
 | `internal/preproc` | 1 | yes (byte-identical transpile) | none yet |
-| `internal/gna` | 2 | yes (byte-identical transpile; first multi-file package) | none yet |
+| `internal/gna` | 2 | yes (byte-identical transpile; first multi-file package) | `NewRegistry` → `!*Registry`, `DefaultChain` → `!*Chain` (local only, see below) |
 | `cmd/gon` | 4 | yes (byte-identical transpile) | none yet |
 | `internal/checker` | 12 | yes (byte-identical transpile) | none yet |
+
+## Annotations (D5) and what they reach
+
+Owner decision (2026-11-17): **A + C**. A: annotate `internal/gna`'s two
+results (`NewRegistry`, `DefaultChain`) now. C: annotate no further
+**exported** API until an RFC for cross-package contracts read from a
+module-local package's `.gon` sources is written and accepted. Rejected (B):
+copying the same contracts into an `annotations/…/internal/gna.gna`, because
+nothing would keep the two copies' `!` flags equal.
+
+Why C: with the M8 model, a package that **imports** a module-local package
+reads that package's contracts from `.gna`, never from its `.gon` sources.
+Measured: with `!*Chain` on `DefaultChain`, `c := gna.DefaultChain(…); c == nil`
+is **not** a GW001 in `cmd/gon` (the importer), and **is** one inside package
+`gna`. So these annotations protect the **function body** (a `return nil` there
+becomes GN001) and do **not** protect callers in other packages. All four
+syntactic candidates (`gna.DefaultChain`, `gna.NewRegistry`, `preproc.Process`,
+`lsp.New`) are called only from other packages.
 
 **Conversion complete:** every production package is written in Gon; the
 `.go` files are what the pinned `gon` emits for them, checked by CI. The next

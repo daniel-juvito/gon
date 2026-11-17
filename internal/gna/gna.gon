@@ -253,7 +253,7 @@ type Registry struct {
 }
 
 // NewRegistry returns an empty annotation registry.
-func NewRegistry() *Registry {
+func NewRegistry() !*Registry {
 	return &Registry{byPackage: make(map[string]*File)}
 }
 
