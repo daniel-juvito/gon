@@ -1,9 +1,9 @@
 # RFC: Cross-Package Contracts from Module-Local `.gon` Sources (Gon v1.14 / M10)
 
-**Status:** Draft — awaiting owner review. Decisions C1–C10 are *proposals*;
-§9 lists the questions that need an explicit owner answer. The figures in §2
-were measured on 2026-11-17 (Gon v1.13.0 and a throwaway spike), before any
-decision.
+**Status:** Draft — owner decisions Q1–Q6 and the amendment of I4 recorded
+2026-11-17 (§9, §10). The normative text below is under the owner's review; the
+RFC is opened as a PR only after that review. The figures in §2 were measured
+on 2026-11-17 (Gon v1.13.0 and a throwaway spike), before any decision.
 **Target:** Gon v1.14
 **Related:** `docs/rfc-package-check.md` (M8: Q5 kept imported packages on
 `.gna`, and named this RFC as later work), `docs/rfc-method-contracts.md` (M7),
@@ -22,7 +22,7 @@ c == nil` in `cmd/gon` is not a GW001 (it is one inside package `gna`).
 This RFC makes a **module-local** package's `.gon` sources a source of contracts
 for the packages that import it, without copying them into a `.gna` by hand.
 
-**Normative principle (proposed):**
+**Normative principle:**
 
 > For an import inside the main module whose directory holds `.gon` sources, the
 > contracts of its exported declarations are read from those sources, by
@@ -67,7 +67,7 @@ Limits: one repository, a spike that skipped interface methods, type
 parameters on receivers and embedded fields, and no external module that ships
 `.gon`.
 
-## 3. Decision Matrix (proposals)
+## 3. Decision Matrix (as decided, §9)
 
 ### C1 — Which imports: the main module only
 
@@ -79,8 +79,12 @@ cache are not read, even if they ship `.gon`: their contracts keep coming from
 
 ### C2 — Never the package being checked
 
-The package under check never resolves to a source-derived file; its own
-contracts come from its source as today (M7 for methods). Measured need: §2.2.
+The source resolver serves **only imported** module-local packages. The package
+under check never resolves to a source-derived file, in either mode: its own
+contracts come from its own source as today (functions and fields since v1.0,
+methods through M7). Concretely, the resolver is constructed with the import
+path of the package under check (`Self`) and returns "no file" for it. Measured
+need: §2.2 (322–327 false GW002 on a package's own symbols without this).
 
 ### C3 — What is derived
 
@@ -91,17 +95,58 @@ interface types, and exported fields of exported struct types. Unexported
 declarations are invisible to importers and are not derived. Receiver
 contracts stay out of scope (M7 S8).
 
+Keys follow `gna-spec-v1.md` exactly, so the derived file is indistinguishable
+from a hand-written `.gna` for the same contracts:
+
+- a method of a generic type is keyed `Type.Method` without type arguments or
+  parameters (`func (b *Box[T]) Put(…)` → `Box.Put`), as M5b keys `.gna`
+  methods; a method's own type parameters do not change its key;
+- an interface method is keyed `Iface.Method`; an embedded interface's methods
+  are derived from the interface that declares them;
+- a struct field is keyed by its name; an **embedded** field by its type name
+  (as `go/types` names it); a field promoted from an embedded struct is derived
+  from the struct that declares it, and the existing `types:` path resolves the
+  promotion.
+
+These four cases (generic receivers, receiver type parameters, embedded fields,
+interface methods) were **not** proven by the spike (§2, limits); they are
+mandatory tests (§7, T3) before the implementation is considered ready.
+
 ### C4 — A derived file is complete; GW002 does not apply to it
 
-The derived file lists every exported symbol, ordinary or not, so an importer
-never gets GW002 for a symbol of a source-contract package. (Measured need:
-§2.3.)
+The derived file represents the **whole exported contract surface** of the
+package: every exported function, method, interface method and struct field,
+ordinary ones included (with all flags false). It is marked as source-derived,
+and **GW002 is never reported for a source-derived file**, even for a symbol the
+derivation somehow missed: GW002 means "a hand-written `.gna` forgot this
+symbol", which cannot be true of a contract read from the source. (Measured
+need: §2.3, 30 false GW002 with an incomplete derivation.) A symbol the
+derivation misses is a bug of the derivation, caught by the completeness tests
+(§7, T3), not a user-facing warning.
 
-### C5 — Precedence and conflicts with `.gna`
+### C5 — Precedence and conflicts with `.gna`: the `.gon` wins, one GW005 per import
 
-If a `.gna` exists for the same import path **and** the package has `.gon`
-sources, the `.gna` is **not used** for it and a **GW005** warning says so once
-per import, at the import: one source of truth. (Alternatives in §8.)
+When an imported module-local package has `.gon` sources (C1), its contracts
+come **only** from them. A `.gna` for the same import path (found by any
+resolver of the chain) is **not used**, whatever it says, even where it states a
+different `!` for the same symbol. There is no merge.
+
+The shadowed `.gna` is reported as **GW005** (warning): `.gna for <import path>
+is ignored: the package has .gon sources, which are authoritative`.
+
+**Unit and determinism of GW005.** The unit is one **import declaration**: the
+pair (file being checked, imported path). At most one GW005 is reported per
+pair, anchored at that file's import spec, no matter how many selectors, calls
+or symbols of the package the file uses, and no matter how many `.gon` files the
+imported package has. This is the anchoring M5a uses for GN003 / GW004 on a
+`.gna` (per file, at the file's own import). In package mode, two files of the
+package under check that both import the path each get their own GW005, at
+their own import (as GN003 / GW004 already behave, noted in M8 §14). The order
+of diagnostics stays the existing order (files sorted by path, source order
+within a file), so a run reports the same GW005 set every time.
+
+GW005 does not depend on the `.gna` being well-formed: a shadowed `.gna` is not
+parsed for contracts, so a malformed one is not a GN003.
 
 ### C6 — Validation
 
@@ -109,6 +154,15 @@ The derived file goes through the existing validation: GN003 for an arity that
 disagrees with `go/types`, GW004 for a symbol the package does not provide. With
 the dogfood gate in place these mean the `.gon` and the committed `.go` have
 drifted, which is a real error.
+
+### C6b — A `.gon` that cannot be read
+
+If an imported package's `.gon` source cannot be read or parsed (after
+preprocessing), the import gets one **GN003** at the import spec
+(`malformed source contracts for <import path>: …`) and **no** contract of that
+package is applied, as for a malformed `.gna` (I3: never guess). Packages of the
+main module that have **no** `.gon` (only `.go` and possibly a `.gna`, such as
+Gon's `internal/extlib` fixture) are unaffected: they keep using `.gna`.
 
 ### C7 — Cache and determinism
 
@@ -125,7 +179,9 @@ the main module are read the same way.
 
 **Possibly breaking (R1):** an importer that contradicts an exported `!` of a
 module-local `.gon` package gets GN001 / GN002 / GW001 it did not get before.
-New diagnostic **GW005** (C5). No new syntax, `.gna` schema stays 1. Ships
+New diagnostic **GW005** (C5), documented in README and `v1-scope.md` like
+GW004 was; Diagnostic Protocol v1 is unchanged (`code` is a free string, so a new
+code is not a schema change). No new syntax, `.gna` schema stays 1. Ships
 **solo** as v1.14.
 
 ### C10 — Non-goals
@@ -134,12 +190,14 @@ Flow analysis (I1); inferring contracts from bodies (I2); reading `.gon` from
 the module cache (C1); `!` on receivers (M7 S8); changing the immediate-use
 promotion rule of v1.1.
 
-## 4. Normative Rules (proposed)
+## 4. Normative Rules
 
 1. **Main module only** (C1). 2. **Never itself** (C2). 3. **Exported
 declarations, by name, as `.gna` would** (C3). 4. **Complete: no GW002** (C4).
-5. **One source of truth per package; GW005 on a shadowed `.gna`** (C5).
-6. **Existing validation** (C6). 7. **Deterministic** (C7).
+5. **One source of truth per package: `.gon` wins, the `.gna` is ignored, one
+GW005 per import declaration** (C5). 6. **Existing validation; a malformed
+`.gon` is GN003 and applies nothing** (C6, C6b). 7. **Deterministic** (C7).
+8. **Packages without `.gon` keep `.gna`** (C6b).
 
 ## 5. Examples
 
@@ -155,26 +213,36 @@ gna.Process(nil)        // GN001 if Process declared a ! parameter
 
 ## 6. Implementation Sketch
 
-`gna.SourceResolver{Root, ModulePath, Self}` in the default chain **after** the
-directory resolvers, plus the C5 shadowing check; `preproc.Process` and
-`go/parser` per file; derivation per C3; GW002 suppressed for files marked as
-source-derived (C4). `CheckPackage` and file mode pass `Self`.
+- `gna.SourceResolver{Root, ModulePath, Self}`: serves an import path inside
+  `ModulePath` whose directory holds non-test `.gon` files, except `Self`
+  (C1, C2); reads them in sorted order, preprocesses and parses each, derives a
+  complete `gna.File` (C3, C4) marked source-derived; caches it per import path
+  for the run (C7).
+- In the default chain it is consulted **first** for main-module imports; when
+  it serves a path, the directory resolvers are still asked only to learn
+  whether a `.gna` exists, so GW005 can be reported (C5); that `.gna` is never
+  used.
+- The checker suppresses GW002 for source-derived files (C4) and reports GW005
+  once per (file, import path) at the import spec (C5), and GN003 at the import
+  for an unreadable `.gon` (C6b).
+- `CheckPackage` and the file mode pass `Self` (C2, C8).
 
 ## 7. Test Requirements
 
-1. An importer sees an exported `!` result (GW001), a `!` parameter (GN001), a
-   `!` field (GN002 / GN001) and a `!` on an interface method.
-2. **Changing the source contract changes the importer's diagnostics** (remove
-   the `!` → the GW001 disappears).
-3. No GW002 for an ordinary exported symbol of a source-contract package; no
-   self-resolution (the package's own unexported calls give nothing).
-4. A `.gna` and `.gon` for the same package → GW005, `.gna` ignored.
-5. A dependency outside the main module with `.gon` is not read.
-6. Determinism over repeated runs; file mode and package mode agree.
-7. Immediate-use promotion unchanged (the v1.1 tests pass as they are).
-8. Differential over the repositories' `.gon` files and the standard-library
-   corpus; dogfood: Gon's own `gon check ./...` shows exactly the intended
-   change.
+| # | Requirement |
+|---|---|
+| T1 | An importer sees each kind of exported contract: a `!` result (GW001 on `== nil`), a `!` parameter (GN001 on `nil`), a `!` struct field (GN002 on construction, GN001 on `nil`), a `!` on an interface method (GN001 through the interface). |
+| T2 | **Changing the source contract changes the importer's diagnostics:** removing the `!` removes the importer's GW001 / GN001; adding one adds it. |
+| T3 | **Completeness (mandatory before readiness):** generic receivers (`func (b *Box[T]) Put(p !*T)`), a method with its own type parameters, embedded fields (an embedded `!` field and a field promoted from an embedded struct), interface methods including an embedded interface. Each: the importer sees the contract, and the derived file lists the symbol. |
+| T4 | No GW002 for an ordinary exported symbol of a source-contract package; no GW002 ever on a source-derived file. |
+| T5 | **No self-resolution:** the package under check, in file mode and package mode, gets nothing from the source resolver (its own unexported and exported calls produce exactly today's diagnostics). |
+| T6 | **`.gna` ignored:** a `.gna` and `.gon` for the same package, **stating different contracts** for the same symbol: only the `.gon` contract applies (both directions: `.gna` claims `!` where `.gon` does not, and the reverse). One GW005 at the import. A malformed shadowed `.gna` gives GW005, not GN003. |
+| T7 | **GW005 unit:** one per (file, import path) however many selectors or `.gon` files; two importing files in package mode → two GW005, each at its own import; same set over 15 repeated runs. |
+| T8 | A dependency outside the main module that ships `.gon` is not read (its `.gna` is used). A main-module package with only `.go` + `.gna` keeps using the `.gna`. |
+| T9 | A malformed imported `.gon` → one GN003 at the import, no contract applied. |
+| T10 | File mode and package mode give the same importer diagnostics. |
+| T11 | Immediate-use promotion unchanged: the v1.1 tests pass unchanged. |
+| T12 | Differential over the three repositories' `.gon` files and the standard-library corpus; dogfood: Gon's own `gon check ./...` shows exactly the intended change (expected: none except where an importer contradicts `gna.DefaultChain` / `gna.NewRegistry`, of which there is none today). |
 
 ## 8. Alternatives Considered
 
@@ -188,22 +256,39 @@ source-derived (C4). `CheckPackage` and file mode pass `Self`.
   overlays** — heavier (re-type-checks dependencies from source) for the same
   information the preprocessor already gives by name.
 
-## 9. Open Questions for the Owner
+## 9. Owner Decisions (2026-11-17)
 
-1. **Q1 — C1 scope.** Main module only (proposed), or also dependencies that
-   ship `.gon`?
-2. **Q2 — C3 contents.** Functions, methods, interface methods and struct fields
-   (proposed), or start with functions and methods only?
-3. **Q3 — C4.** Complete derived files with no GW002 (proposed)?
-4. **Q4 — C5 conflict policy.** `.gon` wins, `.gna` ignored with a new **GW005**
-   (proposed); or `.gna` wins; or an error?
-5. **Q5 — C8.** File mode too (proposed), or package mode only?
-6. **Q6 — Release shape.** Solo v1.14, possibly breaking (proposed)?
+All six answered **as proposed**, with these limits stated by the owner:
+
+1. **Q1 — Scope:** the main module only. Dependencies in the module cache keep
+   using `.gna`, even if they ship `.gon`.
+2. **Q2 — Contents:** all four kinds: functions, methods, interface methods,
+   struct fields.
+3. **Q3 — Completeness:** a derived file is complete; GW002 does not apply to it,
+   including for symbols without a `!`.
+4. **Q4 — Conflicts:** the `.gon` is authoritative; a `.gna` for the same package
+   is ignored; **GW005 once per import**, never once per conflicting symbol.
+5. **Q5 — Modes:** file mode and package mode alike.
+6. **Q6 — Release:** M10 / v1.14, solo, possibly breaking, documented.
+
+Three design conditions the owner attached: the source resolver never reads the
+package under check (C2); the derivation represents the whole contract surface
+(C4); GW005 is deterministic and not repeated, with a defined unit (C5).
+Open evidence the owner requires before readiness: generic receivers, receiver
+type parameters, embedded fields and interface methods (T3), and a test that a
+`.gna` stating a **different** contract is really ignored (T6).
 
 ## 10. Invariant Check (I1–I7)
 
 - **I1** upheld (no flow). **I2** upheld (only written `!`). **I3** upheld
-  (matching through `go/types`). **I4** *amended*: nilability of an imported
-  module-local package may come from its `.gon` sources, not only `.gna`; the
-  RFC needs the owner's explicit acceptance of this. **I5** upheld. **I6**
-  upheld. **I7** upheld (no syntax; schema 1).
+  (matching through `go/types`; a malformed source applies nothing).
+- **I4 — amended (owner, 2026-11-17).** New wording:
+  > Nilability contracts for external packages come from `.gna`. For an
+  > imported module-local package, contracts may come from that package's
+  > `.gon` sources; when `.gon` sources are available, they take precedence
+  > over a `.gna` for the same package.
+
+  This is not an implicit extension to dependencies that happen to ship
+  `.gon`: Q1 still limits it to the main module.
+- **I5** upheld. **I6** upheld. **I7** upheld (no syntax; `.gna` schema 1; one
+  new warning code, GW005).
