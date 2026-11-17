@@ -70,8 +70,10 @@ nothing would keep the two copies' `!` flags equal.
 **C is implemented in v1.14 (M10, `docs/rfc-source-contracts.md`):** an
 importer now reads a main-module package's contracts from its `.gon` sources,
 so `gna.DefaultChain`'s `!*Chain` reaches `cmd/gon` and `internal/lsp`. The
-annotation PRs for the other exported candidates (`preproc.Process`, `lsp.New`)
-can resume once v1.14 is released and the pinned `gon` of the gate is bumped.
+gate's pinned `gon` is **v1.14.0** (bumped 2026-11-17; with it, `gon check
+./...` on this repository is `ok` and every `.go` still matches its `.gon`), so
+the annotation PRs for the other exported candidates (`preproc.Process`,
+`lsp.New`) can resume.
 
 Why C (as measured before M10): with the M8 model, a package that **imports** a module-local package
 reads that package's contracts from `.gna`, never from its `.gon` sources.
