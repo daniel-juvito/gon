@@ -2,6 +2,7 @@ package lsp
 
 import (
 	"bytes"
+	"io"
 	"strings"
 	"testing"
 )
@@ -68,4 +69,23 @@ func itoa(n int) string {
 		n /= 10
 	}
 	return string(b[i:])
+}
+
+// New never returns nil, whatever its arguments, including nil ones: the
+// `!*Server` contract (dogfood D5). Its only return is &Server{...}.
+func TestNewNeverReturnsNil(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		in   io.Reader
+		out  io.Writer
+	}{
+		{"reader and writer", strings.NewReader(""), &bytes.Buffer{}},
+		{"nil reader", nil, &bytes.Buffer{}},
+		{"nil writer", strings.NewReader(""), nil},
+		{"both nil", nil, nil},
+	} {
+		if New(tc.in, tc.out) == nil {
+			t.Fatalf("%s: New returned nil", tc.name)
+		}
+	}
 }

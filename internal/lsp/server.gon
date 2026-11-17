@@ -22,7 +22,7 @@ type Server struct {
 	docs map[string]string
 }
 
-func New(in io.Reader, out io.Writer) *Server {
+func New(in io.Reader, out io.Writer) !*Server {
 	return &Server{in: bufio.NewReader(in), out: out, docs: make(map[string]string)}
 }
 
