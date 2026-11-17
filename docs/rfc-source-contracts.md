@@ -64,7 +64,9 @@ Reading of the results:
    packages' `.gon` sources once per check).
 
 Limits: one repository, a spike that skipped interface methods, type
-parameters on receivers and embedded fields, and no external module that ships
+parameters on receivers and embedded fields, **derived members only of
+exported type names** (narrower than C3, so the counts above do not cover
+exported members of unexported types), and no external module that ships
 `.gon`.
 
 ## 3. Decision Matrix (as decided, §9)
@@ -86,14 +88,47 @@ methods through M7). Concretely, the resolver is constructed with the import
 path of the package under check (`Self`) and returns "no file" for it. Measured
 need: §2.2 (322–327 false GW002 on a package's own symbols without this).
 
-### C3 — What is derived
+### C3 — What is derived: every member an importer can reach
 
-Every **exported** declaration of the package's non-test `.gon` files, with its
-`!` flags read by the preprocessor: functions (params / results), methods by
-`Type.Method` (receiver `*` and type parameters stripped), methods of exported
-interface types, and exported fields of exported struct types. Unexported
-declarations are invisible to importers and are not derived. Receiver
-contracts stay out of scope (M7 S8).
+The derivation covers the whole surface an importer can **reach**, which is
+decided by whether the **member** is exported, not whether the type that holds
+it is. In Go an importer can obtain a value of an unexported type through an
+exported API and then use that value's exported fields and methods:
+
+```go
+package lib                      // a .gon package of the main module
+
+type hidden struct{ Field !*T }  // unexported type, exported field
+
+func New() *hidden { return &hidden{Field: &T{}} }
+
+func (h *hidden) Get() !*T { return h.Field }   // exported method
+
+// importer
+x := lib.New()
+_ = x.Get() == nil    // GW001 expected: Get's ! result
+x.Field = nil         // GN001 expected: Field's ! contract
+```
+
+So, from the package's non-test `.gon` files, with `!` flags read by the
+preprocessor:
+
+- every **exported function** (params, results);
+- every **exported method** of a named type, **whatever the type's name**
+  (exported or not), keyed `Type.Method`;
+- every **exported method of an interface type**, **whatever the interface's
+  name**, keyed `Iface.Method`;
+- every **exported field of a struct type**, **whatever the struct's name**,
+  keyed under the struct's type name.
+
+Not derived: unexported functions, unexported methods, unexported fields, and
+anything declared in a test file. An unexported type's name appears only as the
+key of its exported members. Receiver contracts stay out of scope (M7 S8).
+
+The existing `.gna` machinery accepts such keys: validation looks names up with
+`scope.Lookup` and method resolution uses `named.Obj().Name()`, neither of which
+requires an exported name (read from the code, `internal/checker/ecosystem.gon`
+and `annotations.gon`; proven by T3, not assumed).
 
 Keys follow `gna-spec-v1.md` exactly, so the derived file is indistinguishable
 from a hand-written `.gna` for the same contracts:
@@ -115,8 +150,9 @@ mandatory tests (§7, T3) before the implementation is considered ready.
 ### C4 — A derived file is complete; GW002 does not apply to it
 
 The derived file represents the **whole exported contract surface** of the
-package: every exported function, method, interface method and struct field,
-ordinary ones included (with all flags false). It is marked as source-derived,
+package as C3 defines it (every exported function, and every exported method,
+interface method and struct field whatever the name of its type), ordinary
+ones included (with all flags false). It is marked as source-derived,
 and **GW002 is never reported for a source-derived file**, even for a symbol the
 derivation somehow missed: GW002 means "a hand-written `.gna` forgot this
 symbol", which cannot be true of a contract read from the source. (Measured
@@ -233,7 +269,7 @@ gna.Process(nil)        // GN001 if Process declared a ! parameter
 |---|---|
 | T1 | An importer sees each kind of exported contract: a `!` result (GW001 on `== nil`), a `!` parameter (GN001 on `nil`), a `!` struct field (GN002 on construction, GN001 on `nil`), a `!` on an interface method (GN001 through the interface). |
 | T2 | **Changing the source contract changes the importer's diagnostics:** removing the `!` removes the importer's GW001 / GN001; adding one adds it. |
-| T3 | **Completeness (mandatory before readiness):** generic receivers (`func (b *Box[T]) Put(p !*T)`), a method with its own type parameters, embedded fields (an embedded `!` field and a field promoted from an embedded struct), interface methods including an embedded interface. Each: the importer sees the contract, and the derived file lists the symbol. |
+| T3 | **Completeness (mandatory before readiness):** generic receivers (`func (b *Box[T]) Put(p !*T)`), a method with its own type parameters, embedded fields (an embedded `!` field and a field promoted from an embedded struct), interface methods including an embedded interface, and **exported members of unexported types**: an exported method and an exported `!` field of an unexported struct reached through an exported constructor (`x := lib.New(); x.Get() == nil` → GW001, `x.Field = nil` → GN001), and an exported method of an unexported interface returned by an exported function. Each: the importer sees the contract, and the derived file lists the member. Unexported members are **not** listed. |
 | T4 | No GW002 for an ordinary exported symbol of a source-contract package; no GW002 ever on a source-derived file. |
 | T5 | **No self-resolution:** the package under check, in file mode and package mode, gets nothing from the source resolver (its own unexported and exported calls produce exactly today's diagnostics). |
 | T6 | **`.gna` ignored:** a `.gna` and `.gon` for the same package, **stating different contracts** for the same symbol: only the `.gon` contract applies (both directions: `.gna` claims `!` where `.gon` does not, and the reverse). One GW005 at the import. A malformed shadowed `.gna` gives GW005, not GN003. |
@@ -273,7 +309,9 @@ All six answered **as proposed**, with these limits stated by the owner:
 
 Three design conditions the owner attached: the source resolver never reads the
 package under check (C2); the derivation represents the whole contract surface
-(C4); GW005 is deterministic and not repeated, with a defined unit (C5).
+(C4), meaning every member an importer can reach, including exported members of
+unexported types (C3, from the owner's RFC audit); GW005 is deterministic and
+not repeated, with a defined unit (C5).
 Open evidence the owner requires before readiness: generic receivers, receiver
 type parameters, embedded fields and interface methods (T3), and a test that a
 `.gna` stating a **different** contract is really ignored (T6).
