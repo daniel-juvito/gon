@@ -133,9 +133,17 @@ and `annotations.gon`; proven by T3, not assumed).
 Keys follow `gna-spec-v1.md` exactly, so the derived file is indistinguishable
 from a hand-written `.gna` for the same contracts:
 
-- a method of a generic type is keyed `Type.Method` without type arguments or
-  parameters (`func (b *Box[T]) Put(…)` → `Box.Put`), as M5b keys `.gna`
-  methods; a method's own type parameters do not change its key;
+- a method of a **generic type** (a generic receiver) is keyed `Type.Method`
+  without type arguments or receiver type parameters
+  (`func (b *Box[T]) Put(…)` → `Box.Put`; `func (m *Map[K, V]) Set(…)` →
+  `Map.Set`), as M5b keys `.gna` methods;
+- a **generic method**, i.e. a method that declares its own type parameters
+  (`func (b Box[X]) Map[Y any](…)`), is keyed the same way (`Box.Map`): its own
+  type parameters do not change the key. This syntax exists since **Go 1.27**
+  (verified 2026-11-17: accepted in a `go 1.27` module, rejected in a `go 1.26`
+  one with `method must have no type parameters`), Gon's build minimum since
+  v1.8.1; M7 already checks its call-site contracts within a package. It is
+  only reachable for importers whose own `go.mod` says `go 1.27` or later;
 - an interface method is keyed `Iface.Method`; an embedded interface's methods
   are derived from the interface that declares them;
 - a struct field is keyed by its name; an **embedded** field by its type name
@@ -228,8 +236,10 @@ promotion rule of v1.1.
 
 ## 4. Normative Rules
 
-1. **Main module only** (C1). 2. **Never itself** (C2). 3. **Exported
-declarations, by name, as `.gna` would** (C3). 4. **Complete: no GW002** (C4).
+1. **Main module only** (C1). 2. **Never itself** (C2). 3. **Importer-reachable
+exported members: every exported function, and every exported method,
+interface method and struct field regardless of whether its containing type is
+exported, keyed by name as `.gna` would, exactly as specified in C3** (C3). 4. **Complete: no GW002** (C4).
 5. **One source of truth per package: `.gon` wins, the `.gna` is ignored, one
 GW005 per import declaration** (C5). 6. **Existing validation; a malformed
 `.gon` is GN003 and applies nothing** (C6, C6b). 7. **Deterministic** (C7).
@@ -269,7 +279,7 @@ gna.Process(nil)        // GN001 if Process declared a ! parameter
 |---|---|
 | T1 | An importer sees each kind of exported contract: a `!` result (GW001 on `== nil`), a `!` parameter (GN001 on `nil`), a `!` struct field (GN002 on construction, GN001 on `nil`), a `!` on an interface method (GN001 through the interface). |
 | T2 | **Changing the source contract changes the importer's diagnostics:** removing the `!` removes the importer's GW001 / GN001; adding one adds it. |
-| T3 | **Completeness (mandatory before readiness):** generic receivers (`func (b *Box[T]) Put(p !*T)`), a method with its own type parameters, embedded fields (an embedded `!` field and a field promoted from an embedded struct), interface methods including an embedded interface, and **exported members of unexported types**: an exported method and an exported `!` field of an unexported struct reached through an exported constructor (`x := lib.New(); x.Get() == nil` → GW001, `x.Field = nil` → GN001), and an exported method of an unexported interface returned by an exported function. Each: the importer sees the contract, and the derived file lists the member. Unexported members are **not** listed. |
+| T3 | **Completeness (mandatory before readiness):** generic receivers (`func (b *Box[T]) Put(p !*T)`, and one with two type parameters, key `Box.Put` without type arguments), a Go 1.27 generic method with its own type parameter (`func (b Box[X]) Map[Y any](p !*Y)`, key `Box.Map`; in a `go 1.27` module), embedded fields (an embedded `!` field and a field promoted from an embedded struct), interface methods including an embedded interface, and **exported members of unexported types**: an exported method and an exported `!` field of an unexported struct reached through an exported constructor (`x := lib.New(); x.Get() == nil` → GW001, `x.Field = nil` → GN001), and an exported method of an unexported interface returned by an exported function. Each: the importer sees the contract, and the derived file lists the member. Unexported members are **not** listed. |
 | T4 | No GW002 for an ordinary exported symbol of a source-contract package; no GW002 ever on a source-derived file. |
 | T5 | **No self-resolution:** the package under check, in file mode and package mode, gets nothing from the source resolver (its own unexported and exported calls produce exactly today's diagnostics). |
 | T6 | **`.gna` ignored:** a `.gna` and `.gon` for the same package, **stating different contracts** for the same symbol: only the `.gon` contract applies (both directions: `.gna` claims `!` where `.gon` does not, and the reverse). One GW005 at the import. A malformed shadowed `.gna` gives GW005, not GN003. |
