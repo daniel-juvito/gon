@@ -424,10 +424,12 @@ generic methods as part of this RFC.
 
 `check` and `check --json`, text + exit code + stderr, file mode: the 86 `.gon`
 files of the three repositories (now including Gon's 24 production sources)
-and 526 standard-library files: **611 identical, 1 differing**. The one is
-`internal/checker/annotations.gon`, whose **content** changed between the two
-runs (this change added an import, so a type error's line moved from 24 to 25);
-run on the current file, v1.13.0 and this branch give byte-identical output.
+and 526 standard-library files, measured on the final head (after the audit's
+defined-type and alias fix): **610 identical, 2 differing**. The two are
+`internal/checker/annotations.gon` and `internal/checker/ecosystem.gon`, whose
+**content** this change edited between the two runs (an added import moved a
+type error's line); run on the current files, v1.13.0 and this branch give
+byte-identical output for both.
 Package mode: `gon check ./...` on this repository is `ok` with both, and
 `gon-examples/package-check ./...` is identical. With a probe
 `c := gna.DefaultChain(…); c == nil` added to `cmd/gon`, this branch reports
