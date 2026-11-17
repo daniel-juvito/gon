@@ -19,9 +19,9 @@ type Checker struct {
 	cleanSrc      []byte
 	nonNilOffsets map[int]bool
 
-	funcParams   map[string][]bool
-	funcReturns  map[string][]bool
-	structFields map[string]map[string]bool
+	funcParams   !map[string][]bool
+	funcReturns  !map[string][]bool
+	structFields !map[string]map[string]bool
 
 	// scopes contain lexical bindings. The value is true only for !T bindings;
 	// false is also stored so a nullable shadowing declaration hides an outer !T.

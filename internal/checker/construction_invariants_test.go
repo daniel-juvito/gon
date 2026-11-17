@@ -150,3 +150,30 @@ func TestCheckPackageCheckersHaveFset(t *testing.T) {
 		}
 	}
 }
+
+// --- P3: the declaration maps exist wherever a Checker is built ---------------
+
+func TestNewFillsDeclarationMaps(t *testing.T) {
+	plain, annotated := newAt(t, pkgDir(t, map[string]string{}), "a.gon")
+	for name, c := range map[string]*Checker{"New": plain, "NewWithAnnotations": annotated} {
+		if c.funcParams == nil || c.funcReturns == nil || c.structFields == nil {
+			t.Fatalf("%s: funcParams=%v funcReturns=%v structFields=%v", name, c.funcParams, c.funcReturns, c.structFields)
+		}
+	}
+}
+
+// CheckPackage builds one packageShared and hands its maps to every file's
+// Checker. Neither is exposed, so this locks what each map makes observable:
+// a contract declared in a.gon is applied in b.gon through funcParams (a nil
+// argument), funcReturns (a nil comparison of a result), structFields (a
+// literal without a !-field), and b.gon's own `!` is found through offsets.
+// Writing a contract into a nil map would panic in collect.
+func TestCheckPackageFillsSharedDeclarationMaps(t *testing.T) {
+	dir := pkgDir(t, map[string]string{
+		"a.gon": "package main\n\ntype T struct{}\n\ntype Conn struct{ DB !*T }\n\nfunc Take(p !*T) {}\n\nfunc Make() !*T { return &T{} }\n\nfunc main() {}\n",
+		"b.gon": "package main\n\nfunc use() {\n\tTake(nil)\n\tx := Make()\n\tif x == nil {\n\t}\n\t_ = Conn{}\n}\n\nfunc own() !*T {\n\treturn nil\n}\n",
+	})
+	res := mustPkg(t, dir, "a.gon", "b.gon")
+	wantCodes(t, res, "b.gon", "GN001", "GN001", "GN002", "GW001")
+	wantCodes(t, res, "a.gon")
+}
