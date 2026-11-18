@@ -65,7 +65,7 @@ jobs:
   gon-sources:
     runs-on: ubuntu-latest
     env:
-      GON_VERSION: v1.15.0
+      GON_VERSION: v1.16.0
     steps:
       - uses: actions/checkout@v4
 
