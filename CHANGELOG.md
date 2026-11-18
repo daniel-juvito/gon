@@ -33,6 +33,13 @@ exit-code meanings; all-or-nothing emission is unchanged.
 - Import resolution outside a module is unchanged: only the standard library
   resolves; a bare (`lib`), relative (`./sub`) or `$GOPATH/src` import is
   still a Go type error.
+- Outside a module, a file whose `//go:build` line is malformed (unbalanced
+  parentheses, an incomplete expression, two `//go:build` lines) is not
+  loaded and is reported as a Go error of the package, as the go command
+  reports such a file: exit 1 with the envelope of the other files, and
+  `gon: Go type error: p/a.gon: invalid build constraint: …` on stderr. It is
+  never "no source in the build". Until v1.17 a malformed `.gon` made the
+  package exit 2 and a malformed plain `.go` file was silently ignored.
 
 ## [1.17.0] — 2026-11-18
 

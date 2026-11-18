@@ -130,9 +130,17 @@ func CheckPackage(dir string, files []PackageFile, resolver gna.Resolver) (*Pack
 		Tests:   false,
 	}
 	queries := []string{dirAbs}
+	var invalid []string // outside a module: files whose build constraint is malformed
 	if !inModule {
-		kept, excluded, plain := outsideModuleMembers(dirAbs, sorted, overlay, overlayPath)
+		kept, excluded, plain, bad := outsideModuleMembers(dir, dirAbs, sorted, overlay, overlayPath)
+		invalid = bad
 		if len(kept) == 0 && len(plain) == 0 {
+			if len(invalid) > 0 {
+				// The only sources left have a malformed constraint: a source
+				// error of the package (as the go command reports it), not a
+				// package with no source in the build. Nothing can be loaded.
+				return &PackageResult{TypeErrors: invalid}, nil
+			}
 			// No source of the package is in the build: as in a module.
 			return nil, &ExcludedError{Dir: dir, Files: excluded}
 		}
@@ -244,7 +252,7 @@ func CheckPackage(dir string, files []PackageFile, resolver gna.Resolver) (*Pack
 	for _, c := range checkers {
 		c.collect()
 	}
-	res := &PackageResult{}
+	res := &PackageResult{TypeErrors: invalid}
 	for i, c := range checkers {
 		res.Files = append(res.Files, FileDiagnostics{Path: checked[i].Path, Diagnostics: c.walk()})
 	}
@@ -300,8 +308,13 @@ func splitIgnored(files []PackageFile, overlayPath func(PackageFile) string, ign
 // directory. kept are the .gon files it accepts, in their order; excluded the
 // paths of those it rejects; plain the absolute paths of the accepted plain .go
 // files that are not test files, not ignored by name (`_x`, `.x`) and not
-// shadowed by a .gon of the same base name.
-func outsideModuleMembers(dirAbs string, files []PackageFile, overlay map[string][]byte, overlayPath func(PackageFile) string) (kept []PackageFile, excluded []string, plain []string) {
+// shadowed by a .gon of the same base name. A file MatchFile cannot judge (a
+// malformed `//go:build` line, which the go command reports as an invalid file
+// of the package) is neither kept nor excluded: it is not loaded and its error
+// is returned in invalid, to be reported as a Go error of the package. Plain
+// files are named in invalid by dir (the operand) joined with their name, like
+// the .gon files.
+func outsideModuleMembers(dir, dirAbs string, files []PackageFile, overlay map[string][]byte, overlayPath func(PackageFile) string) (kept []PackageFile, excluded []string, plain []string, invalid []string) {
 	ctx := build.Default
 	ctx.OpenFile = func(path string) (io.ReadCloser, error) {
 		if src, ok := overlay[filepath.Clean(path)]; ok {
@@ -310,15 +323,19 @@ func outsideModuleMembers(dirAbs string, files []PackageFile, overlay map[string
 		return os.Open(path)
 	}
 	for _, f := range files {
-		if match, err := ctx.MatchFile(dirAbs, filepath.Base(overlayPath(f))); err == nil && !match {
+		match, err := ctx.MatchFile(dirAbs, filepath.Base(overlayPath(f)))
+		switch {
+		case err != nil:
+			invalid = append(invalid, invalidConstraint(f.Path, err))
+		case match:
+			kept = append(kept, f)
+		default:
 			excluded = append(excluded, f.Path)
-			continue
 		}
-		kept = append(kept, f)
 	}
 	entries, err := os.ReadDir(dirAbs)
 	if err != nil {
-		return kept, excluded, nil
+		return kept, excluded, nil, invalid
 	}
 	for _, e := range entries {
 		name := e.Name()
@@ -330,11 +347,21 @@ func outsideModuleMembers(dirAbs string, files []PackageFile, overlay map[string
 		if _, shadowed := overlay[filepath.Clean(path)]; shadowed {
 			continue
 		}
-		if match, err := ctx.MatchFile(dirAbs, name); err == nil && match {
+		match, err := ctx.MatchFile(dirAbs, name)
+		switch {
+		case err != nil:
+			invalid = append(invalid, invalidConstraint(filepath.Join(dir, name), err))
+		case match:
 			plain = append(plain, path)
 		}
 	}
-	return kept, excluded, plain
+	return kept, excluded, plain, invalid
+}
+
+// invalidConstraint is the Go error reported for a file whose build constraint
+// go/build cannot evaluate, named by the file the user wrote.
+func invalidConstraint(path string, err error) string {
+	return fmt.Sprintf("%s: invalid build constraint: %v", filepath.ToSlash(path), err)
 }
 
 // hasOwnParseError reports whether errs holds a parse error positioned in the

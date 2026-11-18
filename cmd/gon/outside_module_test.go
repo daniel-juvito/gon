@@ -215,3 +215,47 @@ func TestOutsideModuleTranspileUsesTheSameFiles(t *testing.T) {
 		}
 	}
 }
+
+// A malformed build constraint (go/build's MatchFile cannot evaluate it; the go
+// command reports such a file as an invalid file of the package) is neither a
+// member nor excluded: the file is not loaded and its error is a Go error of
+// the package (exit 1, envelope, message on stderr naming the file), for a
+// .gon and for a plain .go file alike. It is never "no source in the build"
+// (exit 2) and a `...` pattern does not skip the package.
+func TestOutsideModuleMalformedBuildConstraint(t *testing.T) {
+	root := outsideModule(t, map[string]string{
+		"m/a.gon":     "//go:build (linux\n\npackage m\n\n" + outGN001,
+		"m/b.gon":     "package m\n\nfunc g() !*int {\n\treturn nil\n}\n",
+		"g/a.gon":     "package g\n\nfunc F() {}\n",
+		"g/c.go":      "//go:build linux &&\n\npackage g\n\nfunc broken( {\n",
+		"two/a.gon":   "//go:build ignore\n//go:build linux\n\npackage two\n",
+		"only/a.gon":  "//go:build (linux\n\npackage only\n",
+		"only/b.gon":  "//go:build ignore\n\npackage only\n",
+		"pat/x/a.gon": "//go:build (linux\n\npackage x\n",
+	})
+	exit, env, errOut := outEnvelope(t, "check", "--json", "./m")
+	if exit != 1 || len(env.Diagnostics) != 1 || filepath.Base(env.Diagnostics[0].File) != "b.gon" ||
+		errOut != "gon: Go type error: m/a.gon: invalid build constraint: a.go: parsing //go:build line: missing close paren\n" {
+		t.Fatalf(".gon: exit %d %+v\nstderr %q", exit, env.Diagnostics, errOut)
+	}
+	exit, env, errOut = outEnvelope(t, "check", "--json", "./g")
+	if exit != 1 || len(env.Diagnostics) != 0 ||
+		errOut != "gon: Go type error: g/c.go: invalid build constraint: c.go: parsing //go:build line: unexpected end of expression\n" {
+		t.Fatalf("plain .go: exit %d\nstderr %q", exit, errOut)
+	}
+	if exit, _, errOut := outEnvelope(t, "check", "--json", "./two"); exit != 1 || !strings.Contains(errOut, "two/a.gon: invalid build constraint: a.go: multiple //go:build comments") {
+		t.Fatalf("multiple //go:build: exit %d\n%s", exit, errOut)
+	}
+	for _, args := range [][]string{{"check", "--json", "./only"}, {"vet", "--json", "./only"}, {"check", "--json", "./pat/..."}} {
+		exit, env, errOut := outEnvelope(t, args...)
+		if exit != 1 || len(env.Diagnostics) != 0 || !strings.Contains(errOut, "invalid build constraint") || strings.Contains(errOut, "exclude all Go files") || strings.Contains(errOut, "matched no packages") {
+			t.Fatalf("%v: exit %d (want 1, not exit 2 and not skipped)\n%s", args, exit, errOut)
+		}
+	}
+	for _, cmd := range []string{"transpile", "build"} {
+		exit, _, errOut := captureRun([]string{cmd, "./m"})
+		if exit != 1 || exists(filepath.Join(root, "m", "a.go")) || exists(filepath.Join(root, "m", "b.go")) {
+			t.Fatalf("%s: exit %d (want 1), nothing written\n%s", cmd, exit, errOut)
+		}
+	}
+}
