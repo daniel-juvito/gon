@@ -145,7 +145,9 @@ separate feature and **not** part of this RFC (see Q5). Package mode only makes
 `./...` walks directories that contain `.gon` files, each its own package,
 skipping `testdata`, `vendor`, and names beginning with `_` or `.` — as the
 `go` tool does. This keeps the independent fixture folders of §12.4 out of
-package mode.
+package mode. *(v1.16: it also stops at a directory with its own `go.mod`, a
+nested module, as the `go` tool does; a package none of whose sources is in
+the build is skipped.)*
 
 ### P9 — Other commands
 
@@ -408,7 +410,10 @@ measures user projects.
   *(v1.15: the message is `excluded by build constraints: <files>` whatever the
   file order, and the exit code is 2, a package that cannot be loaded; a file
   the loader cannot parse is a Go error of the package instead. See
-  `docs/diagnostic-protocol-v1.md` §7.)*
+  `docs/diagnostic-protocol-v1.md` §7.)* *(v1.16: inside a module the package
+  is loaded by its directory, so the go command decides membership: an
+  excluded `.gon` is not checked and is not an error; only a package none of
+  whose sources is in the build is, exit 2, when named explicitly.)*
 - **P4 — the refactor was smaller than the sketch.** `Check()` is now
   `collect()` then `walk()`; in package mode every file's checker shares the
   three declaration tables (maps passed by reference), so after every file has

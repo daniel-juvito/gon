@@ -240,11 +240,24 @@ load" behave differently:
 - **Package-loading failures.** When no package could be loaded at all, the run
   is exit 2 with **no envelope** and the reason on stderr: the `go` command is
   missing or fails, the module configuration is invalid (for example an
-  unparsable `go.mod`), a `.gon` file in the directory is excluded by build
-  constraints (`excluded by build constraints: <files>`, whatever the file
-  order), or the loader returned no type information. These are not Go
-  type-checking errors. The same applies to the directory form of
-  `gon transpile` and `gon build`.
+  unparsable `go.mod`), no source of an explicitly named package is in the
+  build (`build constraints exclude all Go files in <dir> (.gon files:
+  <files>)`, every file named, sorted), or the loader returned no type
+  information. These are not Go type-checking errors. The same applies to the
+  directory form of `gon transpile` and `gon build`.
+- **Build constraints decide package membership (v1.16).** Inside a module the
+  go command decides which files belong to a package for the current build
+  configuration, as `go list ./dir` does: a `.gon` excluded by build
+  constraints (a `//go:build` line, a file name suffix, a tag in `GOFLAGS`) is
+  not part of the package and is **not checked**; it is neither a diagnostic
+  nor a failure. A package whose `.gon` files are all excluded but which has
+  other Go files in the build is checked from those. A package found by a
+  `...` pattern none of whose sources is in the build is skipped (a pattern
+  all of whose packages are skipped warns on stderr and is exit 0 with an
+  empty envelope); named explicitly, it is the package-loading failure above.
+  (In v1.15 any excluded `.gon` was exit 2, except, inconsistently, a
+  directory whose only `.gon` was excluded, which was checked as if it were
+  not.)
 
 Consumers must not assume that every exit 1 produces parseable JSON: the
 file-mode pre-check parse failure is the exception, and stderr explains it. It
@@ -277,7 +290,8 @@ Examples:
 | Package-mode syntax error or invalid `package` clause (envelope) | 1 |
 | Non-existent input file       | 2    |
 | Malformed CLI invocation      | 2    |
-| Package cannot be loaded (`go` missing, invalid `go.mod`, file excluded by build constraints) | 2 |
+| Package cannot be loaded (`go` missing, invalid `go.mod`, no source of a named package in the build) | 2 |
+| A `.gon` excluded by build constraints (not checked) | as the rest of the package |
 | Controlled internal failure   | 3    |
 
 Warnings alone never produce exit 1.

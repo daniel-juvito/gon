@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -21,16 +23,21 @@ func TestAllOrNothingFileParseFailureAfterDiagnostics(t *testing.T) {
 	}
 }
 
-// R7: `./...`, package a has GN001, package b cannot be loaded.
+// `./...`, package a has GN001, package b cannot be loaded (its .gon is a
+// dangling symbolic link, so it cannot be read: exit 2). (Before v1.16 this
+// used R7, a build-constrained file; such a file is now skipped, see
+// TestAllOrNothingPatternWithExcludedFileIsNotAFailure.)
 func TestAllOrNothingPatternLoadFailureAfterDiagnostics(t *testing.T) {
 	root := pkgModule(t, map[string]string{
 		"a/a.gon": "package a\n\nfunc f() !*int {\n\treturn nil\n}\n",
-		"b/b.gon": "//go:build ignore\n\npackage b\n",
 		"b/c.gon": "package b\n",
 	})
+	if err := os.Symlink(filepath.Join(root, "missing.gon"), filepath.Join(root, "b", "b.gon")); err != nil {
+		t.Skipf("symlink: %v", err)
+	}
 	chdir(t, root)
 	exit, out, errOut := captureRun([]string{"check", "--json", "./..."})
-	if exit != 2 || out != "" || !strings.Contains(errOut, "excluded by build constraints: b/b.gon") {
+	if exit != 2 || out != "" || !strings.Contains(errOut, "gon: read b/b.gon") {
 		t.Fatalf("exit %d (want 2), stdout %q (want none)\n%s", exit, out, errOut)
 	}
 	if strings.Contains(errOut, "GN001") {
@@ -38,16 +45,35 @@ func TestAllOrNothingPatternLoadFailureAfterDiagnostics(t *testing.T) {
 	}
 }
 
-// A file operand with GN001, then a directory that cannot be loaded.
+// R7 since v1.16: package b's build-constrained b.gon is skipped and b is
+// checked from c.gon, so the run completes and a's GN001 is in the envelope.
+func TestAllOrNothingPatternWithExcludedFileIsNotAFailure(t *testing.T) {
+	root := pkgModule(t, map[string]string{
+		"a/a.gon": "package a\n\nfunc f() !*int {\n\treturn nil\n}\n",
+		"b/b.gon": "//go:build ignore\n\npackage b\n",
+		"b/c.gon": "package b\n",
+	})
+	chdir(t, root)
+	exit, out, errOut := captureRun([]string{"check", "--json", "./..."})
+	if exit != 1 {
+		t.Fatalf("exit %d (want 1)\n%s", exit, errOut)
+	}
+	env := decodeProtocolEnvelope(t, out)
+	if len(env.Diagnostics) != 1 || env.Diagnostics[0].Code != "GN001" {
+		t.Fatalf("want a's GN001: %+v", env.Diagnostics)
+	}
+}
+
+// A file operand with GN001, then an explicitly named directory none of whose
+// sources is in the build (exit 2).
 func TestAllOrNothingFileThenFailingDirectory(t *testing.T) {
 	root := pkgModule(t, map[string]string{
 		"good.gon": exitGN001,
 		"d/a.gon":  exitIgnored,
-		"d/b.gon":  exitOK,
 	})
 	chdir(t, root)
 	exit, out, errOut := captureRun([]string{"check", "--json", "good.gon", "./d"})
-	if exit != 2 || out != "" {
+	if exit != 2 || out != "" || !strings.Contains(errOut, "build constraints exclude all Go files in ./d") {
 		t.Fatalf("exit %d (want 2), stdout %q (want none)\n%s", exit, out, errOut)
 	}
 }
@@ -57,11 +83,10 @@ func TestAllOrNothingFailingDirectoryThenFile(t *testing.T) {
 	root := pkgModule(t, map[string]string{
 		"good.gon": exitGN001,
 		"d/a.gon":  exitIgnored,
-		"d/b.gon":  exitOK,
 	})
 	chdir(t, root)
 	exit, out, errOut := captureRun([]string{"check", "--json", "./d", "good.gon"})
-	if exit != 2 || out != "" {
+	if exit != 2 || out != "" || !strings.Contains(errOut, "build constraints exclude all Go files in ./d") {
 		t.Fatalf("exit %d (want 2), stdout %q (want none)\n%s", exit, out, errOut)
 	}
 }

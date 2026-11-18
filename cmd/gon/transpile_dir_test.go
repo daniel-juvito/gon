@@ -359,3 +359,77 @@ func TestTranspileDirFailedRenameLeavesNoTemporaries(t *testing.T) {
 		t.Fatalf("an unrelated file was touched: %q", got)
 	}
 }
+
+// v1.16: transpile writes the .go of the files in the build only. An excluded
+// .gon is named on stderr (in file order), and its .go is neither written nor
+// overwritten nor removed.
+func TestTranspileDirSkipsExcludedFiles(t *testing.T) {
+	root := pkgModule(t, map[string]string{
+		"p/a.gon":         "package p\n\nfunc F() {}\n",
+		"p/b_plan9.gon":   "package p\n\nfunc P() {}\n",
+		"p/c_windows.gon": "package p\n\nfunc W() {}\n",
+		"p/c_windows.go":  "// hand-written, must survive\npackage p\n",
+	})
+	chdir(t, root)
+	exit, out, errOut := captureRun([]string{"transpile", "./p"})
+	wantErr := "gon: p/b_plan9.gon not transpiled: excluded by build constraints\n" +
+		"gon: p/c_windows.gon not transpiled: excluded by build constraints\n"
+	if exit != 0 || errOut != wantErr || !strings.Contains(out, "transpiled: p/a.go") {
+		t.Fatalf("exit %d\nstdout: %s\nstderr: %q\nwant:   %q", exit, out, errOut, wantErr)
+	}
+	if !exists(filepath.Join(root, "p", "a.go")) {
+		t.Fatal("a.go must be written")
+	}
+	if exists(filepath.Join(root, "p", "b_plan9.go")) {
+		t.Fatal("b_plan9.go must not be written")
+	}
+	if got := readFile(t, filepath.Join(root, "p", "c_windows.go")); got != "// hand-written, must survive\npackage p\n" {
+		t.Fatalf("c_windows.go changed: %q", got)
+	}
+}
+
+// An excluded file's contract error does not block the package (it is not
+// checked), and the file is not written.
+func TestTranspileDirExcludedFileIsNotChecked(t *testing.T) {
+	root := pkgModule(t, map[string]string{
+		"p/a.gon": "package p\n\nfunc F() {}\n",
+		"p/b.gon": "//go:build ignore\n\npackage p\n\nfunc f() !*int {\n\treturn nil\n}\n",
+	})
+	chdir(t, root)
+	exit, _, errOut := captureRun([]string{"transpile", "./p"})
+	if exit != 0 || strings.Contains(errOut, "GN001") || !exists(filepath.Join(root, "p", "a.go")) || exists(filepath.Join(root, "p", "b.go")) {
+		t.Fatalf("exit %d\n%s", exit, errOut)
+	}
+}
+
+// S3 in transpile and build: an explicit package with no source in the build
+// is exit 2 and writes nothing; under `...` it is skipped, and a pattern that
+// matches only such packages warns.
+func TestEmitDirNoSourceInTheBuild(t *testing.T) {
+	for _, cmd := range []string{"transpile", "build"} {
+		t.Run(cmd, func(t *testing.T) {
+			root := pkgModule(t, map[string]string{"p/a.gon": "//go:build ignore\n\npackage p\n"})
+			chdir(t, root)
+			exit, _, errOut := captureRun([]string{cmd, "./p"})
+			if exit != 2 || errOut != "gon: build constraints exclude all Go files in ./p (.gon files: p/a.gon)\n" || exists(filepath.Join(root, "p", "a.go")) {
+				t.Fatalf("exit %d\n%q", exit, errOut)
+			}
+		})
+	}
+	root := pkgModule(t, map[string]string{
+		"p/a.gon": "//go:build ignore\n\npackage p\n",
+		"q/q.gon": "package q\n\nfunc F() {}\n",
+	})
+	chdir(t, root)
+	exit, out, errOut := captureRun([]string{"transpile", "./..."})
+	if exit != 0 || errOut != "" || !strings.Contains(out, "transpiled: q/q.go") || exists(filepath.Join(root, "p", "a.go")) {
+		t.Fatalf("pattern: exit %d\nstdout: %s\nstderr: %s", exit, out, errOut)
+	}
+	if err := os.Remove(filepath.Join(root, "q", "q.gon")); err != nil {
+		t.Fatal(err)
+	}
+	exit, _, errOut = captureRun([]string{"transpile", "./..."})
+	if exit != 0 || errOut != "gon: warning: \"./...\" matched no packages with .gon files in the build\n" {
+		t.Fatalf("empty pattern: exit %d\n%q", exit, errOut)
+	}
+}

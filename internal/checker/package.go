@@ -71,11 +71,20 @@ type packageShared struct {
 // next to it) or is added to the package when there is none. The package's other
 // .go files are loaded as they are. Test files are not part of the check.
 //
+// Inside a module (v1.16) the package is loaded by its directory, so the go
+// command decides which files belong to it for the current build
+// configuration, as `go list ./dir` does: a .gon whose overlaid file the loader
+// lists in IgnoredFiles (build constraints, file name suffix, GOFLAGS tags) is
+// not part of the package and is not checked. Only the files that are checked
+// appear in PackageResult.Files. Outside a module the first file is loaded
+// with a file= query as before.
+//
 // A non-nil error means the package could not be loaded or set up at all (the
-// go command failed, the module is misconfigured, a .gon file is excluded by
-// build constraints, the loader returned no type information): no
-// PackageResult exists, and `gon` exits 2 for it. Go parse, type and package
-// errors that the loader reports are NOT errors here: they are in
+// go command failed, the module is misconfigured, every source of the package
+// is excluded by build constraints (*ExcludedError), the loader returned no
+// type information): no PackageResult exists, and `gon` exits 2 for it, or
+// skips an *ExcludedError package found by a `...` pattern. Go parse, type and
+// package errors that the loader reports are NOT errors here: they are in
 // PackageResult.TypeErrors, next to the contract diagnostics.
 func CheckPackage(dir string, files []PackageFile, resolver gna.Resolver) (*PackageResult, error) {
 	if len(files) == 0 {
@@ -89,7 +98,8 @@ func CheckPackage(dir string, files []PackageFile, resolver gna.Resolver) (*Pack
 		return nil, err
 	}
 	root := findModuleRoot(dirAbs)
-	if root == "" {
+	inModule := root != ""
+	if !inModule {
 		root = dirAbs
 	}
 
@@ -105,21 +115,39 @@ func CheckPackage(dir string, files []PackageFile, resolver gna.Resolver) (*Pack
 	fset := token.NewFileSet()
 	cfg := &packages.Config{
 		Mode: packages.NeedName | packages.NeedTypes | packages.NeedTypesInfo |
-			packages.NeedSyntax | packages.NeedImports | packages.NeedDeps,
+			packages.NeedSyntax | packages.NeedImports | packages.NeedDeps |
+			packages.NeedFiles,
 		Fset:    fset,
 		Dir:     root,
 		Overlay: overlay,
 		Tests:   false,
 	}
-	pkgs, err := packages.Load(cfg, "file="+overlayPath(sorted[0]))
+	query := "file=" + overlayPath(sorted[0])
+	if inModule {
+		query = dirAbs
+	}
+	pkgs, err := packages.Load(cfg, query)
 	if err != nil {
 		return nil, fmt.Errorf("loading package %s: %w", dir, err)
 	}
+	if inModule && len(pkgs) > 0 {
+		// Keep only the .gon files the go command put in the package.
+		kept, excluded := splitIgnored(sorted, overlayPath, pkgs[0].IgnoredFiles)
+		if len(kept) == 0 && len(pkgs[0].GoFiles) == 0 && len(pkgs[0].CompiledGoFiles) == 0 {
+			// Every .gon is ignored and no other Go file is in the build: the
+			// package has no source for this configuration.
+			return nil, &ExcludedError{Dir: dir, Files: excluded}
+		}
+		sorted = kept
+	}
 	if len(pkgs) == 0 || pkgs[0].TypesInfo == nil || pkgs[0].Types == nil {
-		// The loader left every file out (the query names the first file; when
-		// that one is excluded by build constraints the answer is empty).
-		if err := excludedError(dirAbs, overlay, overlayPath, sorted); err != nil {
-			return nil, fmt.Errorf("loading package %s: %w", dir, err)
+		if !inModule {
+			// The loader left every file out (the query names the first file;
+			// when that one is excluded by build constraints the answer is
+			// empty).
+			if err := excludedError(dirAbs, overlay, overlayPath, sorted); err != nil {
+				return nil, fmt.Errorf("loading package %s: %w", dir, err)
+			}
 		}
 		return nil, fmt.Errorf("loading package %s: no type information", dir)
 	}
@@ -161,8 +189,10 @@ func CheckPackage(dir string, files []PackageFile, resolver gna.Resolver) (*Pack
 		}
 	}
 	if len(missing) > 0 {
-		if err := excludedError(dirAbs, overlay, overlayPath, missing); err != nil {
-			return nil, fmt.Errorf("loading package %s: %w", dir, err)
+		if !inModule {
+			if err := excludedError(dirAbs, overlay, overlayPath, missing); err != nil {
+				return nil, fmt.Errorf("loading package %s: %w", dir, err)
+			}
 		}
 		paths := make([]string, len(missing))
 		for i, f := range missing {
@@ -224,7 +254,44 @@ func CheckPackage(dir string, files []PackageFile, resolver gna.Resolver) (*Pack
 	return res, nil
 }
 
-// excludedError explains why the loader left files out, when that can be shown:
+// ExcludedError reports a package none of whose sources is in the build: the go
+// command lists every .gon of the directory in IgnoredFiles and the package has
+// no other Go file (what `go list ./dir` reports as "build constraints exclude
+// all Go files"). It is recognised from the loader's file lists, not from its
+// error text. Files are the .gon paths, sorted.
+type ExcludedError struct {
+	Dir   string
+	Files []string
+}
+
+func (e *ExcludedError) Error() string {
+	return fmt.Sprintf("build constraints exclude all Go files in %s (.gon files: %s)", e.Dir, strings.Join(e.Files, ", "))
+}
+
+// splitIgnored separates the files (sorted by path) whose overlay path the
+// loader lists as ignored from the others. Paths are compared with samePath,
+// so a directory reached through a symbolic link still matches.
+func splitIgnored(files []PackageFile, overlayPath func(PackageFile) string, ignored []string) (kept []PackageFile, excluded []string) {
+	for _, f := range files {
+		op := overlayPath(f)
+		isIgnored := false
+		for _, ig := range ignored {
+			if samePath(ig, op) {
+				isIgnored = true
+				break
+			}
+		}
+		if isIgnored {
+			excluded = append(excluded, f.Path)
+		} else {
+			kept = append(kept, f)
+		}
+	}
+	return kept, excluded
+}
+
+// excludedError explains why the loader left files out (outside a module, where
+// the package is loaded with a file= query), when that can be shown:
 // the candidates that the build context rejects (file name suffix or
 // `//go:build` line, read from the overlaid clean source) are reported as
 // excluded by build constraints, sorted, in one message whatever their names.
