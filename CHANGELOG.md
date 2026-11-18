@@ -1,5 +1,57 @@
 # Changelog
 
+## [1.16.0] — 2026-11-18
+
+Package discovery follows the go command (package-discovery audit, proposal
+1). Diagnostic Protocol v1 is unchanged: same `schemaVersion`, envelope,
+codes and exit-code meanings; all-or-nothing emission is unchanged.
+
+### Changed
+
+- **The go command decides which `.gon` files belong to a package.** Inside a
+  module a package is now loaded by its directory (as `go list ./dir`), not
+  through the first `.gon` by name. A `.gon` excluded by build constraints (a
+  `//go:build` line, a file name suffix such as `_windows`, a tag in
+  `GOFLAGS`) is **not part of the package and is not checked**; the result no
+  longer depends on how many `.gon` files a directory has or on their names.
+  - A package with excluded and included `.gon` files: only the included ones
+    are checked. **This was exit 2 in v1.15**; it is now the outcome of the
+    included files (0, or 1 on an error).
+  - A package whose `.gon` files are all excluded but which has other Go files
+    in the build: it is checked from those (exit 0, or 1 on a Go error). This
+    was exit 2.
+  - No source of the package in the build: named explicitly, it is **exit 2**
+    with `build constraints exclude all Go files in ./p (.gon files: ...)`,
+    every `.gon` named, sorted. **A directory whose only `.gon` was excluded
+    used to be checked as if the constraint were not there** (its diagnostics
+    were reported); it is now this exit 2.
+  - Found by `./...`, such a package is skipped; when every package a pattern
+    finds is skipped, `gon: warning: "./..." matched no packages with .gon
+    files in the build` is printed and the run is exit 0 with an empty
+    envelope.
+- **`./...` stops at a nested module**, a directory with its own `go.mod`, as
+  `go list ./...` does; its packages were checked (and transpiled) before. A
+  directory of the nested module named explicitly, or a pattern rooted in it,
+  is still checked, in its own module.
+- **`gon transpile` / `gon build` on a directory** write the `.go` of the files
+  in the build only, and name each excluded `.gon` on stderr (`gon:
+  p/x_windows.gon not transpiled: excluded by build constraints`); the `.go`
+  of an excluded file is neither written nor removed.
+
+### Corrections to 1.15.0
+
+- 1.15.0 said that a `.gon` excluded by build constraints is exit 2 and that
+  the message names every such file. Neither always held: a directory whose
+  only `.gon` was excluded was checked (exit 0 or 1), and when several were
+  excluded only those the loader had left out were named. 1.16.0 replaces the
+  rule (above).
+- The 1.15 audit of exit codes described that single-excluded-file directory
+  as "exit 0, nothing checked". It was checked; the measured fixture was an
+  empty file, so it had no diagnostic.
+
+Outside a module, package mode is unchanged (its multi-file case is a
+separate change).
+
 ## [1.15.0] — 2026-11-17
 
 Exit codes of package loading, aligned with Diagnostic Protocol v1 §7 (audit of
