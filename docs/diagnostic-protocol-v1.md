@@ -219,6 +219,7 @@ load" behave differently:
 | File-mode pre-check parse failure | No | 1 |
 | Package-mode Go parse / type / package error reported by the loader for a package it loaded | Yes | 1 |
 | Package-loading, environment or configuration failure (no package was loaded) | No | 2 |
+| File mode: a `go.mod` is found above the file but its module cannot be loaded (v1.17) | No | 2 |
 
 - **File-mode pre-check parse failure.** For a **file** operand, the checker
   parses the preprocessed (clean Go) source with the Go parser before any
@@ -237,6 +238,24 @@ load" behave differently:
   checked, the exit code is 1, and stderr carries the loader's message. That
   stderr line is labelled `gon: Go type error:` for parse errors too, and its
   position names the overlaid `<base>.go` path, not the `.gon` file.
+- **File mode and the file's module (v1.17).** For a **file** operand with a
+  `go.mod` above it, Gon loads that module once, before the file is checked,
+  and type-checks the file in it. If the module cannot be loaded, the run is
+  exit 2 with **no envelope**, nothing is checked (a contract error in the same
+  file does not change that) and `gon transpile` / `gon build` write nothing:
+  - when golang.org/x/mod shows the `go.mod` is invalid (it does not parse, has
+    no `module` directive, or its module path is not a valid import path):
+    `gon: invalid go.mod: <reason>`;
+  - for any other reason (the `go.mod` needs a newer Go than the toolchain, a
+    broken `go.work`, inconsistent vendoring, no `go` command, invalid
+    `GOFLAGS`): `gon: cannot load the module of <file>: <the go command's
+    error as it is>`; no cause is inferred.
+
+  A `go.mod` the go command accepts is never rejected. Only when **no**
+  `go.mod` is found above the file does file mode type-check it with the
+  GOROOT/GOPATH importer, as before; until v1.16 it also fell back to that
+  importer, silently, when a `go.mod` was found but its module could not be
+  loaded.
 - **Package-loading failures.** When no package could be loaded at all, the run
   is exit 2 with **no envelope** and the reason on stderr: the `go` command is
   missing or fails, the module configuration is invalid (for example an
@@ -291,6 +310,7 @@ Examples:
 | Non-existent input file       | 2    |
 | Malformed CLI invocation      | 2    |
 | Package cannot be loaded (`go` missing, invalid `go.mod`, no source of a named package in the build) | 2 |
+| File mode, the file's `go.mod` found but its module cannot be loaded | 2 |
 | A `.gon` excluded by build constraints (not checked) | as the rest of the package |
 | Controlled internal failure   | 3    |
 
