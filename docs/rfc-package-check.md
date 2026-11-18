@@ -414,6 +414,9 @@ measures user projects.
   is loaded by its directory, so the go command decides membership: an
   excluded `.gon` is not checked and is not an error; only a package none of
   whose sources is in the build is, exit 2, when named explicitly.)*
+  *(v1.18: outside a module, where `file=` returned a one-file package, every
+  member file is named to the loader instead, membership decided by go/build;
+  a multi-file package outside a module is checked as a whole.)*
 - **P4 — the refactor was smaller than the sketch.** `Check()` is now
   `collect()` then `walk()`; in package mode every file's checker shares the
   three declaration tables (maps passed by reference), so after every file has

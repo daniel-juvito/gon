@@ -276,7 +276,14 @@ load" behave differently:
   empty envelope); named explicitly, it is the package-loading failure above.
   (In v1.15 any excluded `.gon` was exit 2, except, inconsistently, a
   directory whose only `.gon` was excluded, which was checked as if it were
-  not.)
+  not.) **Outside a module (v1.18)** there is no go command package for a
+  directory: go/build decides membership with the default build context of
+  the toolchain that built Gon (GOOS, GOARCH, release tags; tags in `GOFLAGS`
+  are **not** applied there), every member `.gon` and plain `.go` file is
+  loaded as one package, and the same rules follow (an excluded `.gon` is not
+  checked; no source in the build is exit 2 when named, skipped under
+  `...`). Imports outside a module resolve as before (the standard library
+  only).
 
 Consumers must not assume that every exit 1 produces parseable JSON: the
 file-mode pre-check parse failure is the exception, and stderr explains it. It
