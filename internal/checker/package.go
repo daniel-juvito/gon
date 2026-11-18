@@ -76,8 +76,15 @@ type packageShared struct {
 // configuration, as `go list ./dir` does: a .gon whose overlaid file the loader
 // lists in IgnoredFiles (build constraints, file name suffix, GOFLAGS tags) is
 // not part of the package and is not checked. Only the files that are checked
-// appear in PackageResult.Files. Outside a module the first file is loaded
-// with a file= query as before.
+// appear in PackageResult.Files.
+//
+// Outside a module (v1.18) there is no go command package for a directory, so
+// go/build decides membership with the toolchain's default build context
+// (GOOS, GOARCH, release tags; GOFLAGS tags are not read): every .gon whose
+// overlaid source it accepts, and every plain non-test .go file of the
+// directory it accepts that no .gon shadows, is named to the loader, and they
+// form one ad-hoc package. Import resolution is unchanged by this: the files
+// are loaded as before, only all of them now.
 //
 // A non-nil error means the package could not be loaded or set up at all (the
 // go command failed, the module is misconfigured, every source of the package
@@ -122,11 +129,21 @@ func CheckPackage(dir string, files []PackageFile, resolver gna.Resolver) (*Pack
 		Overlay: overlay,
 		Tests:   false,
 	}
-	query := "file=" + overlayPath(sorted[0])
-	if inModule {
-		query = dirAbs
+	queries := []string{dirAbs}
+	if !inModule {
+		kept, excluded, plain := outsideModuleMembers(dirAbs, sorted, overlay, overlayPath)
+		if len(kept) == 0 && len(plain) == 0 {
+			// No source of the package is in the build: as in a module.
+			return nil, &ExcludedError{Dir: dir, Files: excluded}
+		}
+		sorted = kept
+		queries = queries[:0]
+		for _, f := range kept {
+			queries = append(queries, overlayPath(f))
+		}
+		queries = append(queries, plain...)
 	}
-	pkgs, err := packages.Load(cfg, query)
+	pkgs, err := packages.Load(cfg, queries...)
 	if err != nil {
 		return nil, fmt.Errorf("loading package %s: %w", dir, err)
 	}
@@ -141,14 +158,6 @@ func CheckPackage(dir string, files []PackageFile, resolver gna.Resolver) (*Pack
 		sorted = kept
 	}
 	if len(pkgs) == 0 || pkgs[0].TypesInfo == nil || pkgs[0].Types == nil {
-		if !inModule {
-			// The loader left every file out (the query names the first file;
-			// when that one is excluded by build constraints the answer is
-			// empty).
-			if err := excludedError(dirAbs, overlay, overlayPath, sorted); err != nil {
-				return nil, fmt.Errorf("loading package %s: %w", dir, err)
-			}
-		}
 		return nil, fmt.Errorf("loading package %s: no type information", dir)
 	}
 	pkg := pkgs[0]
@@ -189,11 +198,6 @@ func CheckPackage(dir string, files []PackageFile, resolver gna.Resolver) (*Pack
 		}
 	}
 	if len(missing) > 0 {
-		if !inModule {
-			if err := excludedError(dirAbs, overlay, overlayPath, missing); err != nil {
-				return nil, fmt.Errorf("loading package %s: %w", dir, err)
-			}
-		}
 		paths := make([]string, len(missing))
 		for i, f := range missing {
 			paths[i] = f.Path
@@ -290,17 +294,14 @@ func splitIgnored(files []PackageFile, overlayPath func(PackageFile) string, ign
 	return kept, excluded
 }
 
-// excludedError explains why the loader left files out (outside a module, where
-// the package is loaded with a file= query), when that can be shown:
-// the candidates that the build context rejects (file name suffix or
-// `//go:build` line, read from the overlaid clean source) are reported as
-// excluded by build constraints, sorted, in one message whatever their names.
-// It is only a diagnosis of a load that already failed; the loader decides what
-// the package is. go/build's context can differ from the go command's (GOFLAGS
-// tags, toolchain version), so a candidate it accepts is never called excluded,
-// and nil is returned when no candidate is rejected: the caller then reports a
-// generic load failure.
-func excludedError(dirAbs string, overlay map[string][]byte, overlayPath func(PackageFile) string, candidates []PackageFile) error {
+// outsideModuleMembers decides, outside a module, which files form the
+// package: go/build's default context judges each .gon by its overlaid clean
+// source (file name suffix, `//go:build` line) and each plain .go file of the
+// directory. kept are the .gon files it accepts, in their order; excluded the
+// paths of those it rejects; plain the absolute paths of the accepted plain .go
+// files that are not test files, not ignored by name (`_x`, `.x`) and not
+// shadowed by a .gon of the same base name.
+func outsideModuleMembers(dirAbs string, files []PackageFile, overlay map[string][]byte, overlayPath func(PackageFile) string) (kept []PackageFile, excluded []string, plain []string) {
 	ctx := build.Default
 	ctx.OpenFile = func(path string) (io.ReadCloser, error) {
 		if src, ok := overlay[filepath.Clean(path)]; ok {
@@ -308,18 +309,32 @@ func excludedError(dirAbs string, overlay map[string][]byte, overlayPath func(Pa
 		}
 		return os.Open(path)
 	}
-	var excluded []string
-	for _, f := range candidates {
-		match, err := ctx.MatchFile(dirAbs, filepath.Base(overlayPath(f)))
-		if err == nil && !match {
+	for _, f := range files {
+		if match, err := ctx.MatchFile(dirAbs, filepath.Base(overlayPath(f))); err == nil && !match {
 			excluded = append(excluded, f.Path)
+			continue
+		}
+		kept = append(kept, f)
+	}
+	entries, err := os.ReadDir(dirAbs)
+	if err != nil {
+		return kept, excluded, nil
+	}
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") ||
+			strings.HasPrefix(name, "_") || strings.HasPrefix(name, ".") {
+			continue
+		}
+		path := filepath.Join(dirAbs, name)
+		if _, shadowed := overlay[filepath.Clean(path)]; shadowed {
+			continue
+		}
+		if match, err := ctx.MatchFile(dirAbs, name); err == nil && match {
+			plain = append(plain, path)
 		}
 	}
-	if len(excluded) == 0 {
-		return nil
-	}
-	sort.Strings(excluded)
-	return fmt.Errorf("excluded by build constraints: %s (package mode checks every .gon file in the directory)", strings.Join(excluded, ", "))
+	return kept, excluded, plain
 }
 
 // hasOwnParseError reports whether errs holds a parse error positioned in the
