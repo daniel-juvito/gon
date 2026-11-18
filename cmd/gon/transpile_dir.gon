@@ -124,11 +124,28 @@ func emitPackage(t checkTarget) (code int, skipped bool) {
 		return 1, false
 	}
 
-	if err := writePackage(checkedFiles(lp)); err != nil {
+	files := checkedFiles(lp)
+	if err := writePackage(files); err != nil {
 		fmt.Fprintf(os.Stderr, "gon: transpile error: %v\n", err)
 		return 1, false
 	}
+	noteExcluded(lp, files)
 	return 0, false
+}
+
+// noteExcluded names, in file order, each .gon of lp that was not written
+// because the go command left it out of the package; its .go, if any, is
+// neither written nor removed.
+func noteExcluded(lp *loadedPackage, written []checker.PackageFile) {
+	done := make(map[string]bool, len(written))
+	for _, f := range written {
+		done[f.Path] = true
+	}
+	for _, f := range lp.files {
+		if !done[f.Path] {
+			fmt.Fprintf(os.Stderr, "gon: %s not transpiled: excluded by build constraints\n", filepath.ToSlash(f.Path))
+		}
+	}
 }
 
 // createExclusive creates a new, uniquely named temporary file next to dst. It
@@ -160,8 +177,9 @@ func createExclusive(dst string) (*os.File, error) {
 // into place. The
 // temporary name is never derived from a file that may already exist, and only
 // temporaries this call created are ever removed.
-// checkedFiles are the files of lp that were checked: a .gon the go command
-// left out of the package (build constraints) is never written (v1.16).
+// checkedFiles are the files of lp that were checked, in file order: a .gon
+// the go command left out of the package (build constraints) is never written
+// (v1.16), and noteExcluded names it.
 func checkedFiles(lp *loadedPackage) []checker.PackageFile {
 	checked := make(map[string]bool, len(lp.res.Files))
 	for _, f := range lp.res.Files {
