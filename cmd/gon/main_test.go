@@ -212,3 +212,13 @@ func TestCLIFmtPreservesBang(t *testing.T) {
 		t.Fatalf("fmt lost !: %s", data)
 	}
 }
+
+// `gon help` names the load failures under exit 2 (v1.17).
+func TestUsageNamesLoadFailuresUnderExit2(t *testing.T) {
+	_, _, errOut := captureRun([]string{"help"})
+	out := errOut
+	if !strings.Contains(out, "2  usage / invalid arguments / missing input / a package or module that") ||
+		!strings.Contains(out, "cannot be loaded (also a file whose go.mod is found but whose module") {
+		t.Fatalf("help:\n%s", out)
+	}
+}

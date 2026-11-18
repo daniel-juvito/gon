@@ -367,7 +367,9 @@ Flags (check/vet):
 Exit codes:
   0  success (warnings alone do not fail the process)
   1  checker / type / build failure
-  2  usage / invalid arguments / missing input
+  2  usage / invalid arguments / missing input / a package or module that
+     cannot be loaded (also a file whose go.mod is found but whose module
+     cannot be loaded)
   3  internal failure
 
 Diagnostics (human) are printed as:
