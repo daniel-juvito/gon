@@ -228,6 +228,36 @@ func TestFileModeLoadsTheModuleOnce(t *testing.T) {
 	}
 }
 
+// A dependency the go command cannot load does not fail the module load: the
+// loader reports it as a ListError of the dependency with no load error, and
+// as a TypeError of the file's package. It is the file's Go type error (exit
+// 1, K3), never "cannot load the module" or "invalid go.mod". (A module that is
+// not required or not in the cache behaves the same; it needs the network to
+// fail, so it is not run here.)
+func TestFileModeDependencyFailureIsAGoTypeError(t *testing.T) {
+	for _, tc := range []struct{ name, gomod, imp string }{
+		{"missing local package", "module pk\n\ngo 1.22\n", "pk/nope"},
+		{"replace to a missing directory", "module pk\n\ngo 1.22\n\nrequire example.com/x v0.0.0\n\nreplace example.com/x => ./nowhere\n", "example.com/x"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := mcModule(t, tc.gomod, map[string]string{
+				"dep.gon": "package p\n\nimport \"" + tc.imp + "\"\n\nvar _ = " + filepath.Base(tc.imp) + ".G\n",
+			})
+			chdir(t, root)
+			t.Setenv("GOTOOLCHAIN", "local")
+			t.Setenv("GOFLAGS", "-mod=mod")
+			exit, out, errOut := captureRun([]string{"check", "--json", "dep.gon"})
+			if exit != 1 || strings.TrimSpace(out) != `{"schemaVersion":1,"diagnostics":[]}` ||
+				!strings.HasPrefix(errOut, "gon: Go type error: ") || !strings.Contains(errOut, "could not import "+tc.imp) {
+				t.Fatalf("exit %d (want 1)\nstdout %q\nstderr %q", exit, out, errOut)
+			}
+			if strings.Contains(errOut, "cannot load the module") || strings.Contains(errOut, "invalid go.mod") {
+				t.Fatalf("a dependency failure is not a module failure:\n%s", errOut)
+			}
+		})
+	}
+}
+
 // All-or-nothing with K1/K2 (Protocol v1 §7): a file in a module that cannot
 // be loaded stops the run before emission, whichever operand it is; the
 // diagnostics of the other operands are not sent.

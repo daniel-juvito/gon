@@ -426,10 +426,19 @@ func loadGoContext(filename string, src []byte) (goContext, error) {
 		return goContext{}, fmt.Errorf("cannot load the module of %s: %v", filename, lerr)
 	}
 	if len(pkgs) == 0 {
-		// Not observed; kept as before v1.17 (the importer decides).
+		// Not observed, and not shown to be impossible: kept as before v1.17
+		// (the importer decides). K3 is a load with packages.
 		return goContext{}, nil
 	}
 	ctx := goContext{inModule: true}
+	// Only the errors of the file's own package count, and only parse and type
+	// errors. A dependency the go command cannot load (a missing local package,
+	// a module that is not required or not in the module cache, a replace to a
+	// missing directory, a package with two package names) does not fail the
+	// load: it is a ListError of that dependency, and always also a TypeError
+	// of the file's package ("could not import ..."), so it is the file's Go
+	// type error (exit 1), not a failure to load the module (measured in the
+	// v1.17 audit; TestFileModeDependencyFailureIsAGoTypeError).
 	for _, pkg := range pkgs {
 		for _, e := range pkg.Errors {
 			if e.Kind == packages.TypeError || e.Kind == packages.ParseError {
