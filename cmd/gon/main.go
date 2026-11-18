@@ -4,7 +4,8 @@
 //
 //	0  success (warnings alone do not fail)
 //	1  checker error, Go type error, or build failure
-//	2  usage / invalid arguments / missing input
+//	2  usage / invalid arguments / missing input / a package or module that
+//	   cannot be loaded
 //	3  internal failure (test-only injection)
 package main
 
@@ -52,7 +53,7 @@ func run(args []string) int {
 		usage()
 		return 0
 	case "version", "-version", "--version":
-		fmt.Println("gon version 1.16.0")
+		fmt.Println("gon version 1.17.0")
 		return 0
 	}
 

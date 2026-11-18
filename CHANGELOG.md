@@ -1,5 +1,37 @@
 # Changelog
 
+## [1.17.0] — 2026-11-18
+
+File mode and the module a file is in (package-discovery audit, proposal 2).
+Diagnostic Protocol v1 is unchanged: same `schemaVersion`, envelope, codes and
+exit-code meanings; all-or-nothing emission is unchanged.
+
+### Changed
+
+- **File mode no longer falls back silently when a `go.mod` is found but its
+  module cannot be loaded.** For a file operand of `gon check` / `gon vet` /
+  `gon transpile` / `gon build`, the module that holds the file is loaded once,
+  before the file is checked, and the file is type-checked in it. When that
+  load fails the run is now **exit 2** with no envelope; nothing is checked
+  (a contract error in the same file does not change that) and nothing is
+  written. Until v1.16 Gon fell back to the GOROOT/GOPATH importer instead,
+  so an invalid `go.mod` gave exit 0, or a misleading `cannot find package
+  "pk/lib" in any of … (from $GOROOT)`, and `transpile` wrote the file.
+  - `gon: invalid go.mod: <reason>` when golang.org/x/mod shows the `go.mod`
+    is invalid: it does not parse, has no `module` directive, or its module
+    path is not a valid import path.
+  - `gon: cannot load the module of a.gon: <the go command's error>` for any
+    other cause, as the go command reports it (a `go.mod` that needs a newer
+    Go than the toolchain, a broken `go.work`, inconsistent vendoring, no `go`
+    command, invalid `GOFLAGS`).
+  - A `go.mod` the go command accepts is never rejected; a missing requirement
+    or `replace` target the go command loads lazily is not an error, as before.
+  - With **no** `go.mod` above the file, file mode is unchanged: the
+    GOROOT/GOPATH importer, also without a `go` command.
+  Package mode already exited 2 for the same inputs (since v1.15).
+- `golang.org/x/mod` is now a direct requirement (it was already in the module
+  graph).
+
 ## [1.16.0] — 2026-11-18
 
 Package discovery follows the go command (package-discovery audit, proposal
