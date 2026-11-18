@@ -35,7 +35,10 @@ type checkTarget struct {
 // is not a directory or a pattern) is returned as-is so the existing file path
 // reports its own errors with its own wording. `dir/...` expands to every
 // directory below dir that holds .gon files, following the `go` tool's
-// conventions: testdata, vendor and names starting with `_` or `.` are skipped.
+// conventions: testdata, vendor and names starting with `_` or `.` are skipped,
+// and so is a directory with its own go.mod (a nested module is not part of the
+// enclosing one; v1.16). A directory named explicitly is checked whatever
+// module it is in.
 func expandCheckOperands(operands []string) ([]checkTarget, error) {
 	var out []checkTarget
 	for _, op := range operands {
@@ -96,6 +99,9 @@ func packageDirsUnder(root string) ([]string, error) {
 			return nil
 		}
 		if path != root {
+			if fi, err := os.Stat(filepath.Join(path, "go.mod")); err == nil && !fi.IsDir() {
+				return filepath.SkipDir // a nested module
+			}
 			name := d.Name()
 			if name == "testdata" || name == "vendor" || strings.HasPrefix(name, "_") || strings.HasPrefix(name, ".") {
 				return filepath.SkipDir

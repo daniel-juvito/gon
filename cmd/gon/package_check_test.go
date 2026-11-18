@@ -392,3 +392,35 @@ func TestPackageModeNoGonFilesMessageDoesNotBlameTestFilesWhenThereAreNone(t *te
 		t.Fatalf("exit %d, stderr:\n%s", exit, errOut)
 	}
 }
+
+// D4 (v1.16): `./...` stops at a directory with its own go.mod, like the go
+// command; that module's packages are not checked. Naming a directory of the
+// nested module explicitly still checks it, in its own module.
+func TestPatternStopsAtNestedModule(t *testing.T) {
+	root := pkgModule(t, map[string]string{
+		"a/a.gon":     "package a\n\nfunc F() {}\n",
+		"sub/go.mod":  "module sub\n\ngo 1.21\n",
+		"sub/s/s.gon": "package s\n\nfunc f() !*int {\n\treturn nil\n}\n",
+	})
+	chdir(t, root)
+
+	exit, out, errOut := captureRun([]string{"check", "--json", "./..."})
+	if exit != 0 || strings.TrimSpace(out) != `{"schemaVersion":1,"diagnostics":[]}` || errOut != "" {
+		t.Fatalf("the nested module must not be checked: exit %d\nstdout: %s\nstderr: %s", exit, out, errOut)
+	}
+	exit, _, errOut = captureRun([]string{"transpile", "./..."})
+	if exit != 0 || exists(filepath.Join(root, "sub", "s", "s.go")) {
+		t.Fatalf("transpile ./... must not enter the nested module: exit %d\n%s", exit, errOut)
+	}
+
+	exit, out, errOut = captureRun([]string{"check", "--json", "./sub/s"})
+	if exit != 1 || !strings.Contains(out, `"code":"GN001"`) {
+		t.Fatalf("an explicit directory of the nested module is checked: exit %d\nstdout: %s\nstderr: %s", exit, out, errOut)
+	}
+
+	// The pattern's own root may be a module: ./sub/... checks it.
+	exit, out, _ = captureRun([]string{"check", "--json", "./sub/..."})
+	if exit != 1 || !strings.Contains(out, `"code":"GN001"`) {
+		t.Fatalf("./sub/... starts in the nested module: exit %d\n%s", exit, out)
+	}
+}
