@@ -227,3 +227,65 @@ func TestFileModeLoadsTheModuleOnce(t *testing.T) {
 		}
 	}
 }
+
+// All-or-nothing with K1/K2 (Protocol v1 §7): a file in a module that cannot
+// be loaded stops the run before emission, whichever operand it is; the
+// diagnostics of the other operands are not sent.
+func TestFileModeModuleFailureIsAllOrNothing(t *testing.T) {
+	root := mcModule(t, "module pk\n\ngo 1.22\n", map[string]string{
+		"broken/go.mod": "garbage\n",
+		"broken/b.gon":  mcPlain,
+		"q/q.gon":       "package q\n\nfunc f() !*int {\n\treturn nil\n}\n",
+	})
+	chdir(t, root)
+	for _, args := range [][]string{
+		{"check", "--json", "gn.gon", "broken/b.gon"},
+		{"check", "--json", "broken/b.gon", "gn.gon"},
+		{"check", "--json", "./q", "broken/b.gon"},
+		{"vet", "--json", "gn.gon", "broken/b.gon"},
+	} {
+		exit, out, errOut := captureRun(args)
+		if exit != 2 || out != "" || !strings.Contains(errOut, "gon: invalid go.mod: ") {
+			t.Fatalf("%v: exit %d (want 2), stdout %q (want none)\n%s", args, exit, out, errOut)
+		}
+	}
+}
+
+// transpile and build, file form: with K1 or K2 nothing is written, and a .go
+// already next to the file is left as it was, even when the file has a
+// contract error.
+func TestFileModeModuleFailureWritesNothing(t *testing.T) {
+	for _, tc := range []struct{ name, gomod string }{
+		{"K1 invalid go.mod", "garbage\n"},
+		{"K2 broken go.work", "module pk\n\ngo 1.22\n"},
+	} {
+		for _, cmd := range []string{"transpile", "build"} {
+			t.Run(tc.name+"/"+cmd, func(t *testing.T) {
+				extra := map[string]string{"a.go": "// previous output\npackage p\n"}
+				if strings.HasPrefix(tc.name, "K2") {
+					extra["go.work"] = "garbage\n"
+				}
+				root := mcModule(t, tc.gomod, extra)
+				chdir(t, root)
+				t.Setenv("GOTOOLCHAIN", "local")
+				for _, file := range []string{"a.gon", "gn.gon"} {
+					exit, out, errOut := captureRun([]string{cmd, file})
+					if exit != 2 || out != "" {
+						t.Fatalf("%s %s: exit %d (want 2), stdout %q\n%s", cmd, file, exit, out, errOut)
+					}
+				}
+				if got := readFile(t, filepath.Join(root, "a.go")); got != "// previous output\npackage p\n" {
+					t.Fatalf("a.go changed: %q", got)
+				}
+				if exists(filepath.Join(root, "gn.go")) {
+					t.Fatal("gn.go must not be written")
+				}
+				for _, bin := range []string{"a", "gn"} {
+					if exists(filepath.Join(root, bin)) {
+						t.Fatalf("binary %s must not be built", bin)
+					}
+				}
+			})
+		}
+	}
+}
