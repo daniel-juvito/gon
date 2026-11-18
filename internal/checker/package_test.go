@@ -201,15 +201,19 @@ func TestPackageExcludesTestFiles(t *testing.T) {
 	}
 }
 
-// A file that a build constraint excludes is not part of the package.
+// A file that a build constraint excludes is not part of the package: it is
+// not checked (v1.16; it was a load failure in v1.15).
 func TestPackageBuildConstraintExcludesFile(t *testing.T) {
 	dir := pkgDir(t, map[string]string{
 		"a.gon":            "package main\n\nfunc main() {}\n",
-		"b_plan9_s390.gon": "package main\n\nfunc other() {}\n",
+		"b_plan9_s390.gon": "package main\n\nfunc other() !*int { return nil }\n",
 	})
-	_, err := checkPkg(t, dir, "a.gon", "b_plan9_s390.gon")
-	if err == nil || !strings.Contains(err.Error(), "b_plan9_s390.gon") {
-		t.Fatalf("expected an error naming the excluded file, got %v", err)
+	res, err := checkPkg(t, dir, "a.gon", "b_plan9_s390.gon")
+	if err != nil {
+		t.Fatalf("an excluded file must not fail the load: %v", err)
+	}
+	if len(res.Files) != 1 || filepath.Base(res.Files[0].Path) != "a.gon" {
+		t.Fatalf("only a.gon is checked: %+v", res.Files)
 	}
 }
 

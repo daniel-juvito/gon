@@ -218,13 +218,18 @@ func runCheck(cmd string, args []string) int {
 		return 2
 	}
 
+	checkedDirs := make(map[string]bool)
 	for _, t := range targets {
 		if t.dir {
 			// Package mode: the directory's .gon files are checked together.
-			out, code := checkPackageDir(t.path, jsonOut, source)
+			out, skipped, code := checkPackageDir(t, jsonOut, source)
 			if code != 0 {
 				return code
 			}
+			if skipped {
+				continue
+			}
+			checkedDirs[t.path] = true
 			hasErrors = hasErrors || out.hasErrors
 			anyDiag = anyDiag || out.anyDiag
 			allProtocol = append(allProtocol, out.protocol...)
@@ -296,6 +301,8 @@ func runCheck(cmd string, args []string) int {
 			typeErr = true
 		}
 	}
+
+	warnEmptyPatterns(targets, checkedDirs)
 
 	if jsonOut {
 		if allProtocol == nil {

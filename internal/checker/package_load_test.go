@@ -1,12 +1,14 @@
-// Package loading failures (v1.15, Protocol v1 §7).
+// Package loading (v1.15, Protocol v1 §7) and package membership (v1.16).
 //
 // CheckPackage returns an error only when the package cannot be loaded at all;
 // a file the Go loader could not parse is a TypeError of the result instead.
-// A file the loader left out is reported as excluded by build constraints only
-// when go/build rejects it too, and the message does not depend on file order.
+// Inside a module the go command decides which .gon files belong to the
+// package: an excluded one is not checked, whatever the file order, and a
+// package none of whose sources is in the build is an *ExcludedError.
 package checker
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,57 +21,139 @@ const (
 	loadNoPkg   = "pakage main\n"
 	loadBroken  = "package main\n\nfunc broken( {\n"
 	loadGN001   = "package main\n\nfunc f() !*int {\n\treturn nil\n}\n"
+
+	loadIgnoredGN001 = "//go:build ignore\n\npackage main\n\nfunc f() !*int {\n\treturn nil\n}\n"
 )
 
-// The excluded file sorts first (the loader then returns nothing) or last (the
-// loader returns the package without it): one message either way.
-func TestPackageExcludedFileMessageDoesNotDependOnOrder(t *testing.T) {
-	first := pkgDir(t, map[string]string{"a.gon": loadIgnored, "b.gon": loadOK})
-	_, errFirst := checkPkg(t, first, "a.gon", "b.gon")
-	last := pkgDir(t, map[string]string{"a.gon": loadOK, "b.gon": loadIgnored})
-	_, errLast := checkPkg(t, last, "a.gon", "b.gon")
-	if errFirst == nil || errLast == nil {
-		t.Fatalf("an excluded file must fail the load: first=%v last=%v", errFirst, errLast)
+// checkedPaths are the base names of the files CheckPackage checked.
+func checkedPaths(res *PackageResult) []string {
+	var out []string
+	for _, f := range res.Files {
+		out = append(out, filepath.Base(f.Path))
 	}
-	msgFirst := strings.ReplaceAll(strings.ReplaceAll(errFirst.Error(), filepath.Join(first, "a.gon"), "<excluded>"), first, "<dir>")
-	msgLast := strings.ReplaceAll(strings.ReplaceAll(errLast.Error(), filepath.Join(last, "b.gon"), "<excluded>"), last, "<dir>")
-	if msgFirst != msgLast {
-		t.Fatalf("the message must not depend on file order:\n first: %s\n last:  %s", msgFirst, msgLast)
-	}
-	if !strings.Contains(msgFirst, "excluded by build constraints: <excluded>") {
-		t.Fatalf("unexpected message: %s", msgFirst)
-	}
+	return out
 }
 
-func TestPackageExcludedFilesAreListedSorted(t *testing.T) {
-	dir := pkgDir(t, map[string]string{"a.gon": loadOK, "c.gon": loadIgnored, "b_plan9_s390.gon": loadOK})
-	_, err := checkPkg(t, dir, "c.gon", "a.gon", "b_plan9_s390.gon")
-	want := "excluded by build constraints: " + filepath.Join(dir, "b_plan9_s390.gon") + ", " + filepath.Join(dir, "c.gon")
-	if err == nil || !strings.Contains(err.Error(), want) {
-		t.Fatalf("want %q in %v", want, err)
-	}
-}
-
-// go/build does not read GOFLAGS; the go command does. A file the loader leaves
-// out because of a GOFLAGS tag is not one go/build rejects, so it must not be
-// called excluded by build constraints: the failure is reported generically.
-func TestPackageLoaderAndBuildContextDisagree(t *testing.T) {
-	t.Setenv("GOFLAGS", "-tags=gonloadtesttag")
-	const tagged = "//go:build !gonloadtesttag\n\npackage main\n"
-	for _, tc := range []struct{ name, a, b string }{
-		{"excluded file first", tagged, loadOK},
-		{"excluded file last", loadOK, tagged},
+// D1g / D1h: an excluded file is not checked and does not fail the load,
+// whichever of the two files sorts first.
+func TestPackageExcludedFileIsSkippedWhateverTheOrder(t *testing.T) {
+	for _, tc := range []struct{ name, a, b, checked string }{
+		{"excluded file first", loadIgnoredGN001, loadGN001, "b.gon"},
+		{"excluded file last", loadGN001, loadIgnoredGN001, "a.gon"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := pkgDir(t, map[string]string{"a.gon": tc.a, "b.gon": tc.b})
-			_, err := checkPkg(t, dir, "a.gon", "b.gon")
-			if err == nil {
-				t.Fatal("the loader left a file out: the load must fail")
+			res, err := checkPkg(t, dir, "a.gon", "b.gon")
+			if err != nil {
+				t.Fatalf("an excluded file must not fail the load: %v", err)
 			}
-			if strings.Contains(err.Error(), "excluded by build constraints") {
-				t.Fatalf("go/build accepts the file, so it must not be called excluded: %v", err)
+			if got := checkedPaths(res); len(got) != 1 || got[0] != tc.checked {
+				t.Fatalf("checked %v, want only %s", got, tc.checked)
+			}
+			wantCodes(t, res, tc.checked, "GN001")
+			if len(res.TypeErrors) != 0 {
+				t.Fatalf("type errors: %v", res.TypeErrors)
 			}
 		})
+	}
+}
+
+// D1a / D1f: no source of the package is in the build. Every .gon is named,
+// sorted, whatever the order they were given in.
+func TestPackageAllSourcesExcludedIsExcludedError(t *testing.T) {
+	dir := pkgDir(t, map[string]string{"c.gon": loadIgnored, "a_windows.gon": loadOK, "b.gon": loadIgnoredGN001})
+	_, err := checkPkg(t, dir, "c.gon", "b.gon", "a_windows.gon")
+	var ex *ExcludedError
+	if !errors.As(err, &ex) {
+		t.Fatalf("want *ExcludedError, got %v", err)
+	}
+	want := []string{filepath.Join(dir, "a_windows.gon"), filepath.Join(dir, "b.gon"), filepath.Join(dir, "c.gon")}
+	if strings.Join(ex.Files, "|") != strings.Join(want, "|") {
+		t.Fatalf("files %v, want %v", ex.Files, want)
+	}
+	if !strings.Contains(err.Error(), "build constraints exclude all Go files in ") {
+		t.Fatalf("message: %v", err)
+	}
+}
+
+// D1d: the package's only .gon is excluded, a plain .go file is in the build.
+// The package is loaded and type-checked; no .gon is checked; not an error.
+func TestPackageWithOnlyExcludedGonButGoFilesIsChecked(t *testing.T) {
+	dir := pkgDir(t, map[string]string{"a.gon": loadIgnoredGN001, "b.go": loadOK})
+	res, err := checkPkg(t, dir, "a.gon")
+	if err != nil {
+		t.Fatalf("the package has b.go: %v", err)
+	}
+	if len(res.Files) != 0 || len(res.TypeErrors) != 0 {
+		t.Fatalf("files %v, type errors %v", checkedPaths(res), res.TypeErrors)
+	}
+	// b.go is really type-checked: a type error in it is reported.
+	dir = pkgDir(t, map[string]string{"a.gon": loadIgnoredGN001, "b.go": "package main\n\nfunc main() { var x int = \"s\"; _ = x }\n"})
+	res, err = checkPkg(t, dir, "a.gon")
+	if err != nil || len(res.TypeErrors) == 0 {
+		t.Fatalf("b.go's type error must be reported: err=%v type errors=%v", err, res.TypeErrors)
+	}
+}
+
+// The overlay of a .gon and the package's own .go files are told apart: an
+// included .gon, a plain .go file, an excluded .gon and an excluded plain .go
+// file in one directory. Only the included .gon is checked.
+func TestPackageMembershipMapsOverlaysToTheirGon(t *testing.T) {
+	dir := pkgDir(t, map[string]string{
+		"a.gon":        loadGN001,
+		"b.go":         "package main\n\nfunc helper() {}\n",
+		"c.gon":        loadIgnoredGN001,
+		"d_windows.go": "package main\n\nfunc win() {}\n",
+		"e_plan9.gon":  "package main\n\nfunc g() !*int {\n\treturn nil\n}\n",
+	})
+	res, err := checkPkg(t, dir, "e_plan9.gon", "c.gon", "a.gon")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := checkedPaths(res); len(got) != 1 || got[0] != "a.gon" {
+		t.Fatalf("checked %v, want only a.gon", got)
+	}
+	wantCodes(t, res, "a.gon", "GN001")
+}
+
+// A tag in GOFLAGS is honoured by the go command, which decides membership:
+// the file it leaves out is skipped in either order (go/build alone would not
+// know about the tag).
+func TestPackageGOFLAGSTagDecidesMembership(t *testing.T) {
+	t.Setenv("GOFLAGS", "-tags=gonloadtesttag")
+	const tagged = "//go:build !gonloadtesttag\n\npackage main\n\nfunc f() !*int {\n\treturn nil\n}\n"
+	for _, tc := range []struct{ name, a, b, checked string }{
+		{"excluded file first", tagged, loadOK, "b.gon"},
+		{"excluded file last", loadOK, tagged, "a.gon"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := pkgDir(t, map[string]string{"a.gon": tc.a, "b.gon": tc.b})
+			res, err := checkPkg(t, dir, "a.gon", "b.gon")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := checkedPaths(res); len(got) != 1 || got[0] != tc.checked {
+				t.Fatalf("checked %v, want only %s", got, tc.checked)
+			}
+		})
+	}
+}
+
+// An excluded file next to a file with a parse error: the excluded one is
+// skipped, the parse error is reported.
+func TestPackageExcludedFileWithSiblingParseError(t *testing.T) {
+	dir := pkgDir(t, map[string]string{"a.gon": loadOK, "b.gon": loadBroken, "c.gon": loadIgnored})
+	res, err := checkPkg(t, dir, "a.gon", "b.gon", "c.gon")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !anyContains(res.TypeErrors, "b.go:3:14: expected ')'") {
+		t.Fatalf("b.gon's parse error: %v", res.TypeErrors)
+	}
+	for _, p := range checkedPaths(res) {
+		if p == "c.gon" {
+			t.Fatal("c.gon is excluded and must not be checked")
+		}
 	}
 }
 
@@ -127,15 +211,6 @@ func TestPackageSeveralParseErrorsAreAllReported(t *testing.T) {
 	}
 	if !anyContains(res.TypeErrors, "a.go:1:1: expected 'package'") || !anyContains(res.TypeErrors, "b.go:3:14: expected ')'") {
 		t.Fatalf("both files' parse errors must be reported: %v", res.TypeErrors)
-	}
-}
-
-// A sibling's parse error does not excuse a file the loader left out.
-func TestPackageSiblingParseErrorDoesNotExcuseAMissingFile(t *testing.T) {
-	dir := pkgDir(t, map[string]string{"a.gon": loadOK, "b.gon": loadBroken, "c.gon": loadIgnored})
-	_, err := checkPkg(t, dir, "a.gon", "b.gon", "c.gon")
-	if err == nil || !strings.Contains(err.Error(), "excluded by build constraints: "+filepath.Join(dir, "c.gon")) {
-		t.Fatalf("c.gon is excluded whatever b.gon's parse error: %v", err)
 	}
 }
 

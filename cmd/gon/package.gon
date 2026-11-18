@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -24,6 +25,10 @@ import (
 type checkTarget struct {
 	path string
 	dir  bool // package mode: path is a directory holding .gon files
+	// pattern is the `...` operand the directory was found by, empty for a
+	// directory named explicitly. A package found by a pattern none of whose
+	// sources is in the build is skipped, like `go list ./...` does (v1.16).
+	pattern string
 }
 
 // expandCheckOperands classifies the operands. A file operand (or anything that
@@ -43,7 +48,7 @@ func expandCheckOperands(operands []string) ([]checkTarget, error) {
 				return nil, fmt.Errorf("no .gon files found under %s", op)
 			}
 			for _, d := range dirs {
-				out = append(out, checkTarget{path: d, dir: true})
+				out = append(out, checkTarget{path: d, dir: true, pattern: op})
 			}
 			continue
 		}
@@ -161,25 +166,28 @@ type loadedPackage struct {
 	res       *checker.PackageResult
 }
 
-// loadPackage reads and checks the .gon files of dir as one package. A non-zero
-// exit code means the package could not be checked at all and is always 2
-// (Protocol v1 §7): a .gon file is unreadable, or the package could not be
-// loaded (the go command or the module is broken, a file is excluded by build
-// constraints). checker.CheckPackage reports parse, type and contract errors
-// in its result, never as an error. The message is already printed.
-func loadPackage(dir string) (*loadedPackage, int) {
+// loadPackage reads and checks the .gon files of t's directory as one package.
+// A non-zero exit code means the package could not be checked at all and is
+// always 2 (Protocol v1 §7): a .gon file is unreadable, or the package could
+// not be loaded (the go command or the module is broken, no source of the
+// package is in the build). checker.CheckPackage reports parse, type and
+// contract errors in its result, never as an error. The message is already
+// printed. skipped is true, with no message, for a package found by a `...`
+// pattern none of whose sources is in the build.
+func loadPackage(t checkTarget) (lp *loadedPackage, skipped bool, code int) {
+	dir := t.path
 	names, err := gonFilesIn(dir)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "gon: read %s: %v\n", dir, err)
-		return nil, 2
+		return nil, false, 2
 	}
-	lp := &loadedPackage{srcByPath: make(map[string][]byte, len(names))}
+	lp = &loadedPackage{srcByPath: make(map[string][]byte, len(names))}
 	for _, n := range names {
 		path := filepath.Join(dir, n)
 		src, err := os.ReadFile(path)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "gon: read %s: %v\n", path, err)
-			return nil, 2
+			return nil, false, 2
 		}
 		r := preproc.Process(path, src)
 		lp.srcByPath[path] = src
@@ -197,22 +205,50 @@ func loadPackage(dir string) (*loadedPackage, int) {
 	resolver := gna.DefaultChain(wd, dirAbs)
 
 	res, err := checker.CheckPackage(dir, lp.files, resolver)
+	var excluded *checker.ExcludedError
+	if errors.As(err, &excluded) && t.pattern != "" {
+		return nil, true, 0
+	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "gon: %v\n", err)
-		return nil, 2
+		return nil, false, 2
 	}
 	lp.res = res
-	return lp, 0
+	return lp, false, 0
 }
 
-// checkPackageDir checks the .gon files of dir as one package. A non-zero exit
-// code means the package could not be checked at all.
-func checkPackageDir(dir string, jsonOut bool, source string) (packageOutcome, int) {
-	var out packageOutcome
+// warnEmptyPatterns prints, like the go command, a warning for each `...`
+// operand all of whose packages were skipped because none of their sources is
+// in the build. checked holds the directories that were not skipped.
+func warnEmptyPatterns(targets []checkTarget, checked map[string]bool) {
+	found := make(map[string]bool)
+	var order []string
+	for _, t := range targets {
+		if t.pattern == "" {
+			continue
+		}
+		if _, seen := found[t.pattern]; !seen {
+			order = append(order, t.pattern)
+			found[t.pattern] = false
+		}
+		if checked[t.path] {
+			found[t.pattern] = true
+		}
+	}
+	for _, p := range order {
+		if !found[p] {
+			fmt.Fprintf(os.Stderr, "gon: warning: %q matched no packages with .gon files in the build\n", p)
+		}
+	}
+}
 
-	lp, code := loadPackage(dir)
+// checkPackageDir checks the .gon files of t's directory as one package. A
+// non-zero exit code means the package could not be checked at all; skipped
+// is loadPackage's.
+func checkPackageDir(t checkTarget, jsonOut bool, source string) (out packageOutcome, skipped bool, code int) {
+	lp, skipped, code := loadPackage(t)
 	if lp == nil {
-		return out, code
+		return out, skipped, code
 	}
 	res, srcByPath := lp.res, lp.srcByPath
 
@@ -220,7 +256,7 @@ func checkPackageDir(dir string, jsonOut bool, source string) (packageOutcome, i
 		fileAbs, err := protocolFilePath(f.Path)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "gon: path %s: %v\n", f.Path, err)
-			return out, 2
+			return out, false, 2
 		}
 		for _, d := range f.Diagnostics {
 			out.anyDiag = true
@@ -241,5 +277,5 @@ func checkPackageDir(dir string, jsonOut bool, source string) (packageOutcome, i
 	// so the document does not carry it, but the exit code must still say the
 	// package does not compile.
 	out.typeErrors = res.TypeErrors
-	return out, 0
+	return out, false, 0
 }
