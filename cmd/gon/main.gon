@@ -27,6 +27,8 @@ import (
 	"github.com/daniel-juvito/gon/internal/lsp"
 	"github.com/daniel-juvito/gon/internal/preproc"
 	"github.com/daniel-juvito/gon/transpiler"
+	"golang.org/x/mod/modfile"
+	"golang.org/x/mod/module"
 	"golang.org/x/tools/go/packages"
 )
 
@@ -117,6 +119,14 @@ func run(args []string) int {
 
 	result := preproc.Process(filename, src)
 
+	goCtx, err := loadGoContext(filename, result.Clean)
+	if err != nil {
+		// The module the file is in cannot be loaded (v1.17): nothing is
+		// checked or written.
+		fmt.Fprintf(os.Stderr, "gon: %v\n", err)
+		return 2
+	}
+
 	startDir := filepath.Dir(filename)
 	if abs, err := filepath.Abs(startDir); err == nil {
 		startDir = abs
@@ -145,7 +155,7 @@ func run(args []string) int {
 		return 1
 	}
 
-	if err := validateGo(filename, result.Clean); err != nil {
+	if err := goCtx.validate(filename, result.Clean); err != nil {
 		fmt.Fprintf(os.Stderr, "gon: Go type error: %v\n", err)
 		return 1
 	}
@@ -260,6 +270,14 @@ func runCheck(cmd string, args []string) int {
 
 		result := preproc.Process(filename, src)
 
+		goCtx, err := loadGoContext(filename, result.Clean)
+		if err != nil {
+			// The module the file is in cannot be loaded (v1.17): exit 2
+			// before emission, so no envelope (Protocol v1 §7).
+			fmt.Fprintf(os.Stderr, "gon: %v\n", err)
+			return 2
+		}
+
 		startDir := filepath.Dir(filename)
 		if abs, err := filepath.Abs(startDir); err == nil {
 			startDir = abs
@@ -290,7 +308,7 @@ func runCheck(cmd string, args []string) int {
 			}
 		}
 
-		if err := validateGo(filename, result.Clean); err != nil {
+		if err := goCtx.validate(filename, result.Clean); err != nil {
 			fmt.Fprintf(os.Stderr, "gon: Go type error: %v\n", err)
 			if !jsonOut {
 				return 1
@@ -357,36 +375,38 @@ Diagnostics (human) are printed as:
 See docs/diagnostic-protocol-v1.md for the JSON contract.`)
 }
 
-// validateGo type-checks the clean Go form of a .gon file. When the file
-// lives in a module it is checked against the real module graph (so
-// module-local and third-party imports resolve); otherwise it falls back to
-// the GOPATH/GOROOT importer for standalone single-file inputs.
-func validateGo(filename string, src []byte) error {
-	if err, ok := validateGoModule(filename, src); ok {
-		return err
-	}
-	fset := token.NewFileSet()
-	file, err := parser.ParseFile(fset, filename, src, parser.AllErrors)
-	if err != nil {
-		return err
-	}
-	conf := types.Config{Importer: importer.Default()}
-	_, err = conf.Check(file.Name.Name, fset, []*ast.File{file}, nil)
-	return err
+// goContext is the Go context a .gon file is checked in (file mode). A file
+// inside a module is type-checked against the real module graph, loaded once
+// by loadGoContext before the file is checked; a file outside any module is
+// type-checked with the GOROOT/GOPATH importer.
+type goContext struct {
+	inModule bool
+	typeErr  error // the module load's parse or type error for the file
 }
 
-// validateGoModule type-checks src as an overlay package inside the module
-// that contains filename. ok is false when there is no enclosing module (the
-// caller then uses the standalone importer). A non-nil error is a genuine
-// parse or type error in the source.
-func validateGoModule(filename string, src []byte) (err error, ok bool) {
+// loadGoContext loads the module that contains filename, with src (the file's
+// clean Go form) overlaid as a package of it. Since v1.17 a go.mod that is
+// found but whose module cannot be loaded is an error, not a fall back to the
+// GOROOT/GOPATH importer:
+//
+//   - no go.mod above the file (K0): no error; validate uses the importer.
+//   - the load fails and golang.org/x/mod shows that go.mod is invalid (it does
+//     not parse, has no module directive, or its module path is not a valid
+//     import path) (K1): "invalid go.mod: ...".
+//   - the load fails for any other reason (K2): the go command's error as it
+//     is, without a guessed cause.
+//   - the load succeeds (K3): validate reports its parse or type error.
+//
+// x/mod only explains a load that already failed: a go.mod the go command
+// accepts is never rejected.
+func loadGoContext(filename string, src []byte) (goContext, error) {
 	start := filepath.Dir(filename)
 	if abs, aerr := filepath.Abs(start); aerr == nil {
 		start = abs
 	}
 	root := findGoModRoot(start)
 	if root == "" {
-		return nil, false
+		return goContext{}, nil
 	}
 
 	overlayPath := filepath.Join(root, "__gon_validate__", "check.go")
@@ -398,17 +418,63 @@ func validateGoModule(filename string, src []byte) (err error, ok bool) {
 		Tests:   false,
 	}
 	pkgs, lerr := packages.Load(cfg, "file="+overlayPath)
-	if lerr != nil || len(pkgs) == 0 {
-		return nil, false // load machinery failed — let the fallback try
+	if lerr != nil {
+		if reason := invalidGoMod(filepath.Join(root, "go.mod")); reason != "" {
+			return goContext{}, fmt.Errorf("invalid go.mod: %s", reason)
+		}
+		return goContext{}, fmt.Errorf("cannot load the module of %s: %v", filename, lerr)
 	}
+	if len(pkgs) == 0 {
+		// Not observed; kept as before v1.17 (the importer decides).
+		return goContext{}, nil
+	}
+	ctx := goContext{inModule: true}
 	for _, pkg := range pkgs {
 		for _, e := range pkg.Errors {
 			if e.Kind == packages.TypeError || e.Kind == packages.ParseError {
-				return fmt.Errorf("%s", e), true
+				ctx.typeErr = fmt.Errorf("%s", e)
+				return ctx, nil
 			}
 		}
 	}
-	return nil, true
+	return ctx, nil
+}
+
+// invalidGoMod returns why the go.mod at path is invalid, as golang.org/x/mod
+// shows it, or "" when x/mod finds nothing wrong (or it cannot be read).
+func invalidGoMod(path string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	f, err := modfile.Parse(path, data, nil)
+	if err != nil {
+		return err.Error()
+	}
+	if f.Module == nil {
+		return path + ": no module directive"
+	}
+	if err := module.CheckImportPath(f.Module.Mod.Path); err != nil {
+		return path + ": " + err.Error()
+	}
+	return ""
+}
+
+// validate type-checks the clean Go form of filename in its context: the
+// module load's result for a file inside a module, the GOROOT/GOPATH importer
+// for a file outside any module.
+func (g goContext) validate(filename string, src []byte) error {
+	if g.inModule {
+		return g.typeErr
+	}
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, filename, src, parser.AllErrors)
+	if err != nil {
+		return err
+	}
+	conf := types.Config{Importer: importer.Default()}
+	_, err = conf.Check(file.Name.Name, fset, []*ast.File{file}, nil)
+	return err
 }
 
 func findGoModRoot(start string) string {
