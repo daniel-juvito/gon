@@ -272,6 +272,7 @@ func TestFileModeFmtIsUnchangedOnMalformedConstraints(t *testing.T) {
 	for _, tc := range []struct{ name, header, want string }{
 		{"M1", "//go:build (linux", "//go:build (linux"},
 		{"M2", "//go:build linux &&", "//go:build linux &&"},
+		{"M3", "//go:build ignore\n//go:build linux", "//go:build ignore\n//go:build linux"},
 		{"M4", "//go:build", "//go:build"},
 		{"M5", "//go:build linux windows", "//go:build linux"}, // go/format's own rewrite
 	} {

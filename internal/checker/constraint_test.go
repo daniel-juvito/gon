@@ -3,6 +3,7 @@
 package checker
 
 import (
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -62,20 +63,45 @@ func TestMalformedConstraintVerdicts(t *testing.T) {
 
 // The verdict is independent of the operand's name because the function has no
 // name to take: go/build asked about the real name would not even read the
-// line of `a_windows.go`, which `go vet a_windows.go` still rejects.
+// line of `a_windows.go` on linux, which `go vet a_windows.go` still rejects.
+// Which names go/build drops without reading depends on the platform running
+// the test, so the expectation is computed from it: a name starting with `_`
+// or `.`, and a GOOS or GOARCH suffix that is not this platform's.
 func TestMalformedConstraintDoesNotDependOnTheOperandName(t *testing.T) {
-	src := []byte("//go:build (linux\n\n" + constraintBody)
-	for _, name := range []string{"a.go", "a_linux.go", "a_test.go", "_a.go", ".a.go", "a_windows.go", "a_plan9.go"} {
-		overlay := map[string][]byte{name: src}
-		_, err := overlayContext(overlay).MatchFile(".", name)
-		ignoredByName := err == nil // go/build never parsed the line
-		wantIgnored := name == "_a.go" || name == ".a.go" || name == "a_windows.go" || name == "a_plan9.go"
-		if ignoredByName != wantIgnored {
-			t.Errorf("MatchFile(%q): ignored by name = %v, want %v (the premise of the neutral name)", name, ignoredByName, wantIgnored)
-		}
+	otherOS := "windows"
+	if runtime.GOOS == "windows" {
+		otherOS = "plan9"
 	}
-	if _, bad := MalformedConstraint(src); !bad {
-		t.Fatal("malformed whatever the name")
+	otherArch := "arm64"
+	if runtime.GOARCH == "arm64" {
+		otherArch = "amd64"
+	}
+	for _, tc := range []struct {
+		name          string
+		ignoredByName bool // go/build drops it before reading the line, on this platform
+	}{
+		{"a.go", false},
+		{"a_test.go", false},
+		{"a_" + runtime.GOOS + ".go", false},
+		{"a_" + runtime.GOARCH + ".go", false},
+		{"a_" + runtime.GOOS + "_" + runtime.GOARCH + ".go", false},
+		{"_a.go", true},
+		{".a.go", true},
+		{"a_" + otherOS + ".go", true},
+		{"a_" + otherArch + ".go", true},
+		{"a_" + otherOS + "_" + runtime.GOARCH + ".go", true},
+	} {
+		src := []byte("//go:build (linux\n\n" + constraintBody)
+		_, err := overlayContext(map[string][]byte{tc.name: src}).MatchFile(".", tc.name)
+		if ignoredByName := err == nil; ignoredByName != tc.ignoredByName {
+			t.Errorf("MatchFile(%q): dropped by name = %v, want %v (the premise of the neutral name on %s/%s)",
+				tc.name, ignoredByName, tc.ignoredByName, runtime.GOOS, runtime.GOARCH)
+		}
+		// Whatever go/build does with the real name, the verdict on the
+		// contents is the same.
+		if _, bad := MalformedConstraint(src); !bad {
+			t.Errorf("%q: malformed whatever the name", tc.name)
+		}
 	}
 }
 
