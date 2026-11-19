@@ -219,6 +219,7 @@ load" behave differently:
 | File-mode pre-check parse failure | No | 1 |
 | Package-mode Go parse / type / package error reported by the loader for a package it loaded | Yes | 1 |
 | Package mode: a `.gon` whose `//go:build` line is malformed (v1.19) | Yes (no entry for that file) | 1 |
+| File mode: a `.gon` operand whose `//go:build` line is malformed | Yes (no entry for that operand) | 1 |
 | Package-loading, environment or configuration failure (no package was loaded) | No | 2 |
 | File mode: a `go.mod` is found above the file but its module cannot be loaded (v1.17) | No | 2 |
 
@@ -314,6 +315,28 @@ load" behave differently:
   source in the build". `gon transpile` / `gon build` write nothing for the
   package (a `.go` already there, including one a `.gon` shadows, is left as it
   is). A plain `.go` with a malformed constraint keeps its Go error text.
+
+  **File mode.** A `.gon` given as a **file** operand is treated the same way
+  (until then `gon check` exited 0 for it, with an empty envelope, while
+  `go vet` and `go build` reject the same file). go/build is asked about the
+  operand's contents only, under a neutral file name, so the verdict does not
+  depend on the operand's own name: a name the go tool ignores (`_a.gon`,
+  `.a.gon`) or a `GOOS`/`GOARCH` suffix that does not match (`a_windows.gon`) is
+  decided like any other. The operand is **not checked** (its contract errors
+  are not reported), the **other operands are**, the envelope holds one
+  document for the whole call without an entry for it, stderr has the same
+  line as above for each such operand, and the run is exit 1. It comes after
+  the module context: a `go.mod` found above the file whose module cannot be
+  loaded is still exit 2 with no envelope. It comes before the pre-check parse,
+  so with an operand that fails that parse the operands before it are named on
+  stderr, the parse failure stops the run as it always did (exit 1, **no
+  envelope**, no partial one) and the operands after it are not examined.
+  `gon transpile` / `gon build` with the file write nothing (a `.go` already
+  beside it is left as it is) and do not run `go build`. `gon fmt` is not
+  affected. Only a constraint go/build cannot evaluate counts: a valid one that
+  does not match the platform does not, a `//go:build` placed after the
+  `package` clause (a compiler error) and a `// +build` line that disagrees
+  with `//go:build` (a `go vet` analyzer) are not detected.
   Inside a module, a name the go tool ignores (`_x.gon`, `.x.gon`) is not part
   of the package and is no error (until v1.18 it was exit 2, `not part of the
   loaded package`); with nothing else in the build it is the package-loading
@@ -349,6 +372,7 @@ Examples:
 | File-mode pre-check parse failure (no envelope) | 1 |
 | Package-mode syntax error or invalid `package` clause (envelope) | 1 |
 | Package-mode `.gon` with a malformed `//go:build` line (envelope without an entry for it) | 1 |
+| File-mode `.gon` operand with a malformed `//go:build` line (envelope without an entry for it) | 1 |
 | Non-existent input file       | 2    |
 | Malformed CLI invocation      | 2    |
 | Package cannot be loaded (`go` missing, invalid `go.mod`, no source of a named package in the build) | 2 |
