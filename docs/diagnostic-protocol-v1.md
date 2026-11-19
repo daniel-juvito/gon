@@ -218,6 +218,7 @@ load" behave differently:
 |-----------|----------|------|
 | File-mode pre-check parse failure | No | 1 |
 | Package-mode Go parse / type / package error reported by the loader for a package it loaded | Yes | 1 |
+| Package mode: a `.gon` whose `//go:build` line is malformed (v1.19) | Yes (no entry for that file) | 1 |
 | Package-loading, environment or configuration failure (no package was loaded) | No | 2 |
 | File mode: a `go.mod` is found above the file but its module cannot be loaded (v1.17) | No | 2 |
 
@@ -282,10 +283,41 @@ load" behave differently:
   are **not** applied there), every member `.gon` and plain `.go` file is
   loaded as one package, and the same rules follow (an excluded `.gon` is not
   checked; no source in the build is exit 2 when named, skipped under
-  `...`). A file whose `//go:build` line go/build cannot evaluate is not
-  loaded and is a Go error of the package (exit 1, envelope, `invalid build
-  constraint` on stderr). Imports outside a module resolve as before (the
-  standard library only).
+  `...`). A file whose `//go:build` line go/build cannot evaluate is a
+  malformed constraint (below). Imports outside a module resolve as before
+  (the standard library only). "Excluded by build constraints", in Gon's
+  messages, covers every file the go tool leaves out of the build: by a
+  `//go:build` line, by a file name suffix, and by a name starting with `_` or
+  `.`, which it ignores without a word.
+- **A malformed `//go:build` line is a source error (v1.19).** The go command
+  treats a file whose build constraint is malformed (unbalanced parentheses, an
+  incomplete expression, two `//go:build` lines) as an invalid file of the
+  package, not as an excluded one (`go list` reports it in `InvalidGoFiles`,
+  `go vet` and `go build` fail). Gon does the same, inside and outside a
+  module, for a `.gon`: the file is **not checked**, the package's other files
+  **are**, and the run is exit 1 with the envelope of those files, so a
+  contract error in a sibling is still reported and one in the malformed file
+  is not. stderr carries one line per file, naming the `.gon` path and
+  go/build's reason:
+
+  ```text
+  gon: invalid build constraint in p/a.gon: parsing //go:build line: missing close paren
+  ```
+
+  **It is not a Diagnostic.** Like a Go type-checking error it has no entry in
+  `diagnostics`, so no `code`, `severity`, `source`, `range` or `message` of
+  v1 is involved: it needs no new `code`, and a `range` cannot be given because
+  go/build reports no position, only an opaque error. A consumer learns of it
+  from exit 1 and stderr, as for any exit 1 with no error diagnostic. Under
+  `...` it is that package's error and the other packages are still checked;
+  a package whose only source is malformed is that error (exit 1), never "no
+  source in the build". `gon transpile` / `gon build` write nothing for the
+  package (a `.go` already there, including one a `.gon` shadows, is left as it
+  is). A plain `.go` with a malformed constraint keeps its Go error text.
+  Inside a module, a name the go tool ignores (`_x.gon`, `.x.gon`) is not part
+  of the package and is no error (until v1.18 it was exit 2, `not part of the
+  loaded package`); with nothing else in the build it is the package-loading
+  failure above, as outside a module.
 
 Consumers must not assume that every exit 1 produces parseable JSON: the
 file-mode pre-check parse failure is the exception, and stderr explains it. It
@@ -316,6 +348,7 @@ Examples:
 | GN001 / GN002 / GN003         | 1    |
 | File-mode pre-check parse failure (no envelope) | 1 |
 | Package-mode syntax error or invalid `package` clause (envelope) | 1 |
+| Package-mode `.gon` with a malformed `//go:build` line (envelope without an entry for it) | 1 |
 | Non-existent input file       | 2    |
 | Malformed CLI invocation      | 2    |
 | Package cannot be loaded (`go` missing, invalid `go.mod`, no source of a named package in the build) | 2 |

@@ -53,7 +53,7 @@ func run(args []string) int {
 		usage()
 		return 0
 	case "version", "-version", "--version":
-		fmt.Println("gon version 1.18.0")
+		fmt.Println("gon version 1.19.0")
 		return 0
 	}
 
@@ -244,6 +244,9 @@ func runCheck(cmd string, args []string) int {
 			hasErrors = hasErrors || out.hasErrors
 			anyDiag = anyDiag || out.anyDiag
 			allProtocol = append(allProtocol, out.protocol...)
+			if reportInvalidFiles(out.invalid) {
+				typeErr = true
+			}
 			for _, te := range out.typeErrors {
 				fmt.Fprintf(os.Stderr, "gon: Go type error: %s\n", te)
 				typeErr = true

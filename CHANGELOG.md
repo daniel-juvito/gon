@@ -1,5 +1,53 @@
 # Changelog
 
+## [1.19.0] — 2026-11-19
+
+Malformed build constraints and ignored names in package mode (package
+discovery audit, proposal a1). Diagnostic Protocol v1 is unchanged: same
+`schemaVersion`, envelope, codes and exit-code meanings; all-or-nothing
+emission is unchanged.
+
+### Changed
+
+- **A `.gon` with a malformed `//go:build` line is a source error of its
+  package, not a load failure.** Unbalanced parentheses, an incomplete
+  expression and two `//go:build` lines made the whole package **exit 2** with
+  `not part of the loaded package` (a plain `.go` with the same line was
+  already exit 1). The go command treats such a file as invalid (`go list`
+  `InvalidGoFiles`, `go vet` and `go build` fail), and Gon now does too: the
+  file is **not checked**, the package's other files **are**, and the run is
+  **exit 1** with the envelope of those files, so a contract error in a
+  sibling is no longer lost. stderr names the file and the reason:
+  `gon: invalid build constraint in p/a.gon: parsing //go:build line: missing
+  close paren`.
+  - It is not a Diagnostic: it has no entry in `diagnostics` (no `code`, and
+    no `range`, since go/build reports no position); it is reported on stderr
+    like a Go type error and forces exit 1. See Protocol v1 §7.
+  - Under `./...` it is that package's error and the other packages are still
+    checked (one envelope, exit 1; before, the first one stopped the whole
+    run with exit 2). A package whose only source is malformed is that error,
+    not "no source in the build", and does not warn that nothing matched.
+  - `gon transpile` / `gon build` write nothing for that package; a `.go`
+    already there, including one a `.gon` shadows, is left as it is.
+  - Outside a module the same text is used. v1.18.0 printed `gon: Go type
+    error: m/a.gon: invalid build constraint: a.go: parsing …` there, naming
+    the internal overlay file; a plain `.go` keeps its existing text.
+- **Names the go tool ignores are not part of the package inside a module.**
+  `_x.gon` and `.x.gon` made the package exit 2 (`not part of the loaded
+  package`); the go command ignores such names without a word. They are now
+  left out like any excluded file: no error, not checked, not written by
+  `transpile` (named on stderr as excluded). With nothing else in the build
+  the package is "no source in the build" (exit 2 when named, skipped under
+  `...`), as outside a module. The wording `excluded by build constraints`
+  now covers every file the go tool leaves out: a `//go:build` line, a name
+  suffix, and a name starting with `_` or `.`.
+- A `.gon` the loader drops for a reason go/build cannot explain (it accepts
+  the file) is still the generic load failure, exit 2.
+
+Not changed: file mode (a single file whose `//go:build` line is malformed is
+still not reported there; found while measuring this, to be proposed on its
+own), import resolution, and genuine loader failures (exit 2).
+
 ## [1.18.0] — 2026-11-19
 
 Package mode outside a module (package-discovery audit, proposal 3).
