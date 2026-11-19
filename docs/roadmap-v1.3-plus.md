@@ -20,7 +20,11 @@ via its own RFC.
   Go semantics.
 - **I4 — `.gna` is authority only for external nilability contracts.**
   Identity and ordinary type semantics remain under I3, including for
-  packages whose contracts are described by `.gna`.
+  packages whose contracts are described by `.gna`. *(Amended in v1.14 / M10,
+  owner 2026-11-17: an imported module-local package's contracts may come from
+  its `.gon` sources, which take precedence over a `.gna` for the same
+  package; limited to the main module. Wording:
+  `docs/rfc-source-contracts.md` §10.)*
 - **I5 — `!T` is a compile-time guarantee**, not a new runtime
   representation or runtime nil-check.
 - **I6 — No implicit contract propagation** through conversion, assertion,
@@ -64,7 +68,7 @@ analysis (see v1.6, §4).
 | M7 | Call-site contracts for source-declared methods | M3 + M5b + M8 — **shipped v1.11** |
 | M8 | Package-aware checking | M5b — **shipped v1.10** |
 | M9 | Directory form for `transpile` / `build` | M8 — **shipped v1.12** |
-| M10 | Cross-package contracts from module-local `.gon` sources | M8 — **implemented v1.14, awaiting audit** |
+| M10 | Cross-package contracts from module-local `.gon` sources | M8 — **shipped v1.14** |
 | M6b | LSP / editor support | M2a — contract tracing |
 
 Full feature inventory and dependency graph rationale are maintained
@@ -210,17 +214,71 @@ gaps; the closure part was found in the audit. Found while measuring the dogfood
 `.gon` files and a 526-file standard-library corpus found no new diagnostic.
 **Rationale (R1):** solo release.
 
-### v1.14 — Cross-Package Contracts from `.gon` Sources — IMPLEMENTED (awaiting audit)
+### v1.14 — Cross-Package Contracts from `.gon` Sources — SHIPPED (2026-11-17)
 **Scope:** M10 — an importer sees the `!` contracts of an imported main-module
 package that has `.gon` sources, derived from those sources and applied through
 the existing `.gna` machinery. Amends invariant I4. New warning GW005.
 **RFC:** `docs/rfc-source-contracts.md` (owner decisions Q1–Q6 and the I4
-amendment, 2026-11-17).
+amendment, 2026-11-17). Implemented and audited in #38.
 **Dependency:** M8 (v1.10); motivated by the dogfood conversion.
 **Breaking risk:** Possibly Yes (R1).
 **Rationale (R1):** solo release.
 
+### v1.15–v1.18 — Exit Codes and Package Discovery — v1.15–v1.17 SHIPPED; v1.18 MERGED (tag pending)
+No new milestone: an audit of `gon check --json`'s exit codes (B) and then of
+package discovery, each change measured against minimal reproductions,
+proposed, audited, and released solo because each one changes exit codes a
+consumer can see (R1). Diagnostic Protocol v1 is unchanged throughout (same
+`schemaVersion`, envelope and codes); §7 of `docs/diagnostic-protocol-v1.md`
+records every rule.
+
+- **v1.15 (#42, 2026-11-17)** — a package that cannot be loaded (no `go`
+  command, invalid `go.mod`, a file excluded by build constraints) is exit 2,
+  not 1; an invalid `package` clause in package mode is a parse error with an
+  envelope. §7 separates the file-mode pre-check parse failure, package-mode
+  loader errors, and package-loading failures, and states all-or-nothing.
+- **v1.16 (#46, 2026-11-18)** — the go command decides which `.gon` files
+  belong to a package inside a module (an excluded `.gon` is not checked; a
+  package with no source in the build is exit 2 when named, skipped under
+  `...`); `...` stops at a nested module; `transpile` / `build` write only the
+  files that were checked. Corrects two claims of 1.15.0.
+- **v1.17 (#48, 2026-11-18)** — file mode no longer falls back silently when a
+  `go.mod` is found but its module cannot be loaded: exit 2, "invalid go.mod"
+  when golang.org/x/mod proves it, the go command's error otherwise. The
+  importer fallback remains only when no `go.mod` is found.
+- **v1.18 (#49, merged 2026-11-19; the `v1.18.0` tag is not cut yet)** —
+  package mode outside a module loads every file of the package (membership
+  by go/build; `GOFLAGS` tags are not applied there); build constraints apply as inside a module; a malformed
+  `//go:build` line is a Go error of the package; import resolution outside a
+  module is unchanged.
+
+**Breaking risk:** Yes for exit-code consumers (each release lists the
+changed outcomes in `CHANGELOG.md`). **Rationale (R1):** one solo release per
+change.
+
 ## 5. Open Sequencing Notes
+
+- **Open work after v1.18 (none scheduled, none audited as done).**
+  - **C — no RFC yet.** Cross-package contracts on a defined type whose base
+    comes from another package, and checking a module-local dependency that
+    has only `.gon` sources (no `.go`) before it is transpiled. Deferred by
+    the owner; M10 (v1.14) covers neither.
+  - **D — receiver contracts, no RFC yet.** `receivers:` in `.gna` is parsed,
+    validated and still reserved (no call-site effect since v1.5); a `!` on a
+    source receiver is not part of M7 (`rfc-method-contracts.md`).
+  - **`--strict`** — deferred since v1.5 (`rfc-ecosystem-contract-expansion.md`);
+    unscheduled.
+  - **A "nilable" constraint** — open, unscheduled (see the note below).
+  - **Package-discovery follow-ups from #49**, each to be proposed on its own:
+    a malformed `//go:build` line **inside** a module is still the generic exit
+    2 "not part of the loaded package" (the loader's error has no file
+    position), and `gon build ./dir` **outside** a module writes the `.go`
+    files before `go build` fails for want of a `go.mod`.
+- **Dogfood (not a release track).** Gon's production packages are written in
+  Gon (`docs/dogfood.md`); `!` contracts are added package by package after
+  measurement and audit (all of `internal/checker`'s approved groups are in).
+  A release is needed only when the dogfood gate needs a checker it does not
+  pin yet.
 
 - M4a is dependency-eligible as early as Core, independent of M1a. It is
   placed in v1.5 for release coherence (R2/R4), not because the graph
