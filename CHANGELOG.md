@@ -1,5 +1,39 @@
 # Changelog
 
+## [Unreleased]
+
+Malformed build constraints in file mode (proposal fm1). Diagnostic Protocol v1
+is unchanged: same `schemaVersion`, envelope, codes and exit-code meanings;
+all-or-nothing emission is unchanged.
+
+### Changed
+
+- **A `.gon` file operand with a malformed `//go:build` line is a source
+  error, as in package mode.** `gon check` / `vet` exited **0** for it with an
+  empty envelope (the loader's `file=` query drops the error of an overlay-only
+  file), and `gon transpile` / `gon build` wrote a `.go` that `go build` then
+  refused (or that `go/format` had rewritten into a different constraint:
+  `//go:build linux windows` became `//go:build linux`), while `go vet` and
+  `go build` reject the same file. Now the operand is **not checked**, the
+  other operands are, and the run is **exit 1** with one envelope that has no
+  entry for it; stderr names the file and go/build's reason:
+  `gon: invalid build constraint in p/a.gon: parsing //go:build line: missing
+  close paren`. `transpile` / `build` write nothing (a `.go` already beside the
+  file is left as it is) and do not call `go build`.
+  - The verdict is go/build's error on the operand's contents, asked under a
+    neutral file name: a name the go tool ignores (`_a.gon`), or a `GOOS` /
+    `GOARCH` suffix that does not match (`a_windows.gon`), no longer decides
+    whether the line is read (go/build skips such a name without parsing it,
+    while `go vet a_windows.go` still rejects the line).
+  - Order: the module context first (a module that cannot be loaded is still
+    exit 2, no envelope), then this check, then the pre-check parse. With
+    several operands a parse failure still stops the run with exit 1 and no
+    envelope; malformed operands before it are named on stderr.
+  - It is not a Diagnostic (no `code`, no `range`), like a Go type error; see
+    Protocol v1 §7.
+  - A valid constraint that does not match the platform, `// +build` lines, a
+    `//go:build` after the `package` clause and `gon fmt` are unchanged.
+
 ## [1.19.0] — 2026-11-19
 
 Malformed build constraints and ignored names in package mode (package

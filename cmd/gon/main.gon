@@ -128,6 +128,15 @@ func run(args []string) int {
 		return 2
 	}
 
+	// A malformed //go:build line is a source error of the file (as in
+	// package mode since v1.19): nothing is checked, transpiled or built, and
+	// nothing is written. After the module context, so a module that cannot be
+	// loaded is still exit 2.
+	if reason, bad := checker.MalformedConstraint(result.Clean); bad {
+		reportInvalidFiles([]checker.InvalidFile{{Path: filename, Reason: reason}})
+		return 1
+	}
+
 	startDir := filepath.Dir(filename)
 	if abs, err := filepath.Abs(startDir); err == nil {
 		startDir = abs
@@ -280,6 +289,15 @@ func runCheck(cmd string, args []string) int {
 			// before emission, so no envelope (Protocol v1 §7).
 			fmt.Fprintf(os.Stderr, "gon: %v\n", err)
 			return 2
+		}
+
+		// A malformed //go:build line: the file is not checked, the
+		// other operands are, the envelope has no entry for it, and the run is
+		// exit 1 like a Go type error (stderr only, no Diagnostic).
+		if reason, bad := checker.MalformedConstraint(result.Clean); bad {
+			reportInvalidFiles([]checker.InvalidFile{{Path: filename, Reason: reason}})
+			typeErr = true
+			continue
 		}
 
 		startDir := filepath.Dir(filename)
