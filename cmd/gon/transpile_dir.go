@@ -116,10 +116,11 @@ func emitPackage(t checkTarget) (code int, skipped bool) {
 			fmt.Fprintln(os.Stderr, filepath.ToSlash(f.Path)+strings.TrimPrefix(d.String(), d.File))
 		}
 	}
+	invalid := reportInvalidFiles(lp.res.InvalidFiles)
 	for _, te := range lp.res.TypeErrors {
 		fmt.Fprintf(os.Stderr, "gon: Go type error: %s\n", te)
 	}
-	if hasErrors || len(lp.res.TypeErrors) > 0 {
+	if hasErrors || invalid || len(lp.res.TypeErrors) > 0 {
 		fmt.Fprintf(os.Stderr, "gon: %s not transpiled: nothing was written for this package\n", filepath.ToSlash(dir))
 		return 1, false
 	}

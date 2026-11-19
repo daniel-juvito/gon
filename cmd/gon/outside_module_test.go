@@ -220,7 +220,9 @@ func TestOutsideModuleTranspileUsesTheSameFiles(t *testing.T) {
 // command reports such a file as an invalid file of the package) is neither a
 // member nor excluded: the file is not loaded and its error is a Go error of
 // the package (exit 1, envelope, message on stderr naming the file), for a
-// .gon and for a plain .go file alike. It is never "no source in the build"
+// .gon and for a plain .go file alike. A .gon is named by its .gon path with
+// go/build's reason ("gon: invalid build constraint in m/a.gon: ..."), the same
+// text as inside a module (v1.19); a plain .go keeps its Go error text. It is never "no source in the build"
 // (exit 2) and a `...` pattern does not skip the package.
 func TestOutsideModuleMalformedBuildConstraint(t *testing.T) {
 	root := outsideModule(t, map[string]string{
@@ -235,7 +237,7 @@ func TestOutsideModuleMalformedBuildConstraint(t *testing.T) {
 	})
 	exit, env, errOut := outEnvelope(t, "check", "--json", "./m")
 	if exit != 1 || len(env.Diagnostics) != 1 || filepath.Base(env.Diagnostics[0].File) != "b.gon" ||
-		errOut != "gon: Go type error: m/a.gon: invalid build constraint: a.go: parsing //go:build line: missing close paren\n" {
+		errOut != "gon: invalid build constraint in m/a.gon: parsing //go:build line: missing close paren\n" {
 		t.Fatalf(".gon: exit %d %+v\nstderr %q", exit, env.Diagnostics, errOut)
 	}
 	exit, env, errOut = outEnvelope(t, "check", "--json", "./g")
@@ -243,12 +245,12 @@ func TestOutsideModuleMalformedBuildConstraint(t *testing.T) {
 		errOut != "gon: Go type error: g/c.go: invalid build constraint: c.go: parsing //go:build line: unexpected end of expression\n" {
 		t.Fatalf("plain .go: exit %d\nstderr %q", exit, errOut)
 	}
-	if exit, _, errOut := outEnvelope(t, "check", "--json", "./two"); exit != 1 || !strings.Contains(errOut, "two/a.gon: invalid build constraint: a.go: multiple //go:build comments") {
+	if exit, _, errOut := outEnvelope(t, "check", "--json", "./two"); exit != 1 || !strings.Contains(errOut, "gon: invalid build constraint in two/a.gon: multiple //go:build comments") {
 		t.Fatalf("multiple //go:build: exit %d\n%s", exit, errOut)
 	}
 	for _, args := range [][]string{{"check", "--json", "./only"}, {"vet", "--json", "./only"}, {"check", "--json", "./pat/..."}} {
 		exit, env, errOut := outEnvelope(t, args...)
-		if exit != 1 || len(env.Diagnostics) != 0 || !strings.Contains(errOut, "invalid build constraint") || strings.Contains(errOut, "exclude all Go files") || strings.Contains(errOut, "matched no packages") {
+		if exit != 1 || len(env.Diagnostics) != 0 || !strings.Contains(errOut, "gon: invalid build constraint in ") || strings.Contains(errOut, "exclude all Go files") || strings.Contains(errOut, "matched no packages") {
 			t.Fatalf("%v: exit %d (want 1, not exit 2 and not skipped)\n%s", args, exit, errOut)
 		}
 	}

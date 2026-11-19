@@ -47,6 +47,18 @@ type PackageResult struct {
 	// TypeErrors are the Go parse / type / package errors of the package. They
 	// do not hide contract diagnostics: both are reported (RFC P6).
 	TypeErrors []string
+	// InvalidFiles are the .gon files that were not checked because their
+	// //go:build line is malformed (v1.19), in file order. Like TypeErrors they
+	// are source errors of the package that are not Diagnostics in Protocol
+	// v1: no code, no range (go/build gives no position), so they never reach
+	// the JSON envelope; the command reports them on stderr and exits 1.
+	InvalidFiles []InvalidFile
+}
+
+// InvalidFile is a .gon file whose //go:build line go/build cannot evaluate.
+type InvalidFile struct {
+	Path   string // the .gon path, as the diagnostics of the package name it
+	Reason string // go/build's reason, without the overlay file name
 }
 
 // packageShared is what the files of one package check have in common.
@@ -130,16 +142,18 @@ func CheckPackage(dir string, files []PackageFile, resolver gna.Resolver) (*Pack
 		Tests:   false,
 	}
 	queries := []string{dirAbs}
-	var invalid []string // outside a module: files whose build constraint is malformed
+	var invalid []string           // outside a module: plain .go files whose build constraint is malformed
+	var invalidFiles []InvalidFile // .gon files whose build constraint is malformed
 	if !inModule {
-		kept, excluded, plain, bad := outsideModuleMembers(dir, dirAbs, sorted, overlay, overlayPath)
-		invalid = bad
+		kept, excluded, plain, badGon, badPlain := outsideModuleMembers(dir, dirAbs, sorted, overlay, overlayPath)
+		invalid = badPlain
+		invalidFiles = badGon
 		if len(kept) == 0 && len(plain) == 0 {
-			if len(invalid) > 0 {
+			if len(invalid) > 0 || len(invalidFiles) > 0 {
 				// The only sources left have a malformed constraint: a source
 				// error of the package (as the go command reports it), not a
 				// package with no source in the build. Nothing can be loaded.
-				return &PackageResult{TypeErrors: invalid}, nil
+				return &PackageResult{TypeErrors: invalid, InvalidFiles: invalidFiles}, nil
 			}
 			// No source of the package is in the build: as in a module.
 			return nil, &ExcludedError{Dir: dir, Files: excluded}
@@ -155,6 +169,7 @@ func CheckPackage(dir string, files []PackageFile, resolver gna.Resolver) (*Pack
 	if err != nil {
 		return nil, fmt.Errorf("loading package %s: %w", dir, err)
 	}
+	var loaderIgnored []string // in a module: .gon files the go command lists in IgnoredFiles
 	if inModule && len(pkgs) > 0 {
 		// Keep only the .gon files the go command put in the package.
 		kept, excluded := splitIgnored(sorted, overlayPath, pkgs[0].IgnoredFiles)
@@ -163,6 +178,7 @@ func CheckPackage(dir string, files []PackageFile, resolver gna.Resolver) (*Pack
 			// package has no source for this configuration.
 			return nil, &ExcludedError{Dir: dir, Files: excluded}
 		}
+		loaderIgnored = excluded
 		sorted = kept
 	}
 	if len(pkgs) == 0 || pkgs[0].TypesInfo == nil || pkgs[0].Types == nil {
@@ -193,7 +209,20 @@ func CheckPackage(dir string, files []PackageFile, resolver gna.Resolver) (*Pack
 	// (its own parse error is in pkg.Errors and reaches TypeErrors below; the
 	// other files are still checked) or was not loaded at all, which is a load
 	// failure.
+	//
+	// In a module, a .gon the loader dropped without any of that (it is in
+	// neither GoFiles nor IgnoredFiles, and has no parse error of its own) is
+	// explained by go/build, asked about this file only and on the same overlaid
+	// source (classifyDropped): a malformed //go:build line is a source error of
+	// the package (InvalidFile: the file is not checked, the others are), a file
+	// go/build does not accept without any error is one the go tool ignores by
+	// name (`_x`, `.x`: not part of the package, no error), and a file it
+	// accepts is unexplained: the generic load failure below, exit 2. go/build's
+	// verdict is never applied to a file the loader did load (a tag in GOFLAGS
+	// can include a file go/build alone would reject).
 	var missing []PackageFile
+	var ignoredByName []string
+	restated := make(map[string]bool) // the loader's own text for each InvalidFile
 	checked := make([]PackageFile, 0, len(sorted))
 	for _, f := range sorted {
 		op := overlayPath(f)
@@ -201,9 +230,29 @@ func CheckPackage(dir string, files []PackageFile, resolver gna.Resolver) (*Pack
 			checked = append(checked, f)
 			continue
 		}
-		if !hasOwnParseError(pkg.Errors, op) {
-			missing = append(missing, f)
+		if hasOwnParseError(pkg.Errors, op) {
+			continue
 		}
+		if inModule {
+			d := classifyDropped(dirAbs, overlay, op)
+			switch d.kind() {
+			case dropInvalid:
+				invalidFiles = append(invalidFiles, InvalidFile{Path: f.Path, Reason: d.reason})
+				restated[d.text] = true
+				continue
+			case dropIgnored:
+				ignoredByName = append(ignoredByName, f.Path)
+				continue
+			}
+		}
+		missing = append(missing, f)
+	}
+	if len(checked) == 0 && len(invalidFiles) == 0 && len(missing) == 0 && len(pkg.GoFiles) == 0 {
+		// Every .gon is out of the package (ignored by the go command or by
+		// its name) and no other Go file is in the build.
+		files := append(append([]string(nil), loaderIgnored...), ignoredByName...)
+		sort.Strings(files)
+		return nil, &ExcludedError{Dir: dir, Files: files}
 	}
 	if len(missing) > 0 {
 		paths := make([]string, len(missing))
@@ -252,7 +301,7 @@ func CheckPackage(dir string, files []PackageFile, resolver gna.Resolver) (*Pack
 	for _, c := range checkers {
 		c.collect()
 	}
-	res := &PackageResult{TypeErrors: invalid}
+	res := &PackageResult{TypeErrors: invalid, InvalidFiles: invalidFiles}
 	for i, c := range checkers {
 		res.Files = append(res.Files, FileDiagnostics{Path: checked[i].Path, Diagnostics: c.walk()})
 	}
@@ -260,6 +309,9 @@ func CheckPackage(dir string, files []PackageFile, resolver gna.Resolver) (*Pack
 	for _, e := range pkg.Errors {
 		switch e.Kind {
 		case packages.TypeError, packages.ParseError, packages.ListError:
+			if restatesInvalidFile(e, restated) {
+				continue
+			}
 			res.TypeErrors = append(res.TypeErrors, e.Error())
 		}
 	}
@@ -310,23 +362,18 @@ func splitIgnored(files []PackageFile, overlayPath func(PackageFile) string, ign
 // files that are not test files, not ignored by name (`_x`, `.x`) and not
 // shadowed by a .gon of the same base name. A file MatchFile cannot judge (a
 // malformed `//go:build` line, which the go command reports as an invalid file
-// of the package) is neither kept nor excluded: it is not loaded and its error
-// is returned in invalid, to be reported as a Go error of the package. Plain
-// files are named in invalid by dir (the operand) joined with their name, like
-// the .gon files.
-func outsideModuleMembers(dir, dirAbs string, files []PackageFile, overlay map[string][]byte, overlayPath func(PackageFile) string) (kept []PackageFile, excluded []string, plain []string, invalid []string) {
-	ctx := build.Default
-	ctx.OpenFile = func(path string) (io.ReadCloser, error) {
-		if src, ok := overlay[filepath.Clean(path)]; ok {
-			return io.NopCloser(bytes.NewReader(src)), nil
-		}
-		return os.Open(path)
-	}
+// of the package) is neither kept nor excluded: it is not loaded and is
+// reported as a source error of the package, a .gon as an InvalidFile (badGon)
+// and a plain .go file as a Go error text (badPlain), named by dir (the
+// operand) joined with its name.
+func outsideModuleMembers(dir, dirAbs string, files []PackageFile, overlay map[string][]byte, overlayPath func(PackageFile) string) (kept []PackageFile, excluded []string, plain []string, badGon []InvalidFile, badPlain []string) {
+	ctx := overlayContext(overlay)
 	for _, f := range files {
-		match, err := ctx.MatchFile(dirAbs, filepath.Base(overlayPath(f)))
+		name := filepath.Base(overlayPath(f))
+		match, err := ctx.MatchFile(dirAbs, name)
 		switch {
 		case err != nil:
-			invalid = append(invalid, invalidConstraint(f.Path, err))
+			badGon = append(badGon, InvalidFile{Path: f.Path, Reason: reasonOf(name, err)})
 		case match:
 			kept = append(kept, f)
 		default:
@@ -335,7 +382,7 @@ func outsideModuleMembers(dir, dirAbs string, files []PackageFile, overlay map[s
 	}
 	entries, err := os.ReadDir(dirAbs)
 	if err != nil {
-		return kept, excluded, nil, invalid
+		return kept, excluded, nil, badGon, badPlain
 	}
 	for _, e := range entries {
 		name := e.Name()
@@ -350,18 +397,104 @@ func outsideModuleMembers(dir, dirAbs string, files []PackageFile, overlay map[s
 		match, err := ctx.MatchFile(dirAbs, name)
 		switch {
 		case err != nil:
-			invalid = append(invalid, invalidConstraint(filepath.Join(dir, name), err))
+			badPlain = append(badPlain, invalidConstraint(filepath.Join(dir, name), err))
 		case match:
 			plain = append(plain, path)
 		}
 	}
-	return kept, excluded, plain, invalid
+	return kept, excluded, plain, badGon, badPlain
 }
 
-// invalidConstraint is the Go error reported for a file whose build constraint
-// go/build cannot evaluate, named by the file the user wrote.
+// invalidConstraint is the Go error text reported for a plain .go file whose
+// build constraint go/build cannot evaluate, named by the file the user wrote.
 func invalidConstraint(path string, err error) string {
 	return fmt.Sprintf("%s: invalid build constraint: %v", filepath.ToSlash(path), err)
+}
+
+// overlayContext is go/build's default context reading the overlaid sources
+// instead of the files on disk.
+func overlayContext(overlay map[string][]byte) *build.Context {
+	ctx := build.Default
+	ctx.OpenFile = func(path string) (io.ReadCloser, error) {
+		if src, ok := overlay[filepath.Clean(path)]; ok {
+			return io.NopCloser(bytes.NewReader(src)), nil
+		}
+		return os.Open(path)
+	}
+	return &ctx
+}
+
+// reasonOf is go/build's reason for err without the file name it prefixes
+// ("<name>: parsing //go:build line: ..."): the name is the one that was passed
+// to MatchFile. When the text does not start with it, the whole text is kept.
+func reasonOf(name string, err error) string {
+	text := err.Error()
+	if reason, ok := strings.CutPrefix(text, name+": "); ok {
+		return reason
+	}
+	return text
+}
+
+// droppedFile is go/build's verdict on a .gon the loader dropped from a
+// package without a parse error of its own.
+type droppedFile struct {
+	invalid bool   // go/build cannot evaluate the build constraint
+	reason  string // go/build's reason without the file name (invalid only)
+	text    string // go/build's whole error text (invalid only)
+	match   bool   // go/build accepts the file: nothing explains the drop
+}
+
+// dropKind is what CheckPackage does with a .gon the loader dropped.
+type dropKind int
+
+const (
+	// dropUnexplained: go/build accepts the file, so nothing shows why the
+	// loader left it out. It stays the generic load failure (exit 2).
+	dropUnexplained dropKind = iota
+	// dropInvalid: the //go:build line is malformed. A source error of the
+	// package: the file is not checked, the others are (exit 1).
+	dropInvalid
+	// dropIgnored: go/build rejects the file without an error, which for a file
+	// the loader listed nowhere is a name the go tool ignores (`_x`, `.x`). Not
+	// part of the package, not an error.
+	dropIgnored
+)
+
+// kind maps go/build's verdict to what is done with the file. (false, nil) is
+// only read as "ignored" here, for a file already known to be dropped by the
+// loader; it is not a rule about files the loader loaded.
+func (d droppedFile) kind() dropKind {
+	switch {
+	case d.invalid:
+		return dropInvalid
+	case !d.match:
+		return dropIgnored
+	}
+	return dropUnexplained
+}
+
+// classifyDropped asks go/build, on the overlaid source, about the .gon at
+// overlay path op. Three outcomes: an error (a malformed //go:build line:
+// invalid), no error and no match (a name or rule the go tool ignores), and a
+// match (no cause is shown). It is only meaningful for a file the loader
+// dropped: the result is never applied to a file the loader loaded or listed
+// as ignored.
+func classifyDropped(dirAbs string, overlay map[string][]byte, op string) droppedFile {
+	name := filepath.Base(op)
+	match, err := overlayContext(overlay).MatchFile(dirAbs, name)
+	if err != nil {
+		return droppedFile{invalid: true, reason: reasonOf(name, err), text: err.Error()}
+	}
+	return droppedFile{match: match}
+}
+
+// restatesInvalidFile reports whether e is the loader's own error for an
+// InvalidFile: a list error with no position whose text is, character for
+// character, go/build's error for that file. Anything else is kept, so a
+// difference between the go command's wording and go/build's costs a repeated
+// line, never a lost error.
+func restatesInvalidFile(e packages.Error, restated map[string]bool) bool {
+	return e.Kind == packages.ListError && e.Pos == "" && restated[e.Msg]
 }
 
 // hasOwnParseError reports whether errs holds a parse error positioned in the

@@ -162,6 +162,19 @@ type packageOutcome struct {
 	hasErrors  bool
 	anyDiag    bool
 	typeErrors []string
+	invalid    []checker.InvalidFile
+}
+
+// reportInvalidFiles prints, one line each and in file order, the .gon files
+// that were not checked because their //go:build line is malformed, named by
+// the .gon path and with go/build's reason (v1.19). They are source errors of
+// the package with no Diagnostic in Protocol v1: stderr only, never in the
+// JSON envelope. It reports whether there were any.
+func reportInvalidFiles(files []checker.InvalidFile) bool {
+	for _, f := range files {
+		fmt.Fprintf(os.Stderr, "gon: invalid build constraint in %s: %s\n", filepath.ToSlash(f.Path), f.Reason)
+	}
+	return len(files) > 0
 }
 
 // loadedPackage is a directory's .gon files, preprocessed and checked together
@@ -283,5 +296,6 @@ func checkPackageDir(t checkTarget, jsonOut bool, source string) (out packageOut
 	// so the document does not carry it, but the exit code must still say the
 	// package does not compile.
 	out.typeErrors = res.TypeErrors
+	out.invalid = res.InvalidFiles
 	return out, false, 0
 }

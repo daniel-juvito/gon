@@ -244,6 +244,9 @@ func runCheck(cmd string, args []string) int {
 			hasErrors = hasErrors || out.hasErrors
 			anyDiag = anyDiag || out.anyDiag
 			allProtocol = append(allProtocol, out.protocol...)
+			if reportInvalidFiles(out.invalid) {
+				typeErr = true
+			}
 			for _, te := range out.typeErrors {
 				fmt.Fprintf(os.Stderr, "gon: Go type error: %s\n", te)
 				typeErr = true
