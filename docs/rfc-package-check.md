@@ -417,6 +417,10 @@ measures user projects.
   *(v1.18: outside a module, where `file=` returned a one-file package, every
   member file is named to the loader instead, membership decided by go/build;
   a multi-file package outside a module is checked as a whole.)*
+  *(v1.19: a `.gon` whose `//go:build` line is malformed is a source error of
+  the package, not a load failure: it is not checked, the others are, exit 1;
+  a name the go tool ignores (`_x.gon`) is not part of the package. See
+  `docs/diagnostic-protocol-v1.md` §7.)*
 - **P4 — the refactor was smaller than the sketch.** `Check()` is now
   `collect()` then `walk()`; in package mode every file's checker shares the
   three declaration tables (maps passed by reference), so after every file has
