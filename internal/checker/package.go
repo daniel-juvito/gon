@@ -76,8 +76,15 @@ type packageShared struct {
 // configuration, as `go list ./dir` does: a .gon whose overlaid file the loader
 // lists in IgnoredFiles (build constraints, file name suffix, GOFLAGS tags) is
 // not part of the package and is not checked. Only the files that are checked
-// appear in PackageResult.Files. Outside a module the first file is loaded
-// with a file= query as before.
+// appear in PackageResult.Files.
+//
+// Outside a module (v1.18) there is no go command package for a directory, so
+// go/build decides membership with the toolchain's default build context
+// (GOOS, GOARCH, release tags; GOFLAGS tags are not read): every .gon whose
+// overlaid source it accepts, and every plain non-test .go file of the
+// directory it accepts that no .gon shadows, is named to the loader, and they
+// form one ad-hoc package. Import resolution is unchanged by this: the files
+// are loaded as before, only all of them now.
 //
 // A non-nil error means the package could not be loaded or set up at all (the
 // go command failed, the module is misconfigured, every source of the package
@@ -122,11 +129,29 @@ func CheckPackage(dir string, files []PackageFile, resolver gna.Resolver) (*Pack
 		Overlay: overlay,
 		Tests:   false,
 	}
-	query := "file=" + overlayPath(sorted[0])
-	if inModule {
-		query = dirAbs
+	queries := []string{dirAbs}
+	var invalid []string // outside a module: files whose build constraint is malformed
+	if !inModule {
+		kept, excluded, plain, bad := outsideModuleMembers(dir, dirAbs, sorted, overlay, overlayPath)
+		invalid = bad
+		if len(kept) == 0 && len(plain) == 0 {
+			if len(invalid) > 0 {
+				// The only sources left have a malformed constraint: a source
+				// error of the package (as the go command reports it), not a
+				// package with no source in the build. Nothing can be loaded.
+				return &PackageResult{TypeErrors: invalid}, nil
+			}
+			// No source of the package is in the build: as in a module.
+			return nil, &ExcludedError{Dir: dir, Files: excluded}
+		}
+		sorted = kept
+		queries = queries[:0]
+		for _, f := range kept {
+			queries = append(queries, overlayPath(f))
+		}
+		queries = append(queries, plain...)
 	}
-	pkgs, err := packages.Load(cfg, query)
+	pkgs, err := packages.Load(cfg, queries...)
 	if err != nil {
 		return nil, fmt.Errorf("loading package %s: %w", dir, err)
 	}
@@ -141,14 +166,6 @@ func CheckPackage(dir string, files []PackageFile, resolver gna.Resolver) (*Pack
 		sorted = kept
 	}
 	if len(pkgs) == 0 || pkgs[0].TypesInfo == nil || pkgs[0].Types == nil {
-		if !inModule {
-			// The loader left every file out (the query names the first file;
-			// when that one is excluded by build constraints the answer is
-			// empty).
-			if err := excludedError(dirAbs, overlay, overlayPath, sorted); err != nil {
-				return nil, fmt.Errorf("loading package %s: %w", dir, err)
-			}
-		}
 		return nil, fmt.Errorf("loading package %s: no type information", dir)
 	}
 	pkg := pkgs[0]
@@ -189,11 +206,6 @@ func CheckPackage(dir string, files []PackageFile, resolver gna.Resolver) (*Pack
 		}
 	}
 	if len(missing) > 0 {
-		if !inModule {
-			if err := excludedError(dirAbs, overlay, overlayPath, missing); err != nil {
-				return nil, fmt.Errorf("loading package %s: %w", dir, err)
-			}
-		}
 		paths := make([]string, len(missing))
 		for i, f := range missing {
 			paths[i] = f.Path
@@ -240,7 +252,7 @@ func CheckPackage(dir string, files []PackageFile, resolver gna.Resolver) (*Pack
 	for _, c := range checkers {
 		c.collect()
 	}
-	res := &PackageResult{}
+	res := &PackageResult{TypeErrors: invalid}
 	for i, c := range checkers {
 		res.Files = append(res.Files, FileDiagnostics{Path: checked[i].Path, Diagnostics: c.walk()})
 	}
@@ -290,17 +302,19 @@ func splitIgnored(files []PackageFile, overlayPath func(PackageFile) string, ign
 	return kept, excluded
 }
 
-// excludedError explains why the loader left files out (outside a module, where
-// the package is loaded with a file= query), when that can be shown:
-// the candidates that the build context rejects (file name suffix or
-// `//go:build` line, read from the overlaid clean source) are reported as
-// excluded by build constraints, sorted, in one message whatever their names.
-// It is only a diagnosis of a load that already failed; the loader decides what
-// the package is. go/build's context can differ from the go command's (GOFLAGS
-// tags, toolchain version), so a candidate it accepts is never called excluded,
-// and nil is returned when no candidate is rejected: the caller then reports a
-// generic load failure.
-func excludedError(dirAbs string, overlay map[string][]byte, overlayPath func(PackageFile) string, candidates []PackageFile) error {
+// outsideModuleMembers decides, outside a module, which files form the
+// package: go/build's default context judges each .gon by its overlaid clean
+// source (file name suffix, `//go:build` line) and each plain .go file of the
+// directory. kept are the .gon files it accepts, in their order; excluded the
+// paths of those it rejects; plain the absolute paths of the accepted plain .go
+// files that are not test files, not ignored by name (`_x`, `.x`) and not
+// shadowed by a .gon of the same base name. A file MatchFile cannot judge (a
+// malformed `//go:build` line, which the go command reports as an invalid file
+// of the package) is neither kept nor excluded: it is not loaded and its error
+// is returned in invalid, to be reported as a Go error of the package. Plain
+// files are named in invalid by dir (the operand) joined with their name, like
+// the .gon files.
+func outsideModuleMembers(dir, dirAbs string, files []PackageFile, overlay map[string][]byte, overlayPath func(PackageFile) string) (kept []PackageFile, excluded []string, plain []string, invalid []string) {
 	ctx := build.Default
 	ctx.OpenFile = func(path string) (io.ReadCloser, error) {
 		if src, ok := overlay[filepath.Clean(path)]; ok {
@@ -308,18 +322,46 @@ func excludedError(dirAbs string, overlay map[string][]byte, overlayPath func(Pa
 		}
 		return os.Open(path)
 	}
-	var excluded []string
-	for _, f := range candidates {
+	for _, f := range files {
 		match, err := ctx.MatchFile(dirAbs, filepath.Base(overlayPath(f)))
-		if err == nil && !match {
+		switch {
+		case err != nil:
+			invalid = append(invalid, invalidConstraint(f.Path, err))
+		case match:
+			kept = append(kept, f)
+		default:
 			excluded = append(excluded, f.Path)
 		}
 	}
-	if len(excluded) == 0 {
-		return nil
+	entries, err := os.ReadDir(dirAbs)
+	if err != nil {
+		return kept, excluded, nil, invalid
 	}
-	sort.Strings(excluded)
-	return fmt.Errorf("excluded by build constraints: %s (package mode checks every .gon file in the directory)", strings.Join(excluded, ", "))
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") ||
+			strings.HasPrefix(name, "_") || strings.HasPrefix(name, ".") {
+			continue
+		}
+		path := filepath.Join(dirAbs, name)
+		if _, shadowed := overlay[filepath.Clean(path)]; shadowed {
+			continue
+		}
+		match, err := ctx.MatchFile(dirAbs, name)
+		switch {
+		case err != nil:
+			invalid = append(invalid, invalidConstraint(filepath.Join(dir, name), err))
+		case match:
+			plain = append(plain, path)
+		}
+	}
+	return kept, excluded, plain, invalid
+}
+
+// invalidConstraint is the Go error reported for a file whose build constraint
+// go/build cannot evaluate, named by the file the user wrote.
+func invalidConstraint(path string, err error) string {
+	return fmt.Sprintf("%s: invalid build constraint: %v", filepath.ToSlash(path), err)
 }
 
 // hasOwnParseError reports whether errs holds a parse error positioned in the

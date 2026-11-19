@@ -1,5 +1,46 @@
 # Changelog
 
+## [1.18.0] — 2026-11-19
+
+Package mode outside a module (package-discovery audit, proposal 3).
+Diagnostic Protocol v1 is unchanged: same `schemaVersion`, envelope, codes and
+exit-code meanings; all-or-nothing emission is unchanged.
+
+### Fixed
+
+- **A directory with several `.gon` files outside any module is checked as one
+  package.** It was exit 2 (`not part of the loaded package: …`), because only
+  the first file was loaded. Every member file is now loaded, so a contract
+  declared in one file applies in the others, and the directory's plain `.go`
+  files are part of the package too (a `.go` file shadowed by a `.gon`, a
+  `_test.go` file and names starting with `_` or `.` are not). `gon transpile`
+  / `gon build` on such a directory write every member file (nothing when the
+  package does not pass).
+
+### Changed
+
+- **Build constraints apply outside a module as they do inside one.** Outside
+  a module, go/build decides which files belong to the package, with the
+  default build context of the toolchain that built Gon (GOOS, GOARCH,
+  release tags); **tags in `GOFLAGS` are not applied there** (inside a module
+  the go command decides, `GOFLAGS` included). An excluded `.gon` is not
+  checked. A directory none of whose sources is in the build is exit 2 when
+  named (`build constraints exclude all Go files in …`) and skipped under
+  `...`; until v1.17 such a directory's `.gon` was checked as if the
+  constraint were not there (exit 0 or 1). A directory whose `.gon` files are
+  all excluded but which has plain `.go` files in the build is checked from
+  those (exit 0).
+- Import resolution outside a module is unchanged: only the standard library
+  resolves; a bare (`lib`), relative (`./sub`) or `$GOPATH/src` import is
+  still a Go type error.
+- Outside a module, a file whose `//go:build` line is malformed (unbalanced
+  parentheses, an incomplete expression, two `//go:build` lines) is not
+  loaded and is reported as a Go error of the package, as the go command
+  reports such a file: exit 1 with the envelope of the other files, and
+  `gon: Go type error: p/a.gon: invalid build constraint: …` on stderr. It is
+  never "no source in the build". Until v1.17 a malformed `.gon` made the
+  package exit 2 and a malformed plain `.go` file was silently ignored.
+
 ## [1.17.0] — 2026-11-18
 
 File mode and the module a file is in (package-discovery audit, proposal 2).
