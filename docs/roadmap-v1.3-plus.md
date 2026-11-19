@@ -224,7 +224,7 @@ amendment, 2026-11-17). Implemented and audited in #38.
 **Breaking risk:** Possibly Yes (R1).
 **Rationale (R1):** solo release.
 
-### v1.15–v1.18 — Exit Codes and Package Discovery — SHIPPED
+### v1.15–v1.19 — Exit Codes and Package Discovery — SHIPPED
 No new milestone: an audit of `gon check --json`'s exit codes (B) and then of
 package discovery, each change measured against minimal reproductions,
 proposed, audited, and released solo because each one changes exit codes a
@@ -251,6 +251,19 @@ records every rule.
   by go/build; `GOFLAGS` tags are not applied there); build constraints apply as inside a module; a malformed
   `//go:build` line is a Go error of the package; import resolution outside a
   module is unchanged.
+- **v1.19 (#52, 2026-11-19)** — inside a module, a `.gon` with a malformed
+  `//go:build` line is a source error of its package, not a load failure: the
+  file is not checked, the package's other files are, the run is exit 1 and
+  stderr names the file and go/build's reason. It is not a Diagnostic (no
+  `code`, no `range`). A name the go tool ignores (`_x.gon`, `.x.gon`) is not
+  part of the package and is no error. Outside a module the rule of v1.18
+  stands, with the same message.
+- **Merged, not yet released: file mode (#54, 2026-11-19; `CHANGELOG.md`
+  `[Unreleased]`).** A `.gon` **file operand** with a malformed `//go:build`
+  line is the same source error: not checked, the other operands are, one
+  envelope, exit 1, nothing written by `transpile` / `build`, and `fmt` is
+  unchanged. go/build is asked about the contents under a neutral file name,
+  so the operand's own name does not decide. The release number is not decided.
 
 **Breaking risk:** Yes for exit-code consumers (each release lists the
 changed outcomes in `CHANGELOG.md`). **Rationale (R1):** one solo release per
@@ -258,7 +271,7 @@ change.
 
 ## 5. Open Sequencing Notes
 
-- **Open work after v1.18 (none scheduled, none audited as done).**
+- **Open work after v1.19 (none scheduled; none audited as done, except that the design of (a2) below passed audit).**
   - **C — no RFC yet.** Cross-package contracts on a defined type whose base
     comes from another package, and checking a module-local dependency that
     has only `.gon` sources (no `.go`) before it is transpiled. Deferred by
@@ -269,11 +282,16 @@ change.
   - **`--strict`** — deferred since v1.5 (`rfc-ecosystem-contract-expansion.md`);
     unscheduled.
   - **A "nilable" constraint** — open, unscheduled (see the note below).
-  - **Package-discovery follow-ups from #49**, each to be proposed on its own:
-    a malformed `//go:build` line **inside** a module is still the generic exit
-    2 "not part of the loaded package" (the loader's error has no file
-    position), and `gon build ./dir` **outside** a module writes the `.go`
-    files before `go build` fails for want of a `go.mod`.
+  - **(a2) `gon build <dir>` whose module context cannot contain the
+    operand.** Today the `.go` files are written before `go build` fails: no
+    module in the working directory or its parents, or an operand outside the
+    main module `go build` uses. The design (refuse before transpiling, exit 2,
+    nothing written, two distinct messages, only when the preflight proves the
+    mismatch; amends RFC M9 T4) **passed audit; its implementation is not
+    approved**, and RFC M9 is not amended yet.
+  - **Package-discovery follow-ups from #49:** the malformed `//go:build` line
+    inside a module was done in v1.19 (#52) and the file-mode counterpart is
+    merged and unreleased (#54); only (a2) remains.
 - **Dogfood (not a release track).** Gon's production packages are written in
   Gon (`docs/dogfood.md`); `!` contracts are added package by package after
   measurement and audit (all of `internal/checker`'s approved groups are in).
