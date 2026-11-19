@@ -224,7 +224,7 @@ amendment, 2026-11-17). Implemented and audited in #38.
 **Breaking risk:** Possibly Yes (R1).
 **Rationale (R1):** solo release.
 
-### v1.15–v1.18 — Exit Codes and Package Discovery — v1.15–v1.17 SHIPPED; v1.18 MERGED (tag pending)
+### v1.15–v1.18 — Exit Codes and Package Discovery — SHIPPED
 No new milestone: an audit of `gon check --json`'s exit codes (B) and then of
 package discovery, each change measured against minimal reproductions,
 proposed, audited, and released solo because each one changes exit codes a
@@ -246,7 +246,7 @@ records every rule.
   `go.mod` is found but its module cannot be loaded: exit 2, "invalid go.mod"
   when golang.org/x/mod proves it, the go command's error otherwise. The
   importer fallback remains only when no `go.mod` is found.
-- **v1.18 (#49, merged 2026-11-19; the `v1.18.0` tag is not cut yet)** —
+- **v1.18 (#49, 2026-11-19)** —
   package mode outside a module loads every file of the package (membership
   by go/build; `GOFLAGS` tags are not applied there); build constraints apply as inside a module; a malformed
   `//go:build` line is a Go error of the package; import resolution outside a
