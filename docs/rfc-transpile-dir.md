@@ -95,6 +95,33 @@ rules apply (a `main` package writes a binary named after the directory in the
 current directory; a library package is only compiled). `gon build ./...` is
 `transpile ./...` then `go build ./...`. The file form keeps `-o <stem> <stem>.go`.
 
+**Amendment (module context).** After a successful transpile, `gon build <dir>`
+passes the same arguments and environment to `go build`. There is one
+exception: if a preflight proves one of the following two conditions, Gon
+refuses before transpiling and does not call `go build`: (1) no module is found
+in the working directory or its ancestors (`go env GOMOD` is the null device),
+or (2) the operand is outside the main module that `go build` uses (in no
+module at all, or in a nested or sibling one). The refusal is exit 2, with
+nothing on stdout and nothing written, and one of two messages:
+
+```text
+gon: cannot build ./x: go build requires a module, but no go.mod was found in the current directory or its parents
+gon: cannot build ../b/cmd: the package is outside the main module used by go build
+gon: nothing was written
+```
+
+It refuses only when the evidence for one of the two conditions is complete.
+When the check cannot establish the result, Gon leaves the decision to
+`go build`: a filesystem error while looking for `go.mod`, an operand that does
+not exist or cannot be read, a symlink that cannot be resolved, `go env`
+failing or printing something other than the two expected lines, a `-C` token
+among the flags, a workspace in force (`GOWORK` neither empty nor `off`; `go.work`
+is never read), or an empty `GOMOD`. A `go build` that actually runs and fails
+still follows T6. This amendment governs when Gon calls `go build`; the
+arguments and environment it passes are unchanged. Only the directory form of
+`build` has the preflight: `transpile`, the file form of `build` and `check` do
+not.
+
 ### T5 — scope
 
 Only the `.gon` files named by the operands' directories; a `.gon` in another
@@ -106,7 +133,8 @@ pattern form, as in `check`.
 
 As the other commands: 0 success (warnings do not fail), 1 contract / type error
 or a failing `go build`, 2 invalid invocation or nothing to do, 3 internal
-failure. No `--json` for these commands.
+failure. No `--json` for these commands. The module-context refusal of T4 is
+exit 2; a `go build` that runs and fails stays exit 1.
 
 ### T7 — formatting in process
 
@@ -248,6 +276,15 @@ All six were answered **as proposed**:
   through the renames can still leave some files replaced (no cross-file
   transaction on a plain filesystem); the check has already passed by then, so
   the files are valid.
+- **Module-context preflight (T4 amendment).** `cmd/gon/build_context.go`:
+  `checkBuildContext` reads `go env GOMOD GOWORK` as one pair in the directory
+  `go build` will run in, and the pure `decideBuildContext` applies the rules in
+  a fixed order (`-C`; `go env` failure; workspace; empty `GOMOD`; null-device
+  `GOMOD`; the operand's module unknown, absent or found; module roots compared
+  after `EvalSymlinks`). The operand's module comes from `nearestModule`, which
+  proves absence only when every `go.mod` lookup from the operand up to the root
+  fails with "does not exist". An operand outside an active workspace is not
+  predicted, so `go build` still fails after the transpile there.
 - **`build`** passes the target to `go build` as a directory pattern (`pkg` →
   `./pkg`, since `go build pkg` reads an import path). It builds only if every
   package passed. For a pattern with several `main` packages `go build` itself
