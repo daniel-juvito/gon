@@ -89,9 +89,9 @@ gone; it was an effect of the instrument not reading `.gna`.
   This is the cost of accepting Part A without Part B for users of `.gna` field contracts, and it is the same
   trade-off as in `gon` itself (nine guard and constructor sites plus `&cp`).
 - **Difference with the RFC migration table (section 2.1):** the table says "gon-examples: 0 genuine" and counts
-  no site for the generic `.gna`. With `.gna` modelled there are 4 sites in `gon-examples` (Part A) and 2
-  (Part A+B), two of them `&x` in the file `generic-gna`, which exists to demonstrate GW001 and not to be
-  warning-free. The difference is **explained**: the earlier instrument did not read `.gna` ("not modelled"
+  no site for the generic `.gna`. With `.gna` modelled there are 10 flows in `gon-examples` in Part A (6 in
+  `ecosystem-contracts`, 4 in `generic-gna`) and 2 in Part A+B (both in `generic-gna`, both `&x`), in a file that
+  exists to demonstrate GW001 and not to be warning-free. The difference is **explained**: the earlier instrument did not read `.gna` ("not modelled"
   in the RFC itself), and the M0 report listed it as a limit. It is not an unexplained difference in the sense of
   plan section 5, and it does not by itself put GW006 on HOLD. It does change two numbers the RFC prints
   (gon-examples and gon-vscode fixtures) and the fixtures of PR 2b: the two examples need the rule applied to them
@@ -102,7 +102,8 @@ gone; it was an effect of the instrument not reading `.gna`.
 ## 5. Consequences for PR 2b (to be decided by the owner, not by this report)
 
 1. The `.gna` fixtures of `gon-examples` and `gon-vscode` (`ecosystem-contracts`, `generic-gna`, `genericgna`)
-   are affected: 10 sites in Part A and 4 in Part A+B across the two repositories. Their `expected.txt` and the
+   are affected: 14 flows in Part A and 4 in Part A+B across the two repositories if the copy is counted, 10 and 2
+   if it is counted once (`gon-vscode/fixtures/genericgna` is a copy of `generic-gna`). Their `expected.txt` and the
    editor fixtures would change when GW006 exists; they are not touched here.
 2. `cache.Must(&x)` is the visible cost of leaving `&x` out of scope. The RFC already records `&x` as a separate
    question; this is the first `.gna`-slot evidence for it. I do not propose to reopen it.
@@ -125,3 +126,22 @@ Sites are counted as **flows** (one per value flowing into a slot), not as disti
 `ecosystem-contracts`, lines 28 and 31 each hold two flows (two `.gna` fields in one literal), so Part A has 6
 flows on 4 lines. `gon-vscode/fixtures/genericgna` is a copy of `gon-examples/generic-gna` (same flows, a
 different file name), so the unique count for the two repositories is 10 flows in Part A and 2 in Part A+B.
+
+## Reproduction of the controls
+
+`actual/*.check.json` are the outputs of `gon check --json .` (Gon built from `main` 97bba38, run in the module
+directory) for the five modules of the control table. The GW001 count of each file is the "Actual" column
+(3, 2, 1, 2, 1); the "Predicted" column is the line `nil-compare => GW001 | exists today` of
+`raw/<module>.m0.with.txt`. Generic instantiation is exercised by `generic-gna` and `genericgna`
+(`cache.Must[int](&x)`), whose prediction is 2 only with the instantiation fix described above.
+
+## Notes on the instrument
+
+- Loading of `.gna` files: the first version reported an error from the top-level `LoadDir` and ignored the
+  errors of nested directories. Both now stop the run, so a partial registry cannot give partial counts. All 92
+  outputs were produced again with the strict version and are byte-identical to the ones in `raw/`, so no
+  number of this report depended on a load error.
+- A field contract is matched by the name of the field on the named type (`Types.<T>.Fields`). Fields reached
+  through an embedded struct or a type alias are not resolved safely by this approach. I did not check whether any of
+  the measured `.gna` fields is reached that way, so this is a limit of the instrument and one more reason the
+  counts hold for the covered modules only.

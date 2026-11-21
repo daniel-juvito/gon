@@ -12,3 +12,4 @@ implementation.
 
 Usage of the instrument (from the root of the module to measure): `G8_MODE=0` for Part A binding rules, default
 for Part A+B, `G9_NOGNA=1` to switch the `.gna` model off, `G8_VERBOSE=1` for the decision log.
+- `actual/`: `gon check --json .` of the five control modules (the "Actual" column of the controls).

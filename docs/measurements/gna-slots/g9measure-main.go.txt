@@ -776,10 +776,14 @@ func main() {
 		reg = gna.NewRegistry()
 	} else if err := reg.LoadDir(filepath.Join(root, "annotations")); err != nil {
 		fmt.Fprintln(os.Stderr, "gna:", err)
+		os.Exit(1) // a partial registry would give partial counts
 	}
 	filepath.Walk(filepath.Join(root, "annotations"), func(p string, fi os.FileInfo, err error) error {
 		if err == nil && fi.IsDir() && os.Getenv("G9_NOGNA") == "" {
-			_ = reg.LoadDir(p)
+			if err := reg.LoadDir(p); err != nil {
+				fmt.Fprintln(os.Stderr, "gna:", p, err)
+				os.Exit(1) // a partial registry would give partial counts
+			}
 		}
 		return nil
 	})
