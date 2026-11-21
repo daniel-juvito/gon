@@ -413,3 +413,35 @@ func TestReinsertBangsMismatches(t *testing.T) {
 		})
 	}
 }
+
+// A marked offset that is not the start of a token is an error, never a silent
+// drop of the contract, also when other marks in the file do match.
+func TestFormatNeverDropsAMark(t *testing.T) {
+	clean := "package p\nvar a *int\nvar b *int\n"
+	nonNil := map[int]bool{16: true, 100: true}
+	if out, err := reinsertBangs([]byte(clean), nonNil, []byte("package p\n\nvar a *int\nvar b *int\n")); err == nil {
+		t.Fatalf("expected an error, got\n%s", out)
+	}
+}
+
+func TestReinsertBangsLeftoverFormattedToken(t *testing.T) {
+	clean := "package p\nvar x *int\n"
+	if out, err := reinsertBangs([]byte(clean), map[int]bool{16: true}, []byte("package p\n\nvar x *int = nil\n")); err == nil {
+		t.Fatalf("expected an error, got\n%s", out)
+	}
+}
+
+// A ! written before a space (var y ! *int) is stripped with an offset that is
+// not the start of a token. On main, gon fmt then dropped that ! without a word
+// whenever another ! in the file matched. It is an error now.
+func TestFormatSpacedBangIsAnErrorNotADrop(t *testing.T) {
+	src := "package p\n\nvar y ! *int = new(int)\nvar z !*int = new(int)\n"
+	if out, err := Format("t.gon", []byte(src)); err == nil {
+		t.Fatalf("expected an error, got\n%s", out)
+	}
+	// With the space removed the same file formats and keeps both marks.
+	ok := "package p\n\nvar y !*int = new(int)\nvar z !*int = new(int)\n"
+	if got := mustFormat(t, ok); got != ok {
+		t.Fatalf("got\n%s\nwant\n%s", got, ok)
+	}
+}
