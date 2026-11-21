@@ -567,3 +567,22 @@ func f() {
 29 GW006
 29 GW006
 30 GW006
+-- GW-M-02/src --
+package p
+
+type Receiver struct{}
+
+type Node struct{}
+
+func pair() (*Receiver, *Node) { return &Receiver{}, &Node{} }
+
+func mkn() (*Receiver, !*Node) { return &Receiver{}, &Node{} }
+
+func (r *Receiver) M(p !*Node) {}
+
+func f() {
+	(*Receiver).M(pair())
+	(*Receiver).M(mkn())
+}
+-- GW-M-02/want --
+14 GW006

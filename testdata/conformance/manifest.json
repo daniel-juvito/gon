@@ -773,5 +773,16 @@
    "GW006"
   ],
   "note": "a multi-value call into several slots: return f(), a, b = f(), var a, b !T = f(), g(f()); a result that is !T is a source"
+ },
+ {
+  "id": "GW-M-02",
+  "rfc": "§6.6",
+  "kind": "check",
+  "status": "enabled",
+  "site": "internal/checker: checkCallExpr (tuple, method expression)",
+  "diagnostics": [
+   "GW006"
+  ],
+  "note": "in (*R).M(f()) result 0 is the receiver and result 1 is the first parameter; a result that is !T is a source"
  }
 ]

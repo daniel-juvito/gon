@@ -751,10 +751,14 @@ func (c *Checker) checkCallExpr(call *ast.CallExpr) {
 	if len(call.Args) == 1 {
 		if inner, ok := unparenExpr(call.Args[0]).(*ast.CallExpr); ok {
 			if tup, isTuple := c.staticTypeOf(inner).(*types.Tuple); isTuple && tup.Len() > 1 {
+				// Result ti is argument ti; for a method expression the first argument
+				// is the receiver, so the parameter index is shifted exactly as for the
+				// arguments below.
 				slots := make([]types.Type, tup.Len())
-				for pi := range slots {
-					if pi < len(params) && params[pi] && !c.declaredParamIsTypeParam(call.Fun, pi) {
-						slots[pi] = c.callArgParamType(call.Fun, pi)
+				for ti := range slots {
+					pi := ti - argOffset
+					if pi >= 0 && pi < len(params) && params[pi] && !c.declaredParamIsTypeParam(call.Fun, pi) {
+						slots[ti] = c.callArgParamType(call.Fun, pi)
 					}
 				}
 				c.reportTupleFlows(inner, slots)

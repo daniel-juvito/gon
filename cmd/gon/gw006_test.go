@@ -163,3 +163,31 @@ func TestGW006GnaSlots(t *testing.T) {
 	}
 	wantDiags(t, errOut, "app/main.gon:8 GW006", "app/main.gon:13 GW006")
 }
+
+// A method expression takes the receiver as its first argument, so in
+// `(*R).M(f())` result 0 of f is the receiver and result 1 is the first
+// parameter. The warning must name the type of the result that fills the
+// parameter, not the receiver.
+func TestGW006TupleIntoMethodExpression(t *testing.T) {
+	src := "package main\n\n" +
+		"type Receiver struct{}\n\n" +
+		"type Node struct{}\n\n" +
+		"func pair() (*Receiver, *Node) { return &Receiver{}, &Node{} }\n\n" +
+		"func (r *Receiver) M(p !*Node) {}\n\n" +
+		"func main() {\n" +
+		"\t(*Receiver).M(pair())\n" +
+		"}\n"
+	root := scModule(t, "1.21", map[string]string{"main.gon": src})
+	chdir(t, root)
+	exit, stdout, _ := captureRun([]string{"check", "--json", "./..."})
+	if exit != 0 {
+		t.Fatalf("exit = %d, want 0", exit)
+	}
+	diags := gw006JSON(t, stdout)
+	if len(diags) != 1 {
+		t.Fatalf("diagnostics = %+v, want exactly one", diags)
+	}
+	if !strings.Contains(diags[0].Message, "value of type *Node does not satisfy !*Node") {
+		t.Errorf("message = %q, want the type of result 1 (*Node), not of the receiver", diags[0].Message)
+	}
+}
