@@ -78,8 +78,8 @@ summary per PR (active and pending fixtures per clause) goes in the PR descripti
   argument list and the shape is not a conversion: `adder(!flag)(3)`, where `adder`
   returns a function, is valid Go whose token shape is `(!flag)(3)` (verified by
   compiling it). The safety argument of RFC §6.1 (`(!a)(b)` with a `bool` `a` is not
-  valid Go) covers only the grouping case; RFC §6.1 should state the precondition
-  (see §9).
+  valid Go) covers only the grouping case; RFC §6.1 now states the precondition (the
+  clarification merged in #65, see §9), and WP1 implements exactly that definition.
 - A run of `!` in a type position: a `!` after a `!` that is a type modifier is also
   a modifier (one offset); `!!flag` in an expression stays intact.
 - Fixtures (PR 0): `(!T)(x)` and nested forms (one, two, three layers, with
@@ -247,11 +247,39 @@ the dogfood check must be runnable from the repository); no time estimate.
 Part B, the rebinding of `:=`, `--strict`, GW007, `&x`, inference from a body,
 runtime checks, flow analysis, and the release shape without a separate decision.
 
-## 9. Remaining items
+## 9. Resolved items and acceptance criteria carried forward
 
-- **Q7 and Q8 are decided** (§0, §4, WP2); this plan has no other open question.
-- **A clarification of RFC §6.1 is suggested, for the owner to decide.** §6.1 requires
-  the preprocessor to recognise `(` `!` TypeExpr `)` `(` as a conversion, and also to
-  leave any valid Go program unchanged; for `adder(!flag)(3)` the two requirements
-  conflict unless the `(` is a grouping parenthesis. WP1 adopts that precondition.
-  The RFC text should say so, as a clarification and not as a change of the design.
+**Resolved.**
+- Q7 and Q8 are decided (§0, §4, WP2).
+- The RFC §6.1 clarification is **merged** (#65, `main` d8ad523). It defines the
+  grouping parenthesis on the token stream of the Go scanner, including the
+  semicolons it inserts at a line end, with an explicit list of the tokens that end an
+  operand, and adds the conservative rule that the preprocessor recognises a
+  conversion only when the first `(` is established as grouping and otherwise leaves
+  the source unchanged. WP1 implements that definition and no wider one; a case that
+  the definition does not cover is a question for the owner, not a heuristic added in
+  code.
+
+**Acceptance criteria carried forward.** These three come from the audit of this plan.
+Each is a condition of the PR named, written in that PR's description and checked at
+its audit; none is an informal note.
+- **SF-1, PR 0 (WP1): token-class table and grammar oracle.** PR 0 contains a table
+  of the token kinds with their class (ends an operand, or does not), derived from the
+  RFC §6.1 definition and checked against the Go scanner, with at least one fixture
+  per row, including the semicolon the scanner inserts after a `}` that closes a
+  block. PR 1 is not mergeable if the recognizer and the table disagree.
+- **SF-2, PR 1 (WP2): independent marker oracle.** The expected positions of the `!`
+  in the `gon fmt` tests are written by hand in the fixtures. They are not obtained
+  only by running the preprocessor again on the formatted output, because a bug that
+  the first and the second run share would pass. Required controls: one conversion,
+  two adjacent conversions, a nested conversion, redundant parentheses, comments
+  between tokens, several `!` in one target, an offset shift before a conversion, and
+  mismatch cases that must fail and leave the file unformatted.
+- **SF-3, PR 1 (compatibility gate): the pipeline, not the argument.** Shown on the
+  actual CI of the PR: (a) `testdata/` is not on the transpile path of the pinned gon
+  (`scripts/check-gon-sources.sh` excludes it); (b) a Go test string with the new
+  syntax is processed by the gon built from the branch, not by the pinned one; (c) no
+  fixture is a production `.gon` source; (d) the `gon-sources` job is green with
+  v1.20.0 in every PR. The links of the CI runs go in the PR description.
+
+There is no other open question in this plan.
