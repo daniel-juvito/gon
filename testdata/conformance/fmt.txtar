@@ -1,0 +1,53 @@
+Formatter fixtures (RFC section 6.7 and the plan, WP2). The expected output is
+written by hand. The harness also requires the output to be a fixed point.
+
+-- FMT-00/src --
+package p
+
+func f(p  !*A)  !*A {
+	return p
+}
+-- FMT-00/want --
+package p
+
+func f(p !*A) !*A {
+	return p
+}
+-- FMT-01/src --
+package p
+
+func f() {
+	v := (!*Node)(x)
+	_ = v
+}
+-- FMT-01/want --
+package p
+
+func f() {
+	v := (!*Node)(x)
+	_ = v
+}
+-- FMT-02/src --
+package p
+
+func f() {
+	a := ((!*Node))(x)
+	b := ( ( !*Node ) )(x)
+	_, _ = a, b
+}
+-- FMT-02/want --
+package p
+
+func f() {
+	a := (!*Node)(x)
+	b := (!*Node)(x)
+	_, _ = a, b
+}
+-- FMT-03/src --
+package p
+
+var x !!*int
+-- FMT-03/want --
+package p
+
+var x !*int

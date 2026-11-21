@@ -1,0 +1,246 @@
+Preprocessor fixtures. The expected clean source is written by hand; a marker
+immediately before a token says that the token carries a non-nil "!" (the
+marker is the oracle for the offsets). Section 6.1 and 6.7 of the RFC.
+
+-- SYN-LA-01/src --
+package p
+
+func f() {
+	w := adder(!flag)(3)
+	_ = w
+}
+-- SYN-LA-01/want --
+package p
+
+func f() {
+	w := adder(!flag)(3)
+	_ = w
+}
+-- SYN-LA-02/src --
+package p
+
+func f() {
+	ok := (!a) && b
+	g(!a, !b)
+	h := !(!a)
+}
+-- SYN-LA-02/want --
+package p
+
+func f() {
+	ok := (!a) && b
+	g(!a, !b)
+	h := !(!a)
+}
+-- SYN-LA-03/src --
+package p
+
+func f() {
+	x := func() int { return 1 }(!a)(b)
+	y := m[k](!a)(b)
+	z := f(x)(!a)(b)
+	w := p.f(!a)(b)
+}
+-- SYN-LA-03/want --
+package p
+
+func f() {
+	x := func() int { return 1 }(!a)(b)
+	y := m[k](!a)(b)
+	z := f(x)(!a)(b)
+	w := p.f(!a)(b)
+}
+-- SYN-LA-04/src --
+package p
+
+func f() {
+	s := "(!*Node)(x)"
+	r := `(!*Node)(x)`
+	// (!*Node)(x)
+	/* (!*Node)(x) */
+}
+-- SYN-LA-04/want --
+package p
+
+func f() {
+	s := "(!*Node)(x)"
+	r := `(!*Node)(x)`
+	// (!*Node)(x)
+	/* (!*Node)(x) */
+}
+-- SYN-LA-05/src --
+package p
+
+func f() {
+	v := (!*Node(x)
+}
+-- SYN-LA-05/want --
+package p
+
+func f() {
+	v := (!*Node(x)
+}
+-- SYN-TA-01/src --
+package p
+
+func f() {
+	v := x.(!T)
+}
+-- SYN-TA-01/want --
+package p
+
+func f() {
+	v := x.(‹!›T)
+}
+-- SYN-TY-01/src --
+package p
+
+var x !*int
+
+func f(p !*A) !*A { return p }
+-- SYN-TY-01/want --
+package p
+
+var x ‹!›*int
+
+func f(p ‹!›*A) ‹!›*A { return p }
+-- SYN-EX-01/src --
+package p
+
+func f() {
+	ok := !!flag
+	not := !(!flag)
+}
+-- SYN-EX-01/want --
+package p
+
+func f() {
+	ok := !!flag
+	not := !(!flag)
+}
+-- SYN-CV-01/src --
+package p
+
+func f() {
+	v := (!*Node)(x)
+}
+-- SYN-CV-01/want --
+package p
+
+func f() {
+	v := (‹!›*Node)(x)
+}
+-- SYN-CV-02/src --
+package p
+
+func f() {
+	a := (![]T)(x)
+	b := (!map[K]V)(x)
+	c := (!chan T)(x)
+	d := (!func())(x)
+	e := (!io.Reader)(x)
+	g := (!Box[*A])(x)
+}
+-- SYN-CV-02/want --
+package p
+
+func f() {
+	a := (‹!›[]T)(x)
+	b := (‹!›map[K]V)(x)
+	c := (‹!›chan T)(x)
+	d := (‹!›func())(x)
+	e := (‹!›io.Reader)(x)
+	g := (‹!›Box[*A])(x)
+}
+-- SYN-CV-03/src --
+package p
+
+func f() {
+	a := ((!*Node))(x)
+	b := (((!*Node)))(x)
+	c := ( ( !*Node ) )(x)
+}
+-- SYN-CV-03/want --
+package p
+
+func f() {
+	a := ((‹!›*Node))(x)
+	b := (((‹!›*Node)))(x)
+	c := ( ( ‹!›*Node ) )(x)
+}
+-- SYN-CV-04/src --
+package p
+
+func f() {
+	if ok {
+	}
+	(!*Node)(x).Visit()
+}
+-- SYN-CV-04/want --
+package p
+
+func f() {
+	if ok {
+	}
+	(‹!›*Node)(x).Visit()
+}
+-- SYN-CV-05/src --
+package p
+
+func f() *Node {
+	g((!*Node)(x))
+	ok := a && (!*Node)(x) != nil
+	ch <- (!*Node)(x)
+	defer (!*Node)(x).Close()
+	return (!*Node)(x)
+}
+-- SYN-CV-05/want --
+package p
+
+func f() *Node {
+	g((‹!›*Node)(x))
+	ok := a && (‹!›*Node)(x) != nil
+	ch <- (‹!›*Node)(x)
+	defer (‹!›*Node)(x).Close()
+	return (‹!›*Node)(x)
+}
+-- SYN-CV-06/src --
+package p
+
+func f() {
+	s := S{f: (!*N)(x)}
+	a, b := (!*N)(x), (!*N)(y)
+}
+-- SYN-CV-06/want --
+package p
+
+func f() {
+	s := S{f: (‹!›*N)(x)}
+	a, b := (‹!›*N)(x), (‹!›*N)(y)
+}
+-- SYN-BANG-01/src --
+package p
+
+var x !!*int
+
+func f() !!!*int { return nil }
+-- SYN-BANG-01/want --
+package p
+
+var x ‹!›*int
+
+func f() ‹!›*int { return nil }
+-- SYN-BANG-02/src --
+package p
+
+func f() {
+	a := (!!*A)(x)
+	b := (!!!![]int)(x)
+}
+-- SYN-BANG-02/want --
+package p
+
+func f() {
+	a := (‹!›*A)(x)
+	b := (‹!›[]int)(x)
+}
