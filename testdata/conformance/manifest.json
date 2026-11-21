@@ -500,7 +500,7 @@
   "id": "CV-NIL-01",
   "rfc": "§6.3",
   "kind": "check",
-  "status": "pending-PR2a",
+  "status": "enabled",
   "site": "internal/checker: conversion recognition",
   "diagnostics": [
    "GN001"
@@ -511,7 +511,7 @@
   "id": "CV-NN-01",
   "rfc": "§6.3",
   "kind": "check",
-  "status": "pending-PR2a",
+  "status": "enabled",
   "site": "internal/checker: validateNonNilKind on the conversion target",
   "diagnostics": [
    "GN003"
@@ -549,7 +549,7 @@
   "id": "CV-IF-01",
   "rfc": "§6.4",
   "kind": "check",
-  "status": "pending-PR2a",
+  "status": "enabled",
   "site": "internal/checker: isNonNilSource (D3d via the conversion)",
   "diagnostics": [],
   "note": "(!R)(rw)"
@@ -558,7 +558,7 @@
   "id": "CV-TP-01",
   "rfc": "§6.4",
   "kind": "check",
-  "status": "pending-PR2a",
+  "status": "enabled",
   "site": "internal/checker: isRecognisedSource (type parameter)",
   "diagnostics": [],
   "note": "(!T)(x) on a type parameter"
@@ -656,5 +656,69 @@
    "GN002"
   ],
   "note": "the contract of ! *T is enforced like that of !*T (it was silently lost)"
+ },
+ {
+  "id": "CV-NIL-02",
+  "rfc": "§6.3",
+  "kind": "check",
+  "status": "enabled",
+  "site": "internal/checker: nonNilConversionTarget (operand nil)",
+  "diagnostics": [
+   "GN001"
+  ],
+  "note": "the nil literal as the operand, also in parentheses and as an argument, for pointer and slice"
+ },
+ {
+  "id": "CV-NN-02",
+  "rfc": "§6.3",
+  "kind": "check",
+  "status": "enabled",
+  "site": "internal/checker: validateNonNilKind on the conversion target",
+  "diagnostics": [
+   "GN003"
+  ],
+  "note": "array, named basic type and struct as targets"
+ },
+ {
+  "id": "CV-TP-02",
+  "rfc": "§6.3",
+  "kind": "check",
+  "status": "enabled",
+  "site": "internal/checker: validateNonNilKind (type parameter)",
+  "diagnostics": [
+   "GN003"
+  ],
+  "note": "a type parameter that is not restricted to nilable kinds"
+ },
+ {
+  "id": "CV-IF-02",
+  "rfc": "§6.4",
+  "kind": "check",
+  "status": "enabled",
+  "site": "internal/checker: cannotSatisfyBangInterface (D3d via the conversion)",
+  "diagnostics": [
+   "GN001"
+  ],
+  "note": "(!RW)(x) does not satisfy !R: the contract is not carried to another type"
+ },
+ {
+  "id": "CV-IF-03",
+  "rfc": "§6.4",
+  "kind": "check",
+  "status": "enabled",
+  "site": "internal/checker: isNonNilSource (conversion)",
+  "diagnostics": [],
+  "note": "an ordinary interface value through (!R)(x) in a variable, an argument, a result and in parentheses"
+ },
+ {
+  "id": "CV-BIND-01",
+  "rfc": "§6.2",
+  "kind": "check",
+  "status": "enabled",
+  "site": "internal/checker: a conversion binds no local",
+  "diagnostics": [
+   "GN001"
+  ],
+  "note": "a := (!*T)(p) is not bound: no GW001 on a == nil and no GN001 on a = nil; a declared !*T still rejects nil"
  }
 ]

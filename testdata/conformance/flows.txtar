@@ -336,3 +336,100 @@ func f() {
 -- CHK-BANG-01/want --
 3 GN002
 8 GN001
+-- CV-NIL-02/src --
+package p
+
+type T struct{}
+
+func g(a *T) {}
+
+func f() {
+	_ = (!*T)((nil))
+	g((!*T)(nil))
+	_ = (![]int)(nil)
+}
+-- CV-NIL-02/want --
+8 GN001
+9 GN001
+10 GN001
+-- CV-NN-02/src --
+package p
+
+type MyInt int
+
+type S struct{}
+
+func f(a [3]int, m MyInt, s S) {
+	_ = (![3]int)(a)
+	_ = (!MyInt)(m)
+	_ = (!S)(s)
+}
+-- CV-NN-02/want --
+8 GN003
+9 GN003
+10 GN003
+-- CV-TP-02/src --
+package p
+
+type A struct{}
+
+func f[T any](x T) {
+	_ = (!T)(x)
+}
+
+func g[T ~*A | ~int](x T) {
+	_ = (!T)(x)
+}
+-- CV-TP-02/want --
+6 GN003
+10 GN003
+-- CV-IF-02/src --
+package p
+
+type R interface{ M() }
+
+type RW interface {
+	R
+	W()
+}
+
+func f(rw RW) {
+	var a !R = (!RW)(rw)
+	_ = a
+}
+-- CV-IF-02/want --
+11 GN001
+-- CV-IF-03/src --
+package p
+
+type R interface{ M() }
+
+func take(r !R) {}
+
+func ret(r R) !R {
+	return (!R)(r)
+}
+
+func f(r R) {
+	var a !R = (!R)(r)
+	_ = a
+	take((!R)(r))
+	var b !R = ((!R)(r))
+	_ = b
+}
+-- CV-IF-03/want --
+-- CV-BIND-01/src --
+package p
+
+type T struct{}
+
+func f(p *T) {
+	a := (!*T)(p)
+	if a == nil {
+	}
+	a = nil
+	var q !*T = nil
+	_ = q
+}
+-- CV-BIND-01/want --
+10 GN001
