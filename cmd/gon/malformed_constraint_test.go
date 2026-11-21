@@ -232,7 +232,7 @@ func TestOnlyIgnoredNamesIsNoSourceInTheBuild(t *testing.T) {
 		"p/" + osSuffixed: mcOK2,
 	})
 	chdir(t, root)
-	want := "gon: build constraints exclude all Go files in ./p (.gon files: p/_x.gon, p/" + osSuffixed + ")\n"
+	want := "gon: build constraints exclude all Go files in ./p (.gon files: " + filepath.FromSlash("p/_x.gon") + ", " + filepath.FromSlash("p/"+osSuffixed) + ")\n"
 	for _, cmd := range []string{"check", "vet", "transpile", "build"} {
 		exit, out, errOut := captureRun([]string{cmd, "./p"})
 		if exit != 2 || out != "" || errOut != want {

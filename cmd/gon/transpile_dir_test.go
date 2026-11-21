@@ -414,7 +414,7 @@ func TestEmitDirNoSourceInTheBuild(t *testing.T) {
 			root := pkgModule(t, map[string]string{"p/a.gon": "//go:build ignore\n\npackage p\n"})
 			chdir(t, root)
 			exit, _, errOut := captureRun([]string{cmd, "./p"})
-			if exit != 2 || errOut != "gon: build constraints exclude all Go files in ./p (.gon files: p/a.gon)\n" || exists(filepath.Join(root, "p", "a.go")) {
+			if exit != 2 || errOut != "gon: build constraints exclude all Go files in ./p (.gon files: "+filepath.FromSlash("p/a.gon")+")\n" || exists(filepath.Join(root, "p", "a.go")) {
 				t.Fatalf("exit %d\n%q", exit, errOut)
 			}
 		})

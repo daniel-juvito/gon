@@ -106,7 +106,7 @@ func TestCheckAllSourcesExcludedIsExit2(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			root := pkgModule(t, tc.files)
 			chdir(t, root)
-			want := "gon: build constraints exclude all Go files in ./p (.gon files: " + tc.want + ")\n"
+			want := "gon: build constraints exclude all Go files in ./p (.gon files: " + filepath.FromSlash(tc.want) + ")\n"
 			for _, args := range [][]string{{"check", "--json", "./p"}, {"check", "./p"}, {"vet", "--json", "./p"}} {
 				exit, out, errOut := captureRun(args)
 				if exit != 2 || out != "" || errOut != want {
@@ -242,7 +242,7 @@ func TestEmitDirLoadFailureIsExit2(t *testing.T) {
 		files map[string]string
 		want  string
 	}{
-		{"S3 no source in the build", map[string]string{"p/a.gon": exitIgnored}, "build constraints exclude all Go files in ./p (.gon files: p/a.gon)"},
+		{"S3 no source in the build", map[string]string{"p/a.gon": exitIgnored}, "build constraints exclude all Go files in ./p (.gon files: " + filepath.FromSlash("p/a.gon") + ")"},
 		{"R12 broken go.mod", map[string]string{"go.mod": "garbage\n", "p/a.gon": exitOK}, "errors parsing go.mod"},
 	} {
 		for _, cmd := range []string{"transpile", "build"} {
