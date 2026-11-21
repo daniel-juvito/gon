@@ -49,6 +49,14 @@ function, and a keyed struct field `S{xs: a}`. Only a literal `nil`, an omitted
 required field and an unassigned zero value are reported. For interfaces
 `var a !io.Reader = r` (ordinary `r`) is GN001 (D3b).
 
+The same was measured for the two other non-interface kinds, in a scratch module on
+v1.20.0, with a plain `chan int` and a plain `func()`: `var a !chan int = c`,
+`var b !func() = f`, `a = c` and `b = f` on declared `!` variables, an argument to a
+`!chan int` and to a `!func()` parameter, `return c` and `return f` from a function
+with such a result, and `S{c: c, f: f}` with `!chan int` and `!func()` fields are all
+accepted with no diagnostic. Only `return nil` into a `!chan int` result was reported
+(GN001), as for the other kinds.
+
 **Why this matters.** `protocolEnvelope.Diagnostics` must be `[]`, never `null`.
 Annotating the field `![]protocolDiagnostic`, annotating `writeProtocolJSON`'s
 parameter `!`, and removing both nil guards, `gon check ./...` stays `ok` while a
@@ -394,11 +402,14 @@ no diagnostic, no warning. This matches the already accepted assignment of a
 
 ### 6.6 The warning for an ordinary flow
 
-A value of a nilable kind that is not a recognised non-nil source and is not the
-`nil` literal, flowing into a slot declared `!T`, produces a **warning** and the
-run keeps its exit code (warnings alone never produce exit 1). A recognised source
-of a type not identical to the slot's type is also a warning for non-interface
-kinds; the full outcome table is in §6.4.
+A value of a **non-interface** nilable kind (pointer, slice, map, channel,
+function) that is not a recognised non-nil source and is not the `nil` literal,
+flowing into a slot declared `!T`, produces a **warning** and the run keeps its exit
+code (warnings alone never produce exit 1). A recognised source of a type not
+identical to the slot's type is also a warning for these kinds; the full outcome
+table is in §6.4. Interface kinds are not GW006 cases: an ordinary interface value
+flowing into `!I` stays GN001 under D3b/D3d, and a concrete operand stays silent under
+D3a.
 
 Slots (proposed): a variable initialiser with a `!T` type, an assignment to a
 `!T` variable, parameter, result or field, an argument to a `!T` parameter, a
@@ -606,10 +617,12 @@ non-nil conversion it performs no runtime check, and an ordinary conversion to
 
 1. **Severity across kinds (decided: ordinary `T → !T` is GW006 for every
    non-interface nilable kind, that is pointer, slice, map, channel and function; an
-   ordinary interface value into `!I` stays GN001).** The earlier wording of this
-   decision, "pointer, slice and map", is shorthand for these non-interface kinds,
-   consistent with the uniform meaning of `!` on every nilable kind since v1.6; it
-   does not exclude channel and function. The difference is a
+   ordinary interface value into `!I` stays GN001).** This is a **revision of the scope of the
+   OQ-1 decision**: as first taken it named pointer, slice and map; this RFC proposes
+   extending it to channel and function, because `!` has had a uniform meaning on every
+   nilable kind since v1.6 and v1.20.0 accepts a plain channel or function value into
+   a `!` slot without a diagnostic (§2.1). The extension is proposed here and is open to
+   the audit like the rest of the draft. The difference is a
    **compatibility decision**. It is not a claim that the two groups have different
    contract semantics and therefore deserve different severities. `!I` is already
    enforced by D3b/D3d, and D3a and D3d govern when an interface contract can be
