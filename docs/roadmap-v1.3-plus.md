@@ -264,6 +264,17 @@ records every rule.
   envelope, exit 1, nothing written by `transpile` / `build`, and `fmt` is
   unchanged. go/build is asked about the contents under a neutral file name,
   so the operand's own name does not decide. The release number is not decided.
+- **Merged, not yet released: the module context of `gon build <dir>` (#56,
+  2026-11-21; `CHANGELOG.md` `[Unreleased]`; amends RFC M9 T4).** `build`
+  transpiled every package and then ran `go build`, which failed for want of a
+  module with the `.go` files already written. Now, when it can prove that no
+  module is in force where `go build` runs, or that the operand is outside the
+  main module it uses, it refuses before anything is checked or written: exit 2,
+  nothing on stdout, one of two messages. Whatever it cannot prove is left to
+  `go build`, as before; an active workspace is not predicted (`go.work` is not
+  read). Only the directory form of `build` is affected. Neither this nor the
+  file-mode entry has a release number, and whether they ship together or apart
+  is not decided.
 
 **Breaking risk:** Yes for exit-code consumers (each release lists the
 changed outcomes in `CHANGELOG.md`). **Rationale (R1):** one solo release per
@@ -271,7 +282,7 @@ change.
 
 ## 5. Open Sequencing Notes
 
-- **Open work after v1.19 (none scheduled; none audited as done, except that the design of (a2) below passed audit).**
+- **Open work after v1.19 (none scheduled, none audited as done).**
   - **C — no RFC yet.** Cross-package contracts on a defined type whose base
     comes from another package, and checking a module-local dependency that
     has only `.gon` sources (no `.go`) before it is transpiled. Deferred by
@@ -282,21 +293,19 @@ change.
   - **`--strict`** — deferred since v1.5 (`rfc-ecosystem-contract-expansion.md`);
     unscheduled.
   - **A "nilable" constraint** — open, unscheduled (see the note below).
-  - **(a2) `gon build <dir>` whose module context cannot contain the
-    operand.** Today the `.go` files are written before `go build` fails: no
-    module in the working directory or its parents, or an operand outside the
-    main module `go build` uses. The design (refuse before transpiling, exit 2,
-    nothing written, two distinct messages, only when the preflight proves the
-    mismatch; amends RFC M9 T4) **passed audit; its implementation is not
-    approved**, and RFC M9 is not amended yet.
-  - **Package-discovery follow-ups from #49:** the malformed `//go:build` line
-    inside a module was done in v1.19 (#52) and the file-mode counterpart is
-    merged and unreleased (#54); only (a2) remains.
 - **Dogfood (not a release track).** Gon's production packages are written in
   Gon (`docs/dogfood.md`); `!` contracts are added package by package after
   measurement and audit (all of `internal/checker`'s approved groups are in).
   A release is needed only when the dogfood gate needs a checker it does not
   pin yet.
+- **Cross-OS tests (CI, not a release track).** The `test-os` job of `ci.yml`
+  (#58) runs `go vet` and `go test` on Windows and macOS besides the Linux gate.
+  It is informational and not a required check. Its first run on Windows failed
+  in 16 tests, all assumptions of the test suite about the platform, fixed in
+  tests only (#58). Its first run on #56 failed in four of that PR's own tests:
+  two expected a slash in a printed path, and two showed that ENOTDIR also
+  satisfies "does not exist" on Windows, which was fixed in the code; the final
+  run of #56 passed all 11 jobs on Linux, macOS and Windows.
 
 - M4a is dependency-eligible as early as Core, independent of M1a. It is
   placed in v1.5 for release coherence (R2/R4), not because the graph
