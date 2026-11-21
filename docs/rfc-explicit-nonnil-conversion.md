@@ -320,14 +320,54 @@ A **non-nil conversion** is the Go conversion `(T)(x)` whose type operand,
 written inside the parentheses, begins with `!`. The preprocessor MUST recognise
 `(` `!` TypeExpr `)` `(` as a non-nil conversion, strip the `!`, and record the
 byte offset where `!T` begins in `NonNilOffsets`, as it does for every other
-`!T`. TypeExpr is any type expression the existing type positions accept,
+`!T`, **when the first `(` is a grouping parenthesis** (see below).
+TypeExpr is any type expression the existing type positions accept,
 including qualified names (`!io.Reader`), pointer, slice, map, channel and
 function types, parenthesised and nested forms.
 
+**Grouping parenthesis (clarification, added after the acceptance of Part A; it does
+not change the design).** The decision is taken on the **token stream of the Go
+scanner, including the semicolons it inserts automatically at a line end**, and on
+the previous significant token, comments excluded. The first `(` is a grouping
+parenthesis exactly when that token is **not** one of the tokens that can end an
+operand: an identifier, an integer, floating-point, imaginary, character or string
+literal, `)`, `]` or `}`. A `(` that follows one of those tokens does not group: it
+opens the argument list of a call, and the shape `(` `!` ... `)` `(` that follows is
+then an ordinary call whose result is called again, not a conversion:
+
+```go
+v := (!*Node)(x)      // non-nil conversion: the first ( follows :=
+w := adder(!flag)(3)  // not a conversion: adder(!flag) is a call, and its
+                      // function result is called with 3
+```
+
+The second form is valid Go whenever `adder` returns a function, and its token
+shape is the same as that of the conversion; it MUST keep its meaning, its clean
+source and its offsets exactly as before Part A.
+
+The token `}` needs no further context, because the automatic semicolon decides it. A
+`}` that closes a block at the end of a line is followed by an inserted semicolon, so
+the `(` that starts the next statement has a semicolon as its previous significant
+token and is a grouping parenthesis (for example, a statement `(!*Node)(x).Visit()`
+on the line after an `if` block). A `}` that is followed by `(` with no semicolon
+between them, that is, on the same line, ends an operand in valid Go (a function
+literal or a composite literal), so that `(` is not a grouping parenthesis. This was
+checked by scanning the forms above. The look-alike fixtures of the test plan (§12)
+include a block `}` followed by a newline and a grouping `(` statement, a function
+literal called with such a shape (`func() {}(!a)(b)`), and a composite literal
+followed by one.
+
+**Conservative rule.** The preprocessor recognises a conversion only when the first
+`(` is established as a grouping parenthesis by this rule. When it is not, or the
+source does not scan as valid Go, the source is left unchanged and any problem is
+reported by Go or by the checker as before; the preprocessor never guesses.
+
 The preprocessor MUST NOT change the meaning of any program that is valid Go
-with an ordinary meaning. `(!a)(b)` with `a` a `bool` is a call of a `bool` and
-does not type-check; the RFC relies on this and the test plan (§12) requires a
-differential check against the existing sources, not an argument alone.
+with an ordinary meaning. With a grouping parenthesis, `(!a)(b)` with `a` a `bool`
+is a call of a `bool` and does not type-check; this argument covers only the
+grouping case, which is why the precondition above is required, and the test plan
+(§12) requires a differential check against the existing sources and the
+look-alike fixtures, not an argument alone.
 
 ### 6.2 Meaning
 
