@@ -1,11 +1,18 @@
 # Changelog
 
-## [Unreleased]
+## [1.20.0] — 2026-11-21
 
 Malformed build constraints in file mode (proposal fm1) and the module context
 of `gon build <dir>` (proposal a2). Diagnostic Protocol v1 is unchanged: same
 `schemaVersion`, envelope, codes and exit-code meanings; all-or-nothing emission
 is unchanged.
+
+Both changes make an exit code a consumer can see more accurate, so a script
+that relied on the old one may change behaviour: a file-mode `check` of a file
+with a malformed `//go:build` line is **exit 1** (it was exit 0 when the file
+had nothing else wrong), and `gon build <dir>` where `go build` has no module
+for the operand is **exit 2** (it was exit 1, after the `.go` files had been
+written), with nothing written. Each entry below lists the cases.
 
 ### Changed
 
