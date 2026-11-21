@@ -320,14 +320,34 @@ A **non-nil conversion** is the Go conversion `(T)(x)` whose type operand,
 written inside the parentheses, begins with `!`. The preprocessor MUST recognise
 `(` `!` TypeExpr `)` `(` as a non-nil conversion, strip the `!`, and record the
 byte offset where `!T` begins in `NonNilOffsets`, as it does for every other
-`!T`. TypeExpr is any type expression the existing type positions accept,
+`!T`, **when the first `(` is a grouping parenthesis** (see below).
+TypeExpr is any type expression the existing type positions accept,
 including qualified names (`!io.Reader`), pointer, slice, map, channel and
 function types, parenthesised and nested forms.
 
+**Grouping parenthesis (clarification, added after the acceptance of Part A; it does
+not change the design).** The first `(` is a grouping parenthesis when the previous
+significant token cannot end an operand, that is, when it is not an identifier, a
+literal, `)`, `]` or `}`. A `(` that follows a token that can end an operand does
+not group: it opens the argument list of a call, and the shape `(` `!` ... `)` `(` that follows is then an ordinary call whose
+result is called again, not a conversion:
+
+```go
+v := (!*Node)(x)      // non-nil conversion: the first ( follows :=
+w := adder(!flag)(3)  // not a conversion: adder(!flag) is a call, and its
+                      // function result is called with 3
+```
+
+The second form is valid Go whenever `adder` returns a function, and its token
+shape is the same as that of the conversion; it MUST keep its meaning, its clean
+source and its offsets exactly as before Part A.
+
 The preprocessor MUST NOT change the meaning of any program that is valid Go
-with an ordinary meaning. `(!a)(b)` with `a` a `bool` is a call of a `bool` and
-does not type-check; the RFC relies on this and the test plan (§12) requires a
-differential check against the existing sources, not an argument alone.
+with an ordinary meaning. With a grouping parenthesis, `(!a)(b)` with `a` a `bool`
+is a call of a `bool` and does not type-check; this argument covers only the
+grouping case, which is why the precondition above is required, and the test plan
+(§12) requires a differential check against the existing sources and the
+look-alike fixtures, not an argument alone.
 
 ### 6.2 Meaning
 
