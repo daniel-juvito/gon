@@ -11,9 +11,10 @@
 ## 1. Summary
 
 I6 says a `T → !T` flow "requires a source that satisfies the contract at that
-point". The checker does not enforce that for pointers, slices and maps: a plain
-variable, call result or map lookup can be stored in a `!*T`, `![]T` or
-`!map[K]V` slot without any diagnostic. Only `!I` is enforced (D3b, with the D3a
+point". The checker does not enforce that for any non-interface nilable kind (pointer,
+slice, map, channel, function): a plain variable, call result or map lookup can
+be stored in a `!*T`, `![]T`, `!map[K]V`, `!chan T` or `!func()` slot without any
+diagnostic (measured for all five on v1.20.0). Only `!I` is enforced (D3b, with the D3a
 exception for concrete operands). Gon has no way for an author to state that a
 guard they wrote makes a value non-nil.
 
@@ -34,7 +35,7 @@ sensitivity.
 ## 2. Motivation and evidence
 
 `!T` is a static guarantee that reaches only the cases the checker covers
-(README). For pointers, slices and maps, that is literal `nil`, required struct
+(README). For the non-interface nilable kinds, that is literal `nil`, required struct
 fields and a few construction forms. A value that arrives through a variable is
 not covered, so the author's knowledge ("I checked `err`", "this map lookup
 cannot miss") has no form the checker can see.
@@ -562,7 +563,7 @@ var t ![]int = a       // silent: a is bound !
 var b []int = []int{}  // b stays []int; no hint in this RFC
 
 // Idempotence:
-var x !!*int // same as: var x !*int
+var x !!*int = new(int) // same as: var x !*int = new(int)
 
 // Not a type position: untouched.
 ok := !!flag
@@ -584,9 +585,11 @@ ok := !!flag
 ## 9. Amendments
 
 **I6** (Part A; `docs/roadmap-v1.3-plus.md`), proposed addition: *A `T → !T` flow of a
-non-interface nilable kind from a source that is not a recognised non-nil source
-is reported as a warning. The explicit non-nil conversion `(!T)(x)` is a
-recognised non-nil source; it is a claim by the author and is not checked.*
+non-interface nilable kind is reported as a warning in two cases: when the source is
+not a recognised non-nil source, and when the source is recognised but its static
+type is not identical to the type of the `!U` slot even though Go accepts the
+assignment (§6.4). The explicit non-nil conversion `(!U)(x)` is a recognised non-nil
+source of type `U`; it is a claim by the author and is not checked.*
 
 **I2** (Part B; `docs/roadmap-v1.3-plus.md`), proposed addition: *Inference is allowed only
 from the structural form of an initialiser in `:=` or an untyped `var`: a
@@ -601,13 +604,17 @@ non-nil conversion it performs no runtime check, and an ordinary conversion to
 
 ## 10. Open Questions
 
-1. **Severity across kinds (decided: ordinary `T → !T` is GW006 for pointer, slice and
-   map; an ordinary interface value into `!I` stays GN001).** The difference is a
+1. **Severity across kinds (decided: ordinary `T → !T` is GW006 for every
+   non-interface nilable kind, that is pointer, slice, map, channel and function; an
+   ordinary interface value into `!I` stays GN001).** The earlier wording of this
+   decision, "pointer, slice and map", is shorthand for these non-interface kinds,
+   consistent with the uniform meaning of `!` on every nilable kind since v1.6; it
+   does not exclude channel and function. The difference is a
    **compatibility decision**. It is not a claim that the two groups have different
    contract semantics and therefore deserve different severities. `!I` is already
    enforced by D3b/D3d, and D3a and D3d govern when an interface contract can be
-   carried; weakening it would be breaking in the other direction. For pointer,
-   slice and map the rule has never been enforced, and an error would break code that
+   carried; weakening it would be breaking in the other direction. For the
+   non-interface kinds the rule has never been enforced, and an error would break code that
    is accepted today. The warning does not prove that a value satisfies the contract.
    `--strict` (deferred since v1.5, not designed here) is mentioned only as a possible
    future way to make the severities uniform; this RFC neither promises nor relies on
@@ -716,16 +723,22 @@ non-nil conversion it performs no runtime check, and an ordinary conversion to
   target of a conversion (`(!!*A)(x)`, `(!!!![]int)(x)`); and `!!x` in
   expression positions (including inside parentheses, arguments and function
   literals) untouched; offsets and `CleanToOrig` after stripping.
-- **Differential check:** every existing `.gon` and `.go` source of the three
-  repositories produces an identical clean source and identical offsets before and
-  after, except for inputs that contain the new forms. The existing sources are a
+- **Differential check, with three criteria.** (1) An input that does **not** use
+  the new syntax, including every existing `.gon` and `.go` source of the three
+  repositories, must produce a clean source and offsets **identical** to the
+  baseline (the version before the change). (2) An input that uses the new syntax
+  (`(!T)(x)`, a run of `!` in a type position) has no equivalent baseline, since the
+  old version does not recognise it; it must produce the **expected** clean source
+  and offsets, fixed in the fixture. (3) A construct that only resembles the new
+  syntax but keeps its ordinary Go meaning (the contexts listed below) must keep its
+  old clean source, offsets and behaviour, as in (1). The existing sources are a
   regression baseline, not proof of the §6.1 requirement; a **synthetic suite of
   Go-valid inputs** targets the grammar boundary: parenthesised expressions,
   unary `!` and `!!` before parenthesised operands, a call on a parenthesised
   expression, nested parentheses, conversion versus call, the pattern `(!T)(x)`
   inside comments, strings and raw strings, function literals and argument lists,
-  and qualified, nested and complex type expressions. Each must give the same
-  clean source and offsets as before the change.
+  and qualified, nested and complex type expressions; each is classified under
+  (1), (2) or (3) in its fixture.
 - **Checker:** GW006 for each slot and each nilable kind; silence for recognised
   sources, for the conversion and for the identity case; GN001 for `(!T)(nil)`;
   GN003 for a non-nilable or `any`-constrained target; D3d with and without the
