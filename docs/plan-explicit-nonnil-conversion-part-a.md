@@ -12,11 +12,13 @@ shape are outside this plan and unchanged.
 | Question | Decision |
 |----------|----------|
 | Q1: slots declared by `.gna` | GW006 also applies to `.gna` contract slots; **measure first, before PR 2b** (§5). If the result does not match the RFC, GW006 is on HOLD until the difference is explained |
-| Q2: nested parentheses | Supported to any valid depth; canonical form through `gon fmt` (see the note in WP2) |
+| Q2: nested parentheses | Supported to any valid depth; the canonical form is what `go/format` produces (one layer), see WP2 |
 | Q3: PR 2a and 2b | Separate PRs; **a release is not automatic**, it is a separate decision once both are integrated |
 | Q4: `gon check ./...` | A permanent CI gate (order in WP7) |
 | Q5: code | GW006, a warning |
 | Q6: tests first | PR 0, **with `main` staying green** (strategy in §4) |
+| Q7: dogfood before the release | Decided: **two gates**. A pre-release gate on a development branch with a locally built candidate, then a post-release migration gate (§4, WP7) |
+| Q8: canonical form of nested parentheses | Decided: `go/format` is the authority and may reduce redundant parentheses; `reinsertBangs` tolerates only parentheses it can prove were removed as redundant wrappers (WP2) |
 
 ## 1. Scope of Part A (RFC §5.1)
 
@@ -56,6 +58,7 @@ cell has a fixture with the expected diagnostic.
 | Source nilability | an ordinary `T`, a declared `!T`, a call result `!T`, a `!` field |
 | Slot declaration | local, parameter, return (multi-return), field (keyed and unkeyed), element, method argument, cross-package module-local, `.gna` |
 | Expression | nested, selector, multi-value |
+| Look-alikes that are not conversions | `adder(!flag)(3)` (a call whose result is called, valid Go with the token shape `(!flag)(3)`), `(!a) && b`, `x.(!T)` (D6a), `!` inside comments and strings, unbalanced or unrelated parentheses; each keeps its old meaning and old clean source |
 | Part B must not leak | `append`, slice expressions and locals bound by inference stay **not** sources (GW006); `(!T)(x)` binds no local |
 | Contract | no implicit propagation across types; no runtime check |
 
@@ -66,17 +69,27 @@ summary per PR (active and pending fixtures per clause) goes in the PR descripti
 ## 3. Work by component
 
 ### WP1. `internal/preproc`
-- `(!T)(x)`: a `!` after a `(` whose closing `)`, after skipping wrapping `)` that
-  balance the `(` immediately before it, is followed by `(`. Parentheses are
-  balanced with a counter, not a regular expression. The safety argument is RFC
-  §6.1 (`(!a)(b)` with a `bool` `a` is not valid Go).
+- `(!T)(x)`: a `!` after a **grouping** `(` whose closing `)`, after skipping wrapping
+  `)` that balance the `(` immediately before it, is followed by `(`. Parentheses
+  are balanced with a counter, not a regular expression.
+  **Precondition found while auditing the plan:** the `(` must be a grouping
+  parenthesis, that is, the previous significant token must not end an operand
+  (an identifier, `)`, `]`, `}`, a literal). Otherwise the `(` opens a call's
+  argument list and the shape is not a conversion: `adder(!flag)(3)`, where `adder`
+  returns a function, is valid Go whose token shape is `(!flag)(3)` (verified by
+  compiling it). The safety argument of RFC §6.1 (`(!a)(b)` with a `bool` `a` is not
+  valid Go) covers only the grouping case; RFC §6.1 should state the precondition
+  (see §9).
 - A run of `!` in a type position: a `!` after a `!` that is a type modifier is also
   a modifier (one offset); `!!flag` in an expression stays intact.
 - Fixtures (PR 0): `(!T)(x)` and nested forms (one, two, three layers, with
   spaces); `!` in a type position versus an expression position; separation from a
   type assertion `x.(!T)` (D6a); complex types (`![]T`, `!map[K]V`, `!*T`,
   `!func(...)`, `!chan T`, qualified, generic); comments and strings containing the
-  pattern; a differential suite with three criteria (identical / expected output /
+  pattern; **non-conversion and false-positive fixtures**: a call whose result is
+  called (`adder(!flag)(3)`), `(!a) && b`, an unbalanced parenthesis, `x.(!T)`, an
+  index or selector before the `(`, each required to keep its old meaning and its old
+  clean source and offsets; a differential suite with three criteria (identical / expected output /
   looks similar but keeps its old meaning) over every `.gon` and `.go` of the three
   repositories plus synthetic Go-valid forms.
 - High risk: WP1 does not pass because one fixture passes.
@@ -90,7 +103,14 @@ summary per PR (active and pending fixtures per clause) goes in the PR descripti
   tolerates only a comma difference; without handling, a removed parenthesis makes
   the alignment fail ("token streams diverge") and the file is left unformatted.
   Plan: tolerate the `(` and `)` that `go/format` removes on the clean side (like
-  the comma), locked by tests. This also yields the one-layer canonical form for Q2;
+  the comma), under an **acceptance rule**: only a run of `(` immediately before a
+  marked type, together with the matching run of `)` after it, that the formatted
+  stream lacks, is skipped, and only when the remaining tokens then align one to one;
+  any other divergence stays an error and the file is left unformatted. The
+  tolerance is never generic. Locked by fixtures that prove the alignment before and
+  after formatting, by re-running the preprocessor on the formatted output and
+  comparing the marked-token positions, and by cases with many `!`, nested targets,
+  redundant parentheses and comments. This also yields the one-layer canonical form for Q2;
   **there is no custom formatting pass**, `go/format` stays the authority.
 - Tests: a conversion inside a nested expression, several conversions in one
   statement, multiline, comments around, redundant parentheses, idempotence
@@ -151,6 +171,7 @@ Criteria: exactly the 10 Part A sites (`annotations.gon:135,172,173`,
 `ecosystem.gon:486`, `package.gon:272,273`, `trace.gon:51`); an explicit migration;
 every GW006 evaluated; no unexplained GN001 or GN003; no Part B behaviour; the
 final count matches the RFC prediction or the difference is documented and approved.
+This is the post-release migration gate of §4; the pre-release gate is the run of the candidate against the unmigrated sites.
 **An 11th site is not migrated at once**: first classify whether it is Part A or a
 side effect of Part B.
 The prediction of 10 sites is kept as an audit checklist (file:line), not only a
@@ -180,11 +201,24 @@ moves entries to `enabled` together with its code; the last PR requires
 `pending = 0`. The specification is therefore not weakened and `main` does not go
 red. No test is switched off or has its assertions reduced.
 
-An open tension (Q7): the plan audit says to release after "the dogfood gate
-passes", but the migration of the 10 sites (M) cannot be merged before a release and
-a pin, because the pinned gon v1.20.0 does not parse `(!T)(x)`. Proposal: a
-**pre-release verification** of the dogfood criterion on a development branch with a
-locally built gon (not merged), then the real migration is merged after R and P.
+**Compatibility of PR 0 to PR 2b with the pinned gon (v1.20.0).** The pinned gon
+cannot parse `(!T)(x)`. Rule: no PR in this sequence may put the new syntax in a
+`.gon` that the pinned gon reads, that is, the production packages under `cmd/`,
+`internal/` and `transpiler/` that `scripts/check-gon-sources.sh` transpiles. The new
+syntax may appear only in `testdata/` fixtures and in Go test string literals, which
+are processed by the gon built from the branch and not by the pinned one. The
+`gon-sources` job must stay green with v1.20.0 in every PR; a PR that would break it
+is not mergeable.
+
+**Q7, decided: two gates.**
+1. *Pre-release gate*, on a development branch with PR 0 to 2b integrated and a
+   locally built candidate (nothing of it merged to `main`): run the candidate
+   against the 10 unmigrated dogfood sites and verify the GW006 result against the
+   RFC prediction; audit the result and the candidate's CI.
+2. *Post-release migration gate*, after R and P: migrate the 10 sites, add the
+   `gon check ./...` gate to CI, and require the CI to use the compatible pin.
+The migration is never required to be merged before the release, since that would be
+circular (the pinned gon cannot parse the migrated sources).
 
 ## 5. Measurement of `.gna` before PR 2b
 
@@ -213,9 +247,11 @@ the dogfood check must be runnable from the repository); no time estimate.
 Part B, the rebinding of `:=`, `--strict`, GW007, `&x`, inference from a body,
 runtime checks, flow analysis, and the release shape without a separate decision.
 
-## 9. Remaining questions
-- **Q7.** A pre-release verification of the dogfood criterion on a development
-  branch (§4), or another order.
-- **Q8.** Leave the canonicalisation of nested parentheses to `go/format` (one
-  layer), with `reinsertBangs` tolerating the parentheses it removes (WP2), or keep
-  the original parentheses.
+## 9. Remaining items
+
+- **Q7 and Q8 are decided** (§0, §4, WP2); this plan has no other open question.
+- **A clarification of RFC §6.1 is suggested, for the owner to decide.** §6.1 requires
+  the preprocessor to recognise `(` `!` TypeExpr `)` `(` as a conversion, and also to
+  leave any valid Go program unchanged; for `adder(!flag)(3)` the two requirements
+  conflict unless the `(` is a grouping parenthesis. WP1 adopts that precondition.
+  The RFC text should say so, as a clarification and not as a change of the design.
