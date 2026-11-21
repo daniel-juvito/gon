@@ -136,7 +136,7 @@ func TestOutsideModuleBuildConstraints(t *testing.T) {
 	if exit != 1 || len(env.Diagnostics) != 1 || filepath.Base(env.Diagnostics[0].File) != "a.gon" || errOut != "" {
 		t.Fatalf("P1: exit %d %+v\n%s", exit, env.Diagnostics, errOut)
 	}
-	want := "gon: build constraints exclude all Go files in ./all (.gon files: all/a.gon, all/b_plan9.gon)\n"
+	want := "gon: build constraints exclude all Go files in ./all (.gon files: " + filepath.FromSlash("all/a.gon") + ", " + filepath.FromSlash("all/b_plan9.gon") + ")\n"
 	for _, cmd := range []string{"check", "vet", "transpile", "build"} {
 		exit, out, errOut := captureRun([]string{cmd, "./all"})
 		if exit != 2 || out != "" || errOut != want {
@@ -202,7 +202,7 @@ func TestOutsideModuleTranspileUsesTheSameFiles(t *testing.T) {
 		"fail/b.gon":     "package fail\n\nfunc use() { Take(nil) }\n",
 	})
 	exit, out, errOut := captureRun([]string{"transpile", "./tp"})
-	if exit != 0 || out != "transpiled: tp/a.go\ntranspiled: tp/b.go\n" || errOut != "gon: tp/c_plan9.gon not transpiled: excluded by build constraints\n" {
+	if exit != 0 || out != "transpiled: "+filepath.FromSlash("tp/a.go")+"\ntranspiled: "+filepath.FromSlash("tp/b.go")+"\n" || errOut != "gon: tp/c_plan9.gon not transpiled: excluded by build constraints\n" {
 		t.Fatalf("exit %d\nstdout %q\nstderr %q", exit, out, errOut)
 	}
 	if exists(filepath.Join(root, "tp", "c_plan9.go")) {

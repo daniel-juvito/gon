@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -20,7 +21,11 @@ func TestTrimpathBinaryFindsStdlibWithoutModule(t *testing.T) {
 	if testing.Short() {
 		t.Skip("builds a binary")
 	}
-	bin := filepath.Join(t.TempDir(), "gon-trimpath")
+	name := "gon-trimpath"
+	if runtime.GOOS == "windows" {
+		name += ".exe" // exec does not find a Windows executable without it
+	}
+	bin := filepath.Join(t.TempDir(), name)
 	build := exec.Command("go", "build", "-trimpath", "-o", bin, ".")
 	build.Env = cleanEnv(os.Environ())
 	if out, err := build.CombinedOutput(); err != nil {

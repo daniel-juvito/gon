@@ -59,6 +59,34 @@ jobs:
           echo "### Test coverage" >> "$GITHUB_STEP_SUMMARY"
           go tool cover -func=coverage.out | tail -1 | tee -a "$GITHUB_STEP_SUMMARY"
 
+  # Portability, informational: the same vet and test on the other operating
+  # systems, so what the Linux gate cannot show (paths, symlinks, line endings,
+  # the null device, go env) is measured. Linux stays the gate (build-and-test):
+  # its format and coverage steps use GNU shell tools and stay there. No
+  # continue-on-error: a failure is visible and is classified, not hidden. This
+  # job is not a required check.
+  test-os:
+    name: test-os (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.0'
+          cache: true
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./... -count=1
+
   # Gon's own sources (dogfood, D2/D3): the committed .go next to every .gon
   # must be exactly what a PINNED gon release transpiles it to. The checker
   # built from this commit is not used, so a broken checker cannot pass itself.
