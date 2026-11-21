@@ -54,8 +54,9 @@ v1.20.0, with a plain `chan int` and a plain `func()`: `var a !chan int = c`,
 `var b !func() = f`, `a = c` and `b = f` on declared `!` variables, an argument to a
 `!chan int` and to a `!func()` parameter, `return c` and `return f` from a function
 with such a result, and `S{c: c, f: f}` with `!chan int` and `!func()` fields are all
-accepted with no diagnostic. Only `return nil` into a `!chan int` result was reported
-(GN001), as for the other kinds.
+accepted with no diagnostic. In this probe, the tested `return nil` case into a
+`!chan int` result was reported as GN001; other nil-literal forms for channel and
+function were not tested.
 
 **Why this matters.** `protocolEnvelope.Diagnostics` must be `[]`, never `null`.
 Annotating the field `![]protocolDiagnostic`, annotating `writeProtocolJSON`'s
@@ -191,10 +192,18 @@ parsed. `!!` occurs in none of the `.gon` files of the three repositories, and
 
 **Generics (v1.20.0).** `!T` on a type parameter is accepted when the
 constraint restricts it to nilable kinds (`~*A`, `~*A | ~[]int`) and is GN003
-for `any`, `comparable` and `~*A | ~int`. For every one of these constraints,
-`return x` or `var v !T = x` with an ordinary `T` value is **GN001** "ordinary
-interface value", because D3b reads the underlying type of a type parameter,
-which is its constraint interface. The non-generic `*A → !*A` is accepted.
+for `any`, `comparable` and `~*A | ~int`. The flow of an ordinary `T` value into
+`!T` (`return x`, `var v !T = x`) was measured in the two groups separately:
+
+- Constraints for which the target `!T` is valid (`~*A`, `~*A | ~[]int`): the flow is
+  **GN001** "ordinary interface value".
+- Constraints for which the target is invalid (`any`, `comparable`, `~*A | ~int`):
+  the target is GN003, and the same flow is also reported as GN001 in the same
+  run. That GN001 is reported next to the GN003 and is not a result about a valid
+  target.
+
+The GN001 comes from D3b, which reads the underlying type of a type parameter,
+that is, its constraint interface. The non-generic `*A → !*A` is accepted.
 go/types validates a conversion to a type parameter against every member of its
 type set (`*A → T` with `~*A | ~[]int` is rejected).
 
@@ -632,15 +641,18 @@ non-nil conversion it performs no runtime check, and an ordinary conversion to
    `--strict` (deferred since v1.5, not designed here) is mentioned only as a possible
    future way to make the severities uniform; this RFC neither promises nor relies on
    it.
-2. **Type parameters (decided: D3b is unchanged).** An ordinary value of a type
-   parameter flowing to `!T` stays an error (GN001), whatever the constraint. A
+2. **Type parameters (decided: D3b is unchanged).** For a type-parameter target
+   accepted under the existing GN003 nilability rule, an ordinary value of that type
+   parameter flowing to `!T` remains GN001 under D3b. This does not change the
+   existing target-constraint rule (GN003), and the decision does not cover mixed
+   nilable-kind constraints. A
    non-nil conversion `(!T)(x)` is a recognised source like any other (§6.4): it
    satisfies a `!T` slot through the same-type rule D3b/D3d already apply to `!`
    sources, and it is not a way around D3b for ordinary type-parameter values. The
    target `T` stays restricted by the existing GN003 rule. The GN001 text "ordinary
    interface value" is misleading for a type parameter; correcting it is a separate
    change with no change of semantics. Constraints that mix nilable kinds
-   (`~*A | ~[]int`) are outside this decision. Normative example:
+   (`~*A | ~[]int`) remain outside this decision. Normative example:
 
    ```go
    func f[T ~*A](x T) {
@@ -752,7 +764,8 @@ non-nil conversion it performs no runtime check, and an ordinary conversion to
   inside comments, strings and raw strings, function literals and argument lists,
   and qualified, nested and complex type expressions; each is classified under
   (1), (2) or (3) in its fixture.
-- **Checker:** GW006 for each slot and each nilable kind; silence for recognised
+- **Checker:** GW006 for each slot and each non-interface nilable kind (interface
+  kinds are tested separately under D3a/D3b/D3d); silence for recognised
   sources, for the conversion and for the identity case; GN001 for `(!T)(nil)`;
   GN003 for a non-nilable or `any`-constrained target; D3d with and without the
   conversion; type parameters per §10.2; the cross-package and `.gna` paths.
