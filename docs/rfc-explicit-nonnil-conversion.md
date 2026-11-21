@@ -256,7 +256,7 @@ converted explicitly in the migration (§10.7), so that the dogfood gate needs n
 | C4 | The target must be a nilable kind (else GN003) | Agreed direction |
 | C5 | `(!T)(nil)` is GN001 | Agreed direction |
 | C6 | `(!T)(x)` is a recognised non-nil source | Agreed direction |
-| C7 | Ordinary `T → !T`, non-interface kinds: warning | Decided (§10.1, §10.2); chosen for compatibility, not because the kinds differ in contract semantics |
+| C7 | Ordinary `T → !T`, non-interface kinds (pointer, slice, map, channel, function): warning | Decided and accepted with Part A (§5.1, §10.1, §10.2); chosen for compatibility, not because the kinds differ in contract semantics |
 | C8 | `(!T)(x)` with `x` already `!T`: identity, no diagnostic | Agreed direction |
 | C9 | `!!T` in type positions, including the target of a non-nil conversion, is `!T`; `gon fmt` canonicalises | Agreed direction |
 | C10 | `!!x` in expression positions is Go, untouched | Agreed direction |
@@ -632,16 +632,14 @@ non-nil conversion it performs no runtime check, and an ordinary conversion to
 
 ## 10. Open Questions
 
-1. **Severity across kinds. Decided earlier: ordinary `T → !T` is GW006 for pointer,
-   slice and map, and an ordinary interface value into `!I` stays GN001. Extended in
-   this draft to every non-interface nilable kind (adding channel and function); the
-   extension is not formally accepted until Part A is.** If the extension is not
-   accepted, GW006 narrows to pointer, slice and map with no other change. The
-   extension is a **revision of the scope of the OQ-1 decision**: as first taken it
-   named pointer, slice and map; this RFC proposes extending it to channel and function, because `!` has had a uniform meaning on every
-   nilable kind since v1.6 and v1.20.0 accepts a plain channel or function value into
-   a `!` slot without a diagnostic (§2.1). The extension is proposed here and is open to
-   the audit and to the acceptance decision like the rest of the draft. The difference is a
+1. **Severity across kinds. Decided: ordinary `T → !T` is GW006 for every
+   non-interface nilable kind (pointer, slice, map, channel and function), and an
+   ordinary interface value into `!I` stays GN001.** The decision was first taken for
+   pointer, slice and map. Its scope was then **extended to channel and function**,
+   because `!` has had a uniform meaning on every nilable kind since v1.6 and v1.20.0
+   accepts a plain channel or function value into a `!` slot without a diagnostic
+   (§2.1). The extension was accepted together with Part A on 2026-11-21 (§5.1), so
+   the normative text that names the five kinds stands as written. The difference is a
    **compatibility decision**. It is not a claim that the two groups have different
    contract semantics and therefore deserve different severities. `!I` is already
    enforced by D3b/D3d, and D3a and D3d govern when an interface contract can be
