@@ -294,6 +294,18 @@ change, except v1.20, which carries two.
   - **`--strict`** — deferred since v1.5 (`rfc-ecosystem-contract-expansion.md`);
     unscheduled.
   - **A "nilable" constraint** — open, unscheduled (see the note below).
+  - **Explicit non-nil conversion — RFC accepted in part, not implemented, not
+    scheduled** (`rfc-explicit-nonnil-conversion.md`). **Part A is accepted as a
+    design decision (2026-11-21):** the explicit conversion `(!T)(x)` as an
+    author's static claim with no runtime check (Go decides its validity), GW006 as
+    a warning for an ordinary `T → !T` flow of a non-interface nilable kind
+    (pointer, slice, map, channel, function; an ordinary interface value into `!I`
+    stays GN001 and D3b is unchanged for type parameters), the identity rule of the
+    contract, and idempotence of `!` in type positions. **Part B is open and not
+    accepted:** binding of locals by inference from a structural initialiser, with
+    the `append` and slice-expression sources, which is potentially breaking. The
+    acceptance of Part A is not approval to implement it and sets no release
+    number, date or schedule.
 - **Dogfood (not a release track).** Gon's production packages are written in
   Gon (`docs/dogfood.md`); `!` contracts are added package by package after
   measurement and audit (all of `internal/checker`'s approved groups are in).
