@@ -2,8 +2,10 @@ package conformance
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"go/ast"
+	"go/format"
 	"go/parser"
 	"go/token"
 	"go/types"
@@ -27,13 +29,13 @@ import (
 const marker = "‹!›"
 
 type entry struct {
-	ID         string `json:"id"`
-	RFC        string `json:"rfc"`
-	Kind       string `json:"kind"`
-	Status     string `json:"status"`
-	Site       string `json:"site"`
-	Diagnostic string `json:"diagnostic"`
-	Note       string `json:"note"`
+	ID          string   `json:"id"`
+	RFC         string   `json:"rfc"`
+	Kind        string   `json:"kind"`
+	Status      string   `json:"status"`
+	Site        string   `json:"site"`
+	Diagnostics []string `json:"diagnostics"`
+	Note        string   `json:"note"`
 }
 
 func dataDir() string { return filepath.Join("..", "..", "testdata", "conformance") }
@@ -111,8 +113,18 @@ func runPreproc(src string) string {
 	return b.String()
 }
 
+// errCleanNotGo marks a failure of the first step of the formatter or of the
+// checker: the clean source is not valid Go. For a source that uses syntax the
+// current code does not know, that is the expected state; the harness accepts it
+// for a pending entry only when the fixture would be valid Go once its "!" are
+// stripped (see futureValid).
+var errCleanNotGo = errors.New("the clean source is not valid Go")
+
 func runFmt(src string) (string, error) {
 	out, err := gonfmt.Format("c.gon", []byte(src))
+	if err != nil && strings.HasPrefix(err.Error(), "format clean source") {
+		return "", fmt.Errorf("%w: %v", errCleanNotGo, err)
+	}
 	return string(out), err
 }
 
@@ -141,7 +153,7 @@ func validGo(clean []byte) error {
 func runCheck(src string) (string, error) {
 	r := preproc.Process("c.gon", []byte(src))
 	if err := validGo(r.Clean); err != nil {
-		return "", fmt.Errorf("the clean source is not valid Go: %w", err)
+		return "", fmt.Errorf("%w: %v", errCleanNotGo, err)
 	}
 	c, err := checker.NewWithAnnotations("c.gon", r.Clean, r.NonNilOffsets, nil)
 	if err != nil {
@@ -180,34 +192,85 @@ func normalWant(s string) string {
 
 func sortedLines(s string) string { return normalWant(s) }
 
-// holds reports whether the entry's fixture is satisfied by the current code.
-func holds(e entry, fx map[string]string) (bool, string) {
+// outcome is what running a fixture on the current code gives. Four cases are
+// kept apart, because a pending entry may only rest on the first two of the
+// failures: a runner error must not pass for "the feature is not there yet".
+type outcome int
+
+const (
+	holdsOK        outcome = iota // the runner ran and the fixture is satisfied
+	mismatch                      // the runner ran and its result differs from want
+	missingFeature                // the clean source is not valid Go (syntax the code does not know yet)
+	runnerError                   // any other error of the runner
+)
+
+// holds runs the entry's fixture on the current code.
+func holds(e entry, fx map[string]string) (outcome, string) {
 	switch e.Kind {
 	case "preproc":
 		got := runPreproc(fx["src"])
-		return got == fx["want"], got
+		if got == fx["want"] {
+			return holdsOK, got
+		}
+		return mismatch, got
 	case "fmt":
 		got, err := runFmt(fx["src"])
 		if err != nil {
-			return false, "error: " + err.Error()
+			if errors.Is(err, errCleanNotGo) {
+				return missingFeature, err.Error()
+			}
+			return runnerError, err.Error()
 		}
 		if got != fx["want"] {
-			return false, got
+			return mismatch, got
 		}
 		// A formatted source is a fixed point of the formatter.
 		again, err := runFmt(got)
 		if err != nil || again != got {
-			return false, "not idempotent: " + again
+			return mismatch, "not idempotent: " + again
 		}
-		return true, got
+		return holdsOK, got
 	case "check":
 		got, err := runCheck(fx["src"])
 		if err != nil {
-			return false, "error: " + err.Error()
+			if errors.Is(err, errCleanNotGo) {
+				return missingFeature, err.Error()
+			}
+			return runnerError, err.Error()
 		}
-		return sortedLines(got) == sortedLines(fx["want"]), got
+		if sortedLines(got) == sortedLines(fx["want"]) {
+			return holdsOK, got
+		}
+		return mismatch, got
 	}
-	return false, "unknown kind " + e.Kind
+	return runnerError, "unknown kind " + e.Kind
+}
+
+// strip removes every "!". It is the future clean source of a fixture that has
+// no "!=" and no unary "!" in an expression, which futureValid checks.
+func strip(s string) string { return strings.ReplaceAll(s, "!", "") }
+
+// futureValid is the independent evidence that a fixture which fails today for
+// a missing feature is not broken: it must be valid once its "!" are stripped,
+// without the preprocessor (whose behaviour is what is pending).
+func futureValid(e entry, fx map[string]string) error {
+	src := fx["src"]
+	if strings.Contains(src, "!=") {
+		return fmt.Errorf("the fixture contains \"!=\", which strip cannot handle; write it without")
+	}
+	switch e.Kind {
+	case "check":
+		return validGo([]byte(strip(src)))
+	case "fmt":
+		got, err := format.Source([]byte(strip(src)))
+		if err != nil {
+			return err
+		}
+		if string(got) != strip(fx["want"]) {
+			return fmt.Errorf("go/format of the stripped src is\n%s\nthe stripped want is\n%s", got, strip(fx["want"]))
+		}
+	}
+	return nil
 }
 
 func checkable(e entry) bool { return e.Kind == "preproc" || e.Kind == "fmt" || e.Kind == "check" }
@@ -220,18 +283,24 @@ func TestEnabledFixtures(t *testing.T) {
 			continue
 		}
 		t.Run(e.ID, func(t *testing.T) {
-			ok, got := holds(e, fx[e.ID])
-			if !ok {
-				t.Errorf("%s (%s, RFC %s) does not hold\n--- src\n%s--- want\n%s\n--- got\n%s",
-					e.ID, e.Kind, e.RFC, fx[e.ID]["src"], fx[e.ID]["want"], got)
+			out, got := holds(e, fx[e.ID])
+			if out != holdsOK {
+				t.Errorf("%s (%s, RFC %s) does not hold (outcome %d)\n--- src\n%s--- want\n%s\n--- got\n%s",
+					e.ID, e.Kind, e.RFC, out, fx[e.ID]["src"], fx[e.ID]["want"], got)
 			}
 		})
 	}
 }
 
-// TestPendingFixturesAreNotYetTrue makes a pending entry meaningful: it must
-// fail on the current code. When an implementation makes it pass, the same PR
-// has to move it to "enabled", so a specification cannot rot as pending.
+// TestPendingFixturesAreNotYetTrue makes a pending entry meaningful, with three
+// outcomes kept apart. A fixture that the current code does not satisfy because
+// its result differs is a valid pending entry. A fixture that already holds is
+// an error: the same PR that implements it has to move it to "enabled", so a
+// specification cannot rot as pending. A runner error is an error too, except
+// when the clean source is not valid Go because the fixture uses syntax that the
+// code does not know yet: that is accepted only if the fixture is valid Go once
+// its "!" are stripped (futureValid), so a typo in a pending fixture is caught
+// now and not by the implementation PR.
 func TestPendingFixturesAreNotYetTrue(t *testing.T) {
 	fx := loadFixtures(t)
 	for _, e := range loadManifest(t) {
@@ -239,9 +308,20 @@ func TestPendingFixturesAreNotYetTrue(t *testing.T) {
 			continue
 		}
 		t.Run(e.ID, func(t *testing.T) {
-			if ok, got := holds(e, fx[e.ID]); ok {
+			out, got := holds(e, fx[e.ID])
+			switch out {
+			case holdsOK:
 				t.Errorf("%s is %s but already holds; move it to \"enabled\" in the manifest and out of the allowlist\n--- got\n%s",
 					e.ID, e.Status, got)
+			case mismatch:
+				// A valid pending entry.
+			case missingFeature:
+				if err := futureValid(e, fx[e.ID]); err != nil {
+					t.Errorf("%s fails today because %s, but the fixture is not valid Go even once its ! are stripped, so it is broken: %v",
+						e.ID, got, err)
+				}
+			default:
+				t.Errorf("%s: the runner failed, which is not evidence that the feature is missing: %s", e.ID, got)
 			}
 		})
 	}
@@ -262,8 +342,29 @@ func TestManifestIsConsistent(t *testing.T) {
 		if !validStatus(e.Status) {
 			t.Errorf("%s: invalid status %q", e.ID, e.Status)
 		}
-		if e.RFC == "" || e.Site == "" || e.Diagnostic == "" {
-			t.Errorf("%s: rfc, site and diagnostic must be filled", e.ID)
+		if e.RFC == "" || e.Site == "" {
+			t.Errorf("%s: rfc and site must be filled", e.ID)
+		}
+		// diagnostics lists the codes that the fixture expects, so that the manifest
+		// stays a faithful traceability map: for a checker fixture it must equal the
+		// set of codes of the want part; for every other kind it must be empty.
+		wantCodes := map[string]bool{}
+		if e.Kind == "check" {
+			for _, l := range strings.Split(strings.TrimSpace(fx[e.ID]["want"]), "\n") {
+				if f := strings.Fields(l); len(f) == 2 {
+					wantCodes[f[1]] = true
+				}
+			}
+		}
+		listed := map[string]bool{}
+		for _, c := range e.Diagnostics {
+			listed[c] = true
+		}
+		if len(listed) != len(e.Diagnostics) {
+			t.Errorf("%s: diagnostics has a duplicate: %v", e.ID, e.Diagnostics)
+		}
+		if fmt.Sprint(sortedKeys(listed)) != fmt.Sprint(sortedKeys(wantCodes)) {
+			t.Errorf("%s: diagnostics %v do not match the codes of the fixture %v", e.ID, sortedKeys(listed), sortedKeys(wantCodes))
 		}
 		switch e.Kind {
 		case "preproc", "fmt", "check":
@@ -351,4 +452,13 @@ func TestConformanceSummary(t *testing.T) {
 	for _, k := range keys {
 		t.Logf("%-5s enabled %2d  pending %2d", k, m[k].enabled, m[k].pending)
 	}
+}
+
+func sortedKeys(m map[string]bool) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }

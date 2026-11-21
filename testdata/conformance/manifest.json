@@ -5,7 +5,7 @@
   "kind": "tokenclass",
   "status": "enabled",
   "site": "internal/preproc: grouping parenthesis (token-class oracle)",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "SF-1 of the plan: the table in tokenclass_test.go"
  },
  {
@@ -14,7 +14,7 @@
   "kind": "tokenclass",
   "status": "enabled",
   "site": "internal/preproc: grouping parenthesis (token-class oracle)",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "SF-1 of the plan: the table in tokenclass_test.go"
  },
  {
@@ -23,7 +23,7 @@
   "kind": "tokenclass",
   "status": "enabled",
   "site": "internal/preproc: grouping parenthesis (token-class oracle)",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "SF-1 of the plan: the table in tokenclass_test.go"
  },
  {
@@ -32,7 +32,7 @@
   "kind": "tokenclass",
   "status": "enabled",
   "site": "internal/preproc: grouping parenthesis (token-class oracle)",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "SF-1 of the plan: the table in tokenclass_test.go"
  },
  {
@@ -41,7 +41,7 @@
   "kind": "tokenclass",
   "status": "enabled",
   "site": "internal/preproc: grouping parenthesis (token-class oracle)",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "SF-1 of the plan: the table in tokenclass_test.go"
  },
  {
@@ -50,7 +50,7 @@
   "kind": "tokenclass",
   "status": "enabled",
   "site": "internal/preproc: grouping parenthesis (token-class oracle)",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "SF-1 of the plan: the table in tokenclass_test.go"
  },
  {
@@ -59,7 +59,7 @@
   "kind": "tokenclass",
   "status": "enabled",
   "site": "internal/preproc: grouping parenthesis (token-class oracle)",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "SF-1 of the plan: the table in tokenclass_test.go"
  },
  {
@@ -68,7 +68,7 @@
   "kind": "tokenclass",
   "status": "enabled",
   "site": "internal/preproc: grouping parenthesis (token-class oracle)",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "SF-1 of the plan: the table in tokenclass_test.go"
  },
  {
@@ -77,7 +77,7 @@
   "kind": "tokenclass",
   "status": "enabled",
   "site": "internal/preproc: grouping parenthesis (token-class oracle)",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "SF-1 of the plan: the table in tokenclass_test.go"
  },
  {
@@ -86,7 +86,7 @@
   "kind": "tokenclass",
   "status": "enabled",
   "site": "internal/preproc: grouping parenthesis (token-class oracle)",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "SF-1 of the plan: the table in tokenclass_test.go"
  },
  {
@@ -95,7 +95,7 @@
   "kind": "tokenclass",
   "status": "enabled",
   "site": "internal/preproc: grouping parenthesis (token-class oracle)",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "SF-1 of the plan: the table in tokenclass_test.go"
  },
  {
@@ -104,7 +104,7 @@
   "kind": "tokenclass",
   "status": "enabled",
   "site": "internal/preproc: grouping parenthesis (token-class oracle)",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "SF-1 of the plan: the table in tokenclass_test.go"
  },
  {
@@ -113,7 +113,7 @@
   "kind": "tokenclass",
   "status": "enabled",
   "site": "internal/preproc: grouping parenthesis (token-class oracle)",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "SF-1 of the plan: the table in tokenclass_test.go"
  },
  {
@@ -122,7 +122,7 @@
   "kind": "tokenclass",
   "status": "enabled",
   "site": "internal/preproc: grouping parenthesis (token-class oracle)",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "SF-1 of the plan: the table in tokenclass_test.go"
  },
  {
@@ -131,7 +131,7 @@
   "kind": "tokenclass",
   "status": "enabled",
   "site": "internal/preproc: grouping parenthesis (token-class oracle)",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "SF-1 of the plan: the table in tokenclass_test.go"
  },
  {
@@ -140,7 +140,7 @@
   "kind": "tokenclass",
   "status": "enabled",
   "site": "internal/preproc: grouping parenthesis (token-class oracle)",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "SF-1 of the plan: the table in tokenclass_test.go"
  },
  {
@@ -149,7 +149,7 @@
   "kind": "tokenclass",
   "status": "enabled",
   "site": "internal/preproc: grouping parenthesis (token-class oracle)",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "SF-1 of the plan: the table in tokenclass_test.go"
  },
  {
@@ -158,7 +158,7 @@
   "kind": "tokenclass",
   "status": "enabled",
   "site": "internal/preproc: grouping parenthesis (token-class oracle)",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "SF-1 of the plan: the table in tokenclass_test.go"
  },
  {
@@ -167,7 +167,7 @@
   "kind": "tokenclass",
   "status": "enabled",
   "site": "internal/preproc: grouping parenthesis (token-class oracle)",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "SF-1 of the plan: the table in tokenclass_test.go"
  },
  {
@@ -176,7 +176,7 @@
   "kind": "tokenclass",
   "status": "enabled",
   "site": "internal/preproc: grouping parenthesis (token-class oracle)",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "SF-1 of the plan: the table in tokenclass_test.go"
  },
  {
@@ -185,7 +185,7 @@
   "kind": "tokenclass",
   "status": "enabled",
   "site": "internal/preproc: grouping parenthesis (token-class oracle)",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "SF-1 of the plan: the table in tokenclass_test.go"
  },
  {
@@ -194,7 +194,7 @@
   "kind": "tokenclass",
   "status": "enabled",
   "site": "internal/preproc: grouping parenthesis (token-class oracle)",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "SF-1 of the plan: the table in tokenclass_test.go"
  },
  {
@@ -203,7 +203,7 @@
   "kind": "tokenclass",
   "status": "enabled",
   "site": "internal/preproc: grouping parenthesis (token-class oracle)",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "SF-1 of the plan: the table in tokenclass_test.go"
  },
  {
@@ -212,7 +212,7 @@
   "kind": "tokenclass",
   "status": "enabled",
   "site": "internal/preproc: grouping parenthesis (token-class oracle)",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "SF-1 of the plan: the table in tokenclass_test.go"
  },
  {
@@ -221,7 +221,7 @@
   "kind": "tokenclass",
   "status": "enabled",
   "site": "internal/preproc: grouping parenthesis (token-class oracle)",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "SF-1 of the plan: the table in tokenclass_test.go"
  },
  {
@@ -230,7 +230,7 @@
   "kind": "tokenclass",
   "status": "enabled",
   "site": "internal/preproc: grouping parenthesis (token-class oracle)",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "SF-1 of the plan: the table in tokenclass_test.go"
  },
  {
@@ -239,7 +239,7 @@
   "kind": "preproc",
   "status": "enabled",
   "site": "internal/preproc: Process",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "adder(!flag)(3): a call whose result is called; keeps its clean source"
  },
  {
@@ -248,7 +248,7 @@
   "kind": "preproc",
   "status": "enabled",
   "site": "internal/preproc: Process",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "(!a) && b, g(!a, !b), !(!a)"
  },
  {
@@ -257,7 +257,7 @@
   "kind": "preproc",
   "status": "enabled",
   "site": "internal/preproc: Process",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "a ( after } on the same line, ], ) or an identifier does not group"
  },
  {
@@ -266,7 +266,7 @@
   "kind": "preproc",
   "status": "enabled",
   "site": "internal/preproc: Process",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "the pattern inside strings and comments"
  },
  {
@@ -275,7 +275,7 @@
   "kind": "preproc",
   "status": "enabled",
   "site": "internal/preproc: Process",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "unbalanced parenthesis: conservative rule, unchanged"
  },
  {
@@ -284,7 +284,7 @@
   "kind": "preproc",
   "status": "enabled",
   "site": "internal/preproc: Process",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "type assertion x.(!T) (D6a) is not a conversion"
  },
  {
@@ -293,7 +293,7 @@
   "kind": "preproc",
   "status": "enabled",
   "site": "internal/preproc: Process",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "single ! in type positions (baseline)"
  },
  {
@@ -302,7 +302,7 @@
   "kind": "preproc",
   "status": "enabled",
   "site": "internal/preproc: Process",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "!!x and !(!x) in expressions stay Go"
  },
  {
@@ -311,7 +311,7 @@
   "kind": "preproc",
   "status": "pending-PR1",
   "site": "internal/preproc: Process",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "(!*Node)(x)"
  },
  {
@@ -320,7 +320,7 @@
   "kind": "preproc",
   "status": "pending-PR1",
   "site": "internal/preproc: Process",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "slice, map, chan, func, qualified, generic targets"
  },
  {
@@ -329,7 +329,7 @@
   "kind": "preproc",
   "status": "pending-PR1",
   "site": "internal/preproc: Process",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "nested and spaced parentheses"
  },
  {
@@ -338,7 +338,7 @@
   "kind": "preproc",
   "status": "pending-PR1",
   "site": "internal/preproc: Process",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "a statement after a block }: the scanner inserts a semicolon, so the ( groups"
  },
  {
@@ -347,7 +347,7 @@
   "kind": "preproc",
   "status": "pending-PR1",
   "site": "internal/preproc: Process",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "argument, operator, send, defer, return contexts"
  },
  {
@@ -356,7 +356,7 @@
   "kind": "preproc",
   "status": "pending-PR1",
   "site": "internal/preproc: Process",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "field value and a multi-value declaration"
  },
  {
@@ -365,7 +365,7 @@
   "kind": "preproc",
   "status": "pending-PR1",
   "site": "internal/preproc: Process",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "a run of ! in a type position is one !"
  },
  {
@@ -374,7 +374,7 @@
   "kind": "preproc",
   "status": "pending-PR1",
   "site": "internal/preproc: Process",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "a run of ! in the target of a conversion"
  },
  {
@@ -383,7 +383,7 @@
   "kind": "fmt",
   "status": "enabled",
   "site": "internal/fmt: Format",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "baseline formatting of ! types"
  },
  {
@@ -392,7 +392,7 @@
   "kind": "fmt",
   "status": "enabled",
   "site": "internal/fmt: reinsertBangs",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "a conversion is formatted unchanged; holds today because the ! passes through go/format as plain text; PR 1 replaces that by a marker and a re-insertion, and must keep it true"
  },
  {
@@ -401,7 +401,7 @@
   "kind": "fmt",
   "status": "enabled",
   "site": "internal/fmt: reinsertBangs",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "redundant parentheses go; one layer is the canonical form; holds today because the ! passes through go/format as plain text; PR 1 replaces that by a marker and a re-insertion, and must keep it true"
  },
  {
@@ -410,7 +410,7 @@
   "kind": "fmt",
   "status": "pending-PR1",
   "site": "internal/fmt: Format",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "!!T is written !T"
  },
  {
@@ -419,7 +419,9 @@
   "kind": "check",
   "status": "enabled",
   "site": "internal/checker: nil literal (existing GN001)",
-  "diagnostic": "GN001",
+  "diagnostics": [
+   "GN001"
+  ],
   "note": "nil literal into a !T slot of five kinds"
  },
  {
@@ -428,7 +430,7 @@
   "kind": "check",
   "status": "enabled",
   "site": "internal/checker: isNonNilSource and construction forms",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "recognised sources are silent"
  },
  {
@@ -437,7 +439,9 @@
   "kind": "check",
   "status": "enabled",
   "site": "internal/checker: cannotSatisfyBangInterface (D3a, D3b, D3d)",
-  "diagnostic": "GN001",
+  "diagnostics": [
+   "GN001"
+  ],
   "note": "interface rules unchanged; not GW006"
  },
  {
@@ -446,7 +450,7 @@
   "kind": "check",
   "status": "enabled",
   "site": "internal/checker: isNonNilSource",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "an identical !I source is silent"
  },
  {
@@ -455,7 +459,9 @@
   "kind": "check",
   "status": "enabled",
   "site": "internal/checker: cannotSatisfyBangInterface (type parameter, D3b)",
-  "diagnostic": "GN001",
+  "diagnostics": [
+   "GN001"
+  ],
   "note": "OQ-2: D3b unchanged"
  },
  {
@@ -464,7 +470,10 @@
   "kind": "check",
   "status": "enabled",
   "site": "internal/checker: validateNonNilKind",
-  "diagnostic": "GN003",
+  "diagnostics": [
+   "GN001",
+   "GN003"
+  ],
   "note": "a constraint that is not nilable-only: GN003; the flow is also GN001 in v1.20.0"
  },
  {
@@ -473,7 +482,9 @@
   "kind": "check",
   "status": "enabled",
   "site": "internal/checker: validateNonNilKind",
-  "diagnostic": "GN003",
+  "diagnostics": [
+   "GN003"
+  ],
   "note": "a non-nilable target"
  },
  {
@@ -482,7 +493,7 @@
   "kind": "check",
   "status": "enabled",
   "site": "internal/checker: whole check",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "adder(!flag)(3) is valid Go and silent"
  },
  {
@@ -491,7 +502,9 @@
   "kind": "check",
   "status": "pending-PR2a",
   "site": "internal/checker: conversion recognition",
-  "diagnostic": "GN001",
+  "diagnostics": [
+   "GN001"
+  ],
   "note": "(!T)(nil)"
  },
  {
@@ -500,7 +513,9 @@
   "kind": "check",
   "status": "pending-PR2a",
   "site": "internal/checker: validateNonNilKind on the conversion target",
-  "diagnostic": "GN003",
+  "diagnostics": [
+   "GN003"
+  ],
   "note": "(!int)(x)"
  },
  {
@@ -509,7 +524,7 @@
   "kind": "check",
   "status": "pending-PR2a",
   "site": "internal/checker: isRecognisedSource",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "a conversion is a source, for five kinds"
  },
  {
@@ -518,7 +533,7 @@
   "kind": "check",
   "status": "pending-PR2a",
   "site": "internal/checker: flowOutcome",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "(!Reg)(m) states the contract on Reg"
  },
  {
@@ -527,7 +542,7 @@
   "kind": "check",
   "status": "pending-PR2a",
   "site": "internal/checker: flowOutcome",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "a conversion of a !T into a !T is the identity"
  },
  {
@@ -536,7 +551,7 @@
   "kind": "check",
   "status": "pending-PR2a",
   "site": "internal/checker: isNonNilSource (D3d via the conversion)",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "(!R)(rw)"
  },
  {
@@ -545,7 +560,7 @@
   "kind": "check",
   "status": "pending-PR2a",
   "site": "internal/checker: isRecognisedSource (type parameter)",
-  "diagnostic": "-",
+  "diagnostics": [],
   "note": "(!T)(x) on a type parameter"
  },
  {
@@ -554,7 +569,9 @@
   "kind": "check",
   "status": "pending-PR2b",
   "site": "internal/checker: flowOutcome (variable initialiser)",
-  "diagnostic": "GW006",
+  "diagnostics": [
+   "GW006"
+  ],
   "note": "five kinds"
  },
  {
@@ -563,7 +580,9 @@
   "kind": "check",
   "status": "pending-PR2b",
   "site": "internal/checker: flowOutcome (assignment, argument, return, field, element)",
-  "diagnostic": "GW006",
+  "diagnostics": [
+   "GW006"
+  ],
   "note": "every slot"
  },
  {
@@ -572,7 +591,9 @@
   "kind": "check",
   "status": "pending-PR2b",
   "site": "internal/checker: flowOutcome (types.Identical)",
-  "diagnostic": "GW006",
+  "diagnostics": [
+   "GW006"
+  ],
   "note": "a recognised source of another type"
  },
  {
@@ -581,7 +602,9 @@
   "kind": "check",
   "status": "pending-PR2b",
   "site": "internal/checker: isRecognisedSource",
-  "diagnostic": "GW006",
+  "diagnostics": [
+   "GW006"
+  ],
   "note": "map lookup, index, plain call, &x"
  },
  {
@@ -590,7 +613,9 @@
   "kind": "check",
   "status": "pending-PR2b",
   "site": "internal/checker: isRecognisedSource (Part B must not leak)",
-  "diagnostic": "GW006",
+  "diagnostics": [
+   "GW006"
+  ],
   "note": "append, slice expression, inferred local, a conversion that binds no local"
  }
 ]
