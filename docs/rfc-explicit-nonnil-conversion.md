@@ -651,8 +651,11 @@ non-nil conversion it performs no runtime check, and an ordinary conversion to
    sources, and it is not a way around D3b for ordinary type-parameter values. The
    target `T` stays restricted by the existing GN003 rule. The GN001 text "ordinary
    interface value" is misleading for a type parameter; correcting it is a separate
-   change with no change of semantics. Constraints that mix nilable kinds
-   (`~*A | ~[]int`) remain outside this decision. Normative example:
+   change with no change of semantics. For mixed nilable-kind
+   constraints such as `~*A | ~[]int`, this RFC makes **no new decision** under OQ-2.
+   The GN001 observed for `~*A | ~[]int` in §2.1 records the v1.20.0 checker
+   behaviour only; it is not a separate normative decision of this RFC, and this RFC
+   does not propose changing that existing behaviour. Normative example:
 
    ```go
    func f[T ~*A](x T) {
