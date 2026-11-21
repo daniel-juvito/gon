@@ -37,6 +37,34 @@ Architectural rule:
 
 Full scope contract: [docs/v1-scope.md](docs/v1-scope.md)
 
+## What each version added
+
+One line per minor version, newest first; patch releases are folded into the line of their minor version. The detail, with the cases and the exact messages, is in [CHANGELOG.md](CHANGELOG.md), and a few versions changed an exit code, a diagnostic or what is accepted, which can matter to a script or a CI job.
+
+| Version | What it added or changed |
+|---------|--------------------------|
+| [v1.20](CHANGELOG.md#1200--2026-11-21) | File mode and `gon build <dir>`: a malformed `//go:build` in a file operand is now **exit 1** (it was exit 0), and `gon build <dir>` with no module for the operand is **exit 2** before anything is written (it was exit 1 after writing the `.go` files). |
+| [v1.19](CHANGELOG.md#1190--2026-11-19) | Package mode: a malformed `//go:build` line is a source error of its package (the file is not checked, the others are, **exit 1**; it was exit 2), and names the go tool ignores are not part of the package. |
+| [v1.18](CHANGELOG.md#1180--2026-11-19) | Package mode outside a module: a directory with several `.gon` files is checked as one package (it was **exit 2**), and build constraints apply as inside a module. |
+| [v1.17](CHANGELOG.md#1170--2026-11-18) | File mode: when a `go.mod` is found but its module cannot be loaded, the run is **exit 2** with nothing checked or written (it used to fall back silently to the GOROOT/GOPATH importer). |
+| [v1.16](CHANGELOG.md#1160--2026-11-18) | Package discovery follows the go command: a `.gon` excluded by build constraints is not part of the package; `./...` stops at a nested module; `transpile`/`build` write only the files that were checked. |
+| [v1.15](CHANGELOG.md#1150--2026-11-17) | Exit codes of package loading follow Diagnostic Protocol v1 section 7: a package that cannot be loaded (no `go` command, invalid `go.mod`, a file excluded by build constraints) is **exit 2**, no longer exit 1. |
+| [v1.14](CHANGELOG.md#1140--2026-11-17) | Cross-package contracts from module-local `.gon` sources: a `!` on an exported declaration reaches the packages that import it, with no `.gna` to write for your own packages; adds GW005. Possibly breaking for an importer that contradicts an exported `!`. |
+| [v1.13](CHANGELOG.md#1130--2026-11-17) | The operands of a `return` are checked like any other expression, and a function literal is checked as a function (both were gaps). Possibly breaking for code that was silently accepted. |
+| [v1.12](CHANGELOG.md#1120--2026-11-16) | Directory form for `gon transpile` and `gon build`: a directory (or `./...`) is checked as one package and the `.go` files are written only if it passes; formatting runs in process with `go/format`. Additive. |
+| [v1.11](CHANGELOG.md#1110--2026-11-16) | Call-site contracts for source-declared methods: a `!` on a method's parameter or result is enforced at its callers (through `go/types` object identity). Possibly breaking for code that was silently accepted. |
+| [v1.10](CHANGELOG.md#1100--2026-11-15) | Package-aware checking: `gon check` / `gon vet` accept a directory or `./...` and check it as one package; contracts are shared across its files. Additive, except that `--json` on a file with a Go type error now exits 1. |
+| [v1.9](CHANGELOG.md#190--2026-11-14) | Generic `.gna`: explicit instantiation resolves like inference, and every `.gna` `!` flag is validated against the symbol's signature (an invalid flag is GN003 and only that flag is dropped). Possibly breaking, by design. Patches: 1.9.1 fixed release binaries failing outside a module (GOROOT); 1.9.2 fixed a method overwriting the contract of a same-named function. |
+| [v1.8](CHANGELOG.md#180--2026-11-14) | Generic semantics: contracts attach to declaration positions and survive instantiation; `!X` is valid on a type parameter only when its constraint restricts it to nilable kinds (otherwise GN003). Possibly breaking. Patch 1.8.1: the build minimum is Go 1.27.0 (generic methods). |
+| [v1.7](CHANGELOG.md#170--2026-09-07) | Element contracts: `[]!*T`, `[N]!*T`, `map[K]!*V`, `[]!I` are checked at the construction site (a construction-time obligation, not a lifetime invariant). Non-breaking. Patch 1.7.1: untyped local `var x = <expr>` initializers are now checked. |
+| [v1.6](CHANGELOG.md#160--2026-09-06) | Type coverage: `!` has one meaning on every nilable kind (`![]T`, `!map`, `!chan`, `!func`, named types); `var x !S` with no initializer is GN002 and `!` on a non-nilable type is GN003. Adds new rejections compared with v1.5. |
+| [v1.5](CHANGELOG.md#150--2026-09-06) | Ecosystem contracts: external `.gna` `types:` field contracts apply across the package boundary, and a `.gna` is validated against `go/types` (arity: GN003; unknown symbol: GW004). Possibly breaking in three narrow ways that surface defects that were silent. Patch 1.5.1: no more spurious `could not import` for module-local imports. |
+| [v1.4](CHANGELOG.md#140--2026-09-05) | Interface contracts: `!I` means the interface value is non-nil, never its dynamic value (D3a to D3d); the only new rejection is an ordinary interface value into `!I` (GN001). Patch 1.4.1: `gon fmt` no longer mis-places `!` when a type appears both as `!T` and `T`. |
+| [v1.3](CHANGELOG.md#130--2026-08-19) | Construction completeness (`new(T)`, unkeyed literals), diagnostic traces (`ContractTrace`), GW003, and the tools `gon fmt` and `gon lsp`. |
+| [v1.2](CHANGELOG.md#120--2026-08-17) | Field contracts: a `!T` field is an invariant of its storage (GN002 at construction, GN001 on assignment of `nil`, a non-nil source on selection), and the `.gna` `types:` section. Patch 1.2.1: `!` in multi-result function signatures is recognised. |
+| [v1.1](CHANGELOG.md#110--2026-08-17) | Return-value contracts: an annotated `!T` result position is a non-nil source at its immediate use site. |
+| [v1.0](CHANGELOG.md#100--2026-08-16) | First release: local non-flow-sensitive nilability checks (`!T`), external packages through `.gna` and `go/packages`, and conservative annotations for `io` and `os`. |
+
 ## Install
 
 ```bash
