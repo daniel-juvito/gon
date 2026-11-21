@@ -37,7 +37,7 @@ func TestAllOrNothingPatternLoadFailureAfterDiagnostics(t *testing.T) {
 	}
 	chdir(t, root)
 	exit, out, errOut := captureRun([]string{"check", "--json", "./..."})
-	if exit != 2 || out != "" || !strings.Contains(errOut, "gon: read b/b.gon") {
+	if exit != 2 || out != "" || !strings.Contains(errOut, "gon: read "+filepath.FromSlash("b/b.gon")) {
 		t.Fatalf("exit %d (want 2), stdout %q (want none)\n%s", exit, out, errOut)
 	}
 	if strings.Contains(errOut, "GN001") {
