@@ -160,7 +160,10 @@ func matchingParen(ct []tok, openIdx int) int {
 }
 
 // reinsertBangs inserts '!' into formatted immediately before every token that
-// was marked (by clean byte offset) in nonNil.
+// was marked (by clean byte offset) in nonNil. Every marked offset must be matched
+// to a token of the formatted stream and no formatted token may be left over;
+// otherwise the streams are not aligned and an error is returned, so a ! is never
+// dropped silently.
 func reinsertBangs(clean []byte, nonNil map[int]bool, formatted []byte) ([]byte, error) {
 	ct := significantTokens(clean)
 	ft := significantTokens(formatted)
@@ -222,8 +225,17 @@ func reinsertBangs(clean []byte, nonNil map[int]bool, formatted []byte) ([]byte,
 			}
 		}
 	}
+	for ; j < len(ft); j++ {
+		if ft[j].kind == token.COMMA {
+			continue
+		}
+		return nil, fmt.Errorf("cannot re-insert !: %d formatted tokens unmatched", len(ft)-j)
+	}
 	if len(insertAt) == 0 {
 		return nil, fmt.Errorf("cannot re-insert !: no marked token matched")
+	}
+	if len(insertAt) != len(nonNil) {
+		return nil, fmt.Errorf("cannot re-insert !: %d of %d marked tokens matched", len(insertAt), len(nonNil))
 	}
 
 	sort.Ints(insertAt)
