@@ -124,10 +124,12 @@ from an assigned one (§6.8); fixing it is part of this proposal and changes tod
 behaviour in the first two cases. No dependency was identified from the
 inventory; the compatibility impact was not measured separately.
 
-**Re-measurement M0–M4 (2026-11-21; instrument `g8measure` v2; `main` of `gon` c207b8c,
-`gon-examples` 8399eea, `gon-vscode` c90a39a; Gon v1.20.0 for the control runs).**
-The first instrument skipped single-call multi-value forms and did not separate new
-from existing identifiers explicitly; v2 corrects both (positional result mapping,
+**Re-measurement M0–M4 (2026-11-21; `main` of `gon` c207b8c, `gon-examples` 8399eea,
+`gon-vscode` c90a39a; Gon v1.20.0 for the control runs).** The measurements were
+produced using a temporary measurement instrument that is not included in this
+repository, so a reader cannot reproduce or inspect it from here. Its first version
+skipped single-call multi-value forms and did not separate new from existing
+identifiers explicitly; a second version corrects both (positional result mapping,
 `Defs` versus `Uses`) and was run again. Results, for the covered repositories and
 commits only:
 
@@ -157,7 +159,9 @@ commits only:
 
 Unchanged limits: `.gna` of external packages, generic instantiation, channel sends,
 `range` and embedded structs are not modelled; users outside the three repositories
-are not measured.
+are not measured. The instrument has not been validated universally: its results hold
+only for the three repositories and commits named above, and it does not cover every
+form of contract or value flow.
 
 **Baseline count.** On `gon`'s `main`, without any migration, the rules of §6.4,
 §6.6 and §6.8 (with the slice-expression rule C15) produce **11 GW006**, all in
