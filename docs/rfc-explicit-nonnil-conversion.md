@@ -275,7 +275,7 @@ no local is bound by inference, and `append` and slice expressions are not
 sources, until Part B is accepted. Part B builds on Part A (it adds sources to the
 same GW006 rule).
 
-**Measured effect of the split** (instrument `g8measure` v2 with the Part A rules,
+**Measured effect of the split** (the second version of the temporary instrument of §2.1, run with the Part A rules,
 same commits as §2.1): in `gon`'s production sources, Part A alone gives **10 GW006**
 (25 flows; the nine guard- or constructor-derived sites and `&cp`); Part A and
 Part B give 11 (47 flows; the one extra is `x = c.pkg.files`, which is a flow only
