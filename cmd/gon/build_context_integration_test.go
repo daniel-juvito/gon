@@ -204,7 +204,7 @@ func TestBuildDirInTheMainModuleIsUnchanged(t *testing.T) {
 	root := bcTree(t)
 	m := filepath.Join(root, "m")
 	exit, out, errOut := bcRun(t, m, "build", "./cmd/app")
-	if exit != 0 || !strings.Contains(out, "transpiled: cmd/app/main.go") || !strings.Contains(out, "built: ./cmd/app") || errOut != "" {
+	if exit != 0 || !strings.Contains(out, "transpiled: "+filepath.FromSlash("cmd/app/main.go")) || !strings.Contains(out, "built: ./cmd/app") || errOut != "" {
 		t.Fatalf("exit %d\nstdout %q\nstderr %q", exit, out, errOut)
 	}
 	if exit, out, errOut := bcRun(t, m, "build", "./..."); exit != 0 || !strings.Contains(out, "built: ./...") {
@@ -282,7 +282,7 @@ func TestBuildContextPreflightIsOnlyForDirectoryBuild(t *testing.T) {
 	}
 	_ = os.Remove(filepath.Join(free, "x", "main.go"))
 	_ = os.Remove(filepath.Join(free, "main"))
-	if exit, out, errOut := bcRun(t, free, "transpile", "./x"); exit != 0 || !strings.Contains(out, "transpiled: x/main.go") || errOut != "" {
+	if exit, out, errOut := bcRun(t, free, "transpile", "./x"); exit != 0 || !strings.Contains(out, "transpiled: "+filepath.FromSlash("x/main.go")) || errOut != "" {
 		t.Fatalf("transpile: exit %d\nstdout %q\nstderr %q", exit, out, errOut)
 	}
 }
