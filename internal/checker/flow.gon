@@ -30,30 +30,36 @@ func (c *Checker) flowOutcome(expr ast.Expr, slot types.Type) (bool, types.Type)
 	if isNilIdent(unparenExpr(expr)) {
 		return false, nil
 	}
-	if !nilableNonInterfaceKind(slot) {
-		return false, nil
-	}
 	src := c.staticTypeOf(expr)
 	if src == nil {
 		return false, nil
 	}
-	switch t := src.(type) {
-	case *types.Tuple:
-		return false, nil // a multi-value call is positional; it is not one value
-	case *types.Basic:
-		if t.Kind() == types.UntypedNil {
-			return false, nil
-		}
+	if _, isTuple := src.(*types.Tuple); isTuple {
+		return false, nil // a multi-value call is positional: see reportTupleFlows
 	}
-	if c.isRecognisedSource(expr) {
+	return c.flowDecision(src, c.isRecognisedSource(expr), slot), src
+}
+
+// flowDecision is the matrix of RFC section 6.4 for one value of static type
+// src, known to be a recognised non-nil source or not, flowing into a slot of
+// Go type slot. It is shared by a single expression and by one result of a
+// multi-value call.
+func (c *Checker) flowDecision(src types.Type, recognised bool, slot types.Type) bool {
+	if src == nil || slot == nil || !nilableNonInterfaceKind(slot) {
+		return false
+	}
+	if b, ok := src.(*types.Basic); ok && b.Kind() == types.UntypedNil {
+		return false
+	}
+	if recognised {
 		// A slot that still mentions a type parameter cannot be compared with
 		// the instantiated type of the value; identity is then not decidable
 		// here and a recognised source is accepted.
 		if types.Identical(src, slot) || mentionsTypeParam(slot) {
-			return false, nil
+			return false
 		}
 	}
-	return true, src
+	return true
 }
 
 // nilableNonInterfaceKind reports whether t is a pointer, slice, map, channel or
@@ -270,4 +276,53 @@ func minInt(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// reportTupleFlows is the positional form of reportOrdinaryFlow for a call whose
+// results flow into several slots at once: `a, b = f()`, `var a, b !T = f()`,
+// `return f()` and `g(f())`. slots[i] is the Go type of the `!` slot that receives
+// result i, or nil when that result goes to no `!` slot. A result is a recognised
+// source exactly when its position in the contract of the callee is `!T`.
+func (c *Checker) reportTupleFlows(call *ast.CallExpr, slots []types.Type) {
+	if c.info == nil || call == nil {
+		return
+	}
+	tup, ok := c.staticTypeOf(call).(*types.Tuple)
+	if !ok {
+		return
+	}
+	results := c.resolveCallResults(call.Fun)
+	for i := 0; i < tup.Len() && i < len(slots); i++ {
+		if slots[i] == nil {
+			continue
+		}
+		src := tup.At(i).Type()
+		recognised := i < len(results) && results[i]
+		if c.flowDecision(src, recognised, slots[i]) {
+			c.addWarning(call.Pos(), "GW006", fmt.Sprintf(
+				"non-nil contract: value of type %s does not satisfy !%s; use (!%s)(x) to make an explicit claim",
+				c.typeString(src), c.typeString(slots[i]), c.typeString(slots[i])))
+		}
+	}
+}
+
+// assignSlotType returns the Go type of the `!` slot an assignment target names
+// (a variable declared or bound `!`, or a `!` field), and nil for anything else.
+func (c *Checker) assignSlotType(lhs ast.Expr) types.Type {
+	switch x := unparenExpr(lhs).(type) {
+	case *ast.Ident:
+		if x.Name == "_" || c.info == nil {
+			return nil
+		}
+		if nn, exists := c.lookup(x.Name); exists && nn {
+			if obj := c.info.ObjectOf(x); obj != nil {
+				return obj.Type()
+			}
+		}
+	case *ast.SelectorExpr:
+		if c.selectorFieldIsNonNil(x) {
+			return c.selectorFieldType(x)
+		}
+	}
+	return nil
 }

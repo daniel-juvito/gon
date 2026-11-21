@@ -521,3 +521,49 @@ func f(q *T) {
 -- GW-P-01/want --
 8 GW006
 11 GW006
+-- GW-M-01/src --
+package p
+
+type T struct{}
+
+func get() (*T, *T) { return &T{}, &T{} }
+
+func mk() (!*T, *T) { return &T{}, &T{} }
+
+func mk2() *T { return &T{} }
+
+func take(a, b !*T) {}
+
+func ret() (!*T, !*T) {
+	return get()
+}
+
+func ret2() (!*T, *T) {
+	return mk()
+}
+
+func assign(x, y !*T) {
+	x, y = get()
+	x, y = mk()
+}
+
+func f() {
+	var a, b !*T = mk2(), mk2()
+	var c, d !*T = get()
+	take(get())
+	take(mk())
+	_, _, _, _ = a, b, c, d
+}
+-- GW-M-01/want --
+14 GW006
+14 GW006
+22 GW006
+22 GW006
+23 GW006
+27 GW006
+27 GW006
+28 GW006
+28 GW006
+29 GW006
+29 GW006
+30 GW006

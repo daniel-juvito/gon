@@ -762,5 +762,16 @@
    "GW006"
   ],
   "note": "parentheses never change recognition"
+ },
+ {
+  "id": "GW-M-01",
+  "rfc": "§6.6",
+  "kind": "check",
+  "status": "enabled",
+  "site": "internal/checker: reportTupleFlows (flowDecision per result position)",
+  "diagnostics": [
+   "GW006"
+  ],
+  "note": "a multi-value call into several slots: return f(), a, b = f(), var a, b !T = f(), g(f()); a result that is !T is a source"
  }
 ]

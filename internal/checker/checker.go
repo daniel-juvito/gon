@@ -301,6 +301,15 @@ func (c *Checker) registerPackageVars() {
 					}
 				}
 			}
+			if nn && len(vs.Names) > 1 && len(vs.Values) == 1 {
+				if call, ok := unparenExpr(vs.Values[0]).(*ast.CallExpr); ok {
+					slots := make([]types.Type, len(vs.Names))
+					for i := range slots {
+						slots[i] = c.staticTypeOf(vs.Type)
+					}
+					c.reportTupleFlows(call, slots)
+				}
+			}
 			if vs.Type != nil && len(vs.Values) == 0 {
 				c.reportMissingNonNilFields(vs.Type.Pos(), vs.Type, nil, "")
 				if nn {
@@ -534,6 +543,15 @@ func (c *Checker) checkLocalVarDecl(d *ast.GenDecl) {
 					c.reportZeroValueNilableVar(vs.Names, vs.Type)
 				}
 			}
+			if nn && len(vs.Names) > 1 && len(vs.Values) == 1 {
+				if call, ok := unparenExpr(vs.Values[0]).(*ast.CallExpr); ok {
+					slots := make([]types.Type, len(vs.Names))
+					for i := range slots {
+						slots[i] = c.staticTypeOf(vs.Type)
+					}
+					c.reportTupleFlows(call, slots)
+				}
+			}
 			for _, val := range vs.Values {
 				c.checkExpr(val)
 			}
@@ -572,6 +590,16 @@ func (c *Checker) checkLocalVarDecl(d *ast.GenDecl) {
 }
 
 func (c *Checker) checkAssignStmt(assign *ast.AssignStmt) {
+	// `a, b = f()`: the results of one call flow into several slots, by position.
+	if len(assign.Rhs) == 1 && len(assign.Lhs) > 1 && assign.Tok != token.DEFINE {
+		if call, ok := unparenExpr(assign.Rhs[0]).(*ast.CallExpr); ok {
+			slots := make([]types.Type, len(assign.Lhs))
+			for i, lhs := range assign.Lhs {
+				slots[i] = c.assignSlotType(lhs)
+			}
+			c.reportTupleFlows(call, slots)
+		}
+	}
 	for i, lhs := range assign.Lhs {
 		if i >= len(assign.Rhs) {
 			break
@@ -664,6 +692,18 @@ func (c *Checker) defineFromCallResults(assign *ast.AssignStmt) {
 }
 
 func (c *Checker) checkReturnStmt(ret *ast.ReturnStmt) {
+	// `return f()`: the results of one call flow into the results of this function.
+	if len(ret.Results) == 1 && len(c.currentFuncReturns) > 1 {
+		if call, ok := unparenExpr(ret.Results[0]).(*ast.CallExpr); ok {
+			slots := make([]types.Type, len(c.currentFuncReturns))
+			for i := range slots {
+				if c.currentFuncReturns[i] && i < len(c.currentFuncResultTypes) {
+					slots[i] = c.currentFuncResultTypes[i]
+				}
+			}
+			c.reportTupleFlows(call, slots)
+		}
+	}
 	for i, result := range ret.Results {
 		if i >= len(c.currentFuncReturns) || !c.currentFuncReturns[i] {
 			continue
@@ -705,6 +745,20 @@ func (c *Checker) checkCallExpr(call *ast.CallExpr) {
 	if sel, ok := call.Fun.(*ast.SelectorExpr); ok && c.info != nil {
 		if s, found := c.info.Selections[sel]; found && s.Kind() == types.MethodExpr {
 			argOffset = 1
+		}
+	}
+	// `g(f())`: the results of one call are the arguments of another, by position.
+	if len(call.Args) == 1 {
+		if inner, ok := unparenExpr(call.Args[0]).(*ast.CallExpr); ok {
+			if tup, isTuple := c.staticTypeOf(inner).(*types.Tuple); isTuple && tup.Len() > 1 {
+				slots := make([]types.Type, tup.Len())
+				for pi := range slots {
+					if pi < len(params) && params[pi] && !c.declaredParamIsTypeParam(call.Fun, pi) {
+						slots[pi] = c.callArgParamType(call.Fun, pi)
+					}
+				}
+				c.reportTupleFlows(inner, slots)
+			}
 		}
 	}
 	for i, arg := range call.Args {
