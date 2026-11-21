@@ -244,3 +244,37 @@ func f() {
 	a := (‹!›*A)(x)
 	b := (‹!›[]int)(x)
 }
+-- SYN-BANG-03/src --
+package p
+
+var a ! *int
+var b !  []T
+
+func f(p ! *int) ! *int { return nil }
+-- SYN-BANG-03/want --
+package p
+
+var a  ‹!›*int
+var b   ‹!›[]T
+
+func f(p  ‹!›*int)  ‹!›*int { return nil }
+-- SYN-BANG-04/src --
+package p
+
+var c ! /* c */ *int
+var d ! !*int
+
+func f() {
+	v := (! *N)(x)
+	w := ( ! ( *N ) )(x)
+}
+-- SYN-BANG-04/want --
+package p
+
+var c  /* c */ ‹!›*int
+var d  ‹!›*int
+
+func f() {
+	v := ( ‹!›*N)(x)
+	w := (  ‹!›( *N ) )(x)
+}

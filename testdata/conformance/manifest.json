@@ -617,5 +617,44 @@
    "GW006"
   ],
   "note": "append, slice expression, inferred local, a conversion that binds no local"
+ },
+ {
+  "id": "SYN-BANG-03",
+  "rfc": "§6.7",
+  "kind": "preproc",
+  "status": "enabled",
+  "site": "internal/preproc: Process (offset at the first token after the !)",
+  "diagnostics": [],
+  "note": "a space between the ! and the type: the offset is the start of the type, not the space"
+ },
+ {
+  "id": "SYN-BANG-04",
+  "rfc": "§6.7",
+  "kind": "preproc",
+  "status": "enabled",
+  "site": "internal/preproc: Process (offset at the first token after the !)",
+  "diagnostics": [],
+  "note": "a comment, a run of ! with spaces and a conversion target with spaces"
+ },
+ {
+  "id": "FMT-04",
+  "rfc": "§6.7",
+  "kind": "fmt",
+  "status": "enabled",
+  "site": "internal/fmt: Format",
+  "diagnostics": [],
+  "note": "! *T is written !*T, none of the marks is dropped"
+ },
+ {
+  "id": "CHK-BANG-01",
+  "rfc": "§6.7",
+  "kind": "check",
+  "status": "enabled",
+  "site": "internal/preproc: offset read by the checker",
+  "diagnostics": [
+   "GN001",
+   "GN002"
+  ],
+  "note": "the contract of ! *T is enforced like that of !*T (it was silently lost)"
  }
 ]

@@ -323,3 +323,16 @@ func f(s []int, q *T) {
 9 GW006
 11 GW006
 13 GW006
+-- CHK-BANG-01/src --
+package p
+
+var y ! *int
+
+func g(p ! *int) {}
+
+func f() {
+	g(nil)
+}
+-- CHK-BANG-01/want --
+3 GN002
+8 GN001

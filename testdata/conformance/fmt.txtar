@@ -51,3 +51,25 @@ var x !!*int
 package p
 
 var x !*int
+-- FMT-04/src --
+package p
+
+var y ! *int = new(int)
+var z !*int = new(int)
+var c ! /* c */ *int = new(int)
+
+func f(x *N) {
+	v := (! *N)(x)
+	_ = v
+}
+-- FMT-04/want --
+package p
+
+var y !*int = new(int)
+var z !*int = new(int)
+var c /* c */ !*int = new(int)
+
+func f(x *N) {
+	v := (!*N)(x)
+	_ = v
+}

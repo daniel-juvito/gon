@@ -431,17 +431,14 @@ func TestReinsertBangsLeftoverFormattedToken(t *testing.T) {
 	}
 }
 
-// A ! written before a space (var y ! *int) is stripped with an offset that is
-// not the start of a token. On main, gon fmt then dropped that ! without a word
-// whenever another ! in the file matched. It is an error now.
-func TestFormatSpacedBangIsAnErrorNotADrop(t *testing.T) {
+// A ! written before a space (var y ! *int) used to be stripped with an offset
+// that was not the start of a token: gon fmt dropped that ! whenever another !
+// in the file matched (#70 made it an error). The offset is now the start of the
+// type, so the form is formatted like !*int and no mark is lost.
+func TestFormatSpacedBangKeepsTheMark(t *testing.T) {
 	src := "package p\n\nvar y ! *int = new(int)\nvar z !*int = new(int)\n"
-	if out, err := Format("t.gon", []byte(src)); err == nil {
-		t.Fatalf("expected an error, got\n%s", out)
-	}
-	// With the space removed the same file formats and keeps both marks.
-	ok := "package p\n\nvar y !*int = new(int)\nvar z !*int = new(int)\n"
-	if got := mustFormat(t, ok); got != ok {
-		t.Fatalf("got\n%s\nwant\n%s", got, ok)
+	want := "package p\n\nvar y !*int = new(int)\nvar z !*int = new(int)\n"
+	if got := mustFormat(t, src); got != want {
+		t.Fatalf("got\n%s\nwant\n%s", got, want)
 	}
 }
