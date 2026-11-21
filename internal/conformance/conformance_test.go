@@ -11,6 +11,7 @@ import (
 	"go/types"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -461,4 +462,37 @@ func sortedKeys(m map[string]bool) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+var wantLine = regexp.MustCompile(`^([1-9][0-9]*) (GN|GW)[0-9]{3}$`)
+
+// TestCheckWantLinesAreWellFormed makes the want part of a checker fixture strict:
+// every non-blank line is "LINE CODE", with a code of the form GNnnn or GWnnn, and
+// LINE is a line of src that holds something. A malformed line is an error and is
+// not skipped, so a pending fixture cannot hide a typo in what it expects.
+func TestCheckWantLinesAreWellFormed(t *testing.T) {
+	fx := loadFixtures(t)
+	for _, e := range loadManifest(t) {
+		if e.Kind != "check" {
+			continue
+		}
+		t.Run(e.ID, func(t *testing.T) {
+			src := strings.Split(fx[e.ID]["src"], "\n")
+			for i, l := range strings.Split(fx[e.ID]["want"], "\n") {
+				l = strings.TrimSpace(l)
+				if l == "" {
+					continue
+				}
+				m := wantLine.FindStringSubmatch(l)
+				if m == nil {
+					t.Errorf("want line %d %q is not \"LINE CODE\" with a code GNnnn or GWnnn", i+1, l)
+					continue
+				}
+				n, _ := strconv.Atoi(m[1])
+				if n > len(src) || strings.TrimSpace(src[n-1]) == "" {
+					t.Errorf("want line %d %q: src line %d does not exist or is blank", i+1, l, n)
+				}
+			}
+		})
+	}
 }
