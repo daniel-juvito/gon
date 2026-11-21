@@ -358,7 +358,7 @@ func TestDefaultChainOrder(t *testing.T) {
 		t.Fatalf("first resolver = %#v, want the source resolver", c.Resolvers[0])
 	}
 	dir, ok := c.Resolvers[1].(*DirResolver)
-	if !ok || dir.Root != "/work/annotations" {
+	if !ok || dir.Root != filepath.Join("/work", "annotations") {
 		t.Fatalf("second resolver = %#v, want the ./annotations directory", c.Resolvers[1])
 	}
 	mod, ok := c.Resolvers[2].(*ModuleResolver)
