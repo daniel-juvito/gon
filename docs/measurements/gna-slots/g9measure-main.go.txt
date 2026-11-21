@@ -778,7 +778,12 @@ func main() {
 		fmt.Fprintln(os.Stderr, "gna:", err)
 		os.Exit(1) // a partial registry would give partial counts
 	}
-	if _, err := os.Stat(filepath.Join(root, "annotations")); err == nil && os.Getenv("G9_NOGNA") == "" {
+	_, statErr := os.Stat(filepath.Join(root, "annotations"))
+	if os.Getenv("G9_NOGNA") == "" && statErr != nil && !os.IsNotExist(statErr) {
+		fmt.Fprintln(os.Stderr, "gna:", statErr) // not "absent": unreadable or broken
+		os.Exit(1)
+	}
+	if statErr == nil && os.Getenv("G9_NOGNA") == "" {
 		walkErr := filepath.Walk(filepath.Join(root, "annotations"), func(p string, fi os.FileInfo, err error) error {
 			if err != nil {
 				return err // a directory that cannot be read must not be skipped

@@ -64,7 +64,8 @@ GW006 sites, by module, with and without the `.gna` model:
 | gon-examples/generic-gna | **4** | 0 | **2** | 0 |
 | gon-vscode/fixtures/genericgna | **4** | 0 | **2** | 0 |
 | gon-vscode/fixtures/ecosystem | 0 | 0 | 0 | 0 |
-| every other module | 0 | 0 | 0 | 0 |
+| gon-examples/package-check, source-contracts, transpile-dir; gon-vscode/fixtures/sourcecontracts | 0 | 0 | 0 | 0 |
+| 14 single-file modules of gon-examples (see "Coverage") | **not measured** | | | |
 
 New sites that exist only because `.gna` is modelled (every one is a flow into a `.gna` slot):
 
@@ -150,3 +151,20 @@ directory) for the five modules of the control table. The GW001 count of each fi
   through an embedded struct or a type alias are not resolved safely by this approach. I did not check whether any of
   the measured `.gna` fields is reached that way, so this is a limit of the instrument and one more reason the
   counts hold for the covered modules only.
+
+## Coverage (corrected)
+
+Twenty-three directories were given to the instrument. **Nine were measured**: `gon`; the five modules of
+`gon-examples` that have a `go.mod` (`ecosystem-contracts`, `generic-gna`, `package-check`, `source-contracts`,
+`transpile-dir`); and the three subdirectories of `gon-vscode/fixtures` (`ecosystem`, `genericgna`,
+`sourcecontracts`). **Fourteen were not measured**: the single-file demos of `gon-examples` (`cli`,
+`construction`, `element-contracts`, `field-contracts`, `flow-ok`, `generics`, `hello`, `interface-contracts`,
+`method-contracts`, `reject-nil`, `return-contracts`, `return-value`, `struct-fields`, `type-coverage`) have no
+`go.mod`, so the package loader fails (`cannot find main module`) and the instrument prints that error instead
+of a result. **56 of the 92 files in `raw/` are that error** (14 modules x 4 runs); the other 36 are results.
+An earlier version of this report listed these modules under "every other module: 0", which was wrong: they
+produced no number. None of the 14 has a `.gna` file or an `annotations/` directory, so the `.gna` model cannot
+change them, and the five RFC "modules" of `gon-examples` are the five that were measured. The loose `.gon`
+files directly under `gon-vscode/fixtures` were not given to the instrument either. The conclusion of section
+4 (no unexplained difference for the `.gna` slots) concerns the nine measured directories and the five
+that carry a `.gna` file; it says nothing about flows in the unmeasured demos, which are outside plan section 5.
