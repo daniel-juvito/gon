@@ -215,7 +215,7 @@ func TestNamesTheGoToolIgnoresInModule(t *testing.T) {
 	exit, out, errOut := captureRun([]string{"transpile", "./p"})
 	wantErr := "gon: p/.y.gon not transpiled: excluded by build constraints\n" +
 		"gon: p/_x.gon not transpiled: excluded by build constraints\n"
-	if exit != 0 || out != "transpiled: p/a.go\n" || errOut != wantErr {
+	if exit != 0 || out != "transpiled: "+filepath.FromSlash("p/a.go")+"\n" || errOut != wantErr {
 		t.Fatalf("transpile: exit %d, stdout %q\nstderr %q", exit, out, errOut)
 	}
 	if exists(filepath.Join(root, "p", "_x.go")) || exists(filepath.Join(root, "p", ".y.go")) {

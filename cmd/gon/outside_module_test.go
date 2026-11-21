@@ -202,7 +202,7 @@ func TestOutsideModuleTranspileUsesTheSameFiles(t *testing.T) {
 		"fail/b.gon":     "package fail\n\nfunc use() { Take(nil) }\n",
 	})
 	exit, out, errOut := captureRun([]string{"transpile", "./tp"})
-	if exit != 0 || out != "transpiled: tp/a.go\ntranspiled: tp/b.go\n" || errOut != "gon: tp/c_plan9.gon not transpiled: excluded by build constraints\n" {
+	if exit != 0 || out != "transpiled: "+filepath.FromSlash("tp/a.go")+"\ntranspiled: "+filepath.FromSlash("tp/b.go")+"\n" || errOut != "gon: tp/c_plan9.gon not transpiled: excluded by build constraints\n" {
 		t.Fatalf("exit %d\nstdout %q\nstderr %q", exit, out, errOut)
 	}
 	if exists(filepath.Join(root, "tp", "c_plan9.go")) {

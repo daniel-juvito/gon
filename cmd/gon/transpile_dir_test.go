@@ -377,7 +377,7 @@ func TestTranspileDirSkipsExcludedFiles(t *testing.T) {
 	exit, out, errOut := captureRun([]string{"transpile", "./p"})
 	wantErr := "gon: p/b_plan9.gon not transpiled: excluded by build constraints\n" +
 		"gon: p/" + c + ".gon not transpiled: excluded by build constraints\n"
-	if exit != 0 || errOut != wantErr || !strings.Contains(out, "transpiled: p/a.go") {
+	if exit != 0 || errOut != wantErr || !strings.Contains(out, "transpiled: "+filepath.FromSlash("p/a.go")) {
 		t.Fatalf("exit %d\nstdout: %s\nstderr: %q\nwant:   %q", exit, out, errOut, wantErr)
 	}
 	if !exists(filepath.Join(root, "p", "a.go")) {
@@ -425,7 +425,7 @@ func TestEmitDirNoSourceInTheBuild(t *testing.T) {
 	})
 	chdir(t, root)
 	exit, out, errOut := captureRun([]string{"transpile", "./..."})
-	if exit != 0 || errOut != "" || !strings.Contains(out, "transpiled: q/q.go") || exists(filepath.Join(root, "p", "a.go")) {
+	if exit != 0 || errOut != "" || !strings.Contains(out, "transpiled: "+filepath.FromSlash("q/q.go")) || exists(filepath.Join(root, "p", "a.go")) {
 		t.Fatalf("pattern: exit %d\nstdout: %s\nstderr: %s", exit, out, errOut)
 	}
 	if err := os.Remove(filepath.Join(root, "q", "q.gon")); err != nil {
