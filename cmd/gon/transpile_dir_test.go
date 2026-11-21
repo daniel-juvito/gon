@@ -364,17 +364,20 @@ func TestTranspileDirFailedRenameLeavesNoTemporaries(t *testing.T) {
 // .gon is named on stderr (in file order), and its .go is neither written nor
 // overwritten nor removed.
 func TestTranspileDirSkipsExcludedFiles(t *testing.T) {
+	// c_<os> is named for windows, so it is left out of the build on every OS
+	// but Windows, where the name is another OS's (b_plan9 stays as it is).
+	c := "c_" + otherThan("windows")
 	root := pkgModule(t, map[string]string{
 		"p/a.gon":         "package p\n\nfunc F() {}\n",
 		"p/b_plan9.gon":   "package p\n\nfunc P() {}\n",
-		"p/c_windows.gon": "package p\n\nfunc W() {}\n",
-		"p/c_windows.go":  "// hand-written, must survive\npackage p\n",
+		"p/" + c + ".gon": "package p\n\nfunc W() {}\n",
+		"p/" + c + ".go":  "// hand-written, must survive\npackage p\n",
 	})
 	chdir(t, root)
 	exit, out, errOut := captureRun([]string{"transpile", "./p"})
 	wantErr := "gon: p/b_plan9.gon not transpiled: excluded by build constraints\n" +
-		"gon: p/c_windows.gon not transpiled: excluded by build constraints\n"
-	if exit != 0 || errOut != wantErr || !strings.Contains(out, "transpiled: p/a.go") {
+		"gon: p/" + c + ".gon not transpiled: excluded by build constraints\n"
+	if exit != 0 || errOut != wantErr || !strings.Contains(out, "transpiled: "+filepath.FromSlash("p/a.go")) {
 		t.Fatalf("exit %d\nstdout: %s\nstderr: %q\nwant:   %q", exit, out, errOut, wantErr)
 	}
 	if !exists(filepath.Join(root, "p", "a.go")) {
@@ -383,8 +386,8 @@ func TestTranspileDirSkipsExcludedFiles(t *testing.T) {
 	if exists(filepath.Join(root, "p", "b_plan9.go")) {
 		t.Fatal("b_plan9.go must not be written")
 	}
-	if got := readFile(t, filepath.Join(root, "p", "c_windows.go")); got != "// hand-written, must survive\npackage p\n" {
-		t.Fatalf("c_windows.go changed: %q", got)
+	if got := readFile(t, filepath.Join(root, "p", c+".go")); got != "// hand-written, must survive\npackage p\n" {
+		t.Fatalf("%s.go changed: %q", c, got)
 	}
 }
 
@@ -411,7 +414,7 @@ func TestEmitDirNoSourceInTheBuild(t *testing.T) {
 			root := pkgModule(t, map[string]string{"p/a.gon": "//go:build ignore\n\npackage p\n"})
 			chdir(t, root)
 			exit, _, errOut := captureRun([]string{cmd, "./p"})
-			if exit != 2 || errOut != "gon: build constraints exclude all Go files in ./p (.gon files: p/a.gon)\n" || exists(filepath.Join(root, "p", "a.go")) {
+			if exit != 2 || errOut != "gon: build constraints exclude all Go files in ./p (.gon files: "+filepath.FromSlash("p/a.gon")+")\n" || exists(filepath.Join(root, "p", "a.go")) {
 				t.Fatalf("exit %d\n%q", exit, errOut)
 			}
 		})
@@ -422,7 +425,7 @@ func TestEmitDirNoSourceInTheBuild(t *testing.T) {
 	})
 	chdir(t, root)
 	exit, out, errOut := captureRun([]string{"transpile", "./..."})
-	if exit != 0 || errOut != "" || !strings.Contains(out, "transpiled: q/q.go") || exists(filepath.Join(root, "p", "a.go")) {
+	if exit != 0 || errOut != "" || !strings.Contains(out, "transpiled: "+filepath.FromSlash("q/q.go")) || exists(filepath.Join(root, "p", "a.go")) {
 		t.Fatalf("pattern: exit %d\nstdout: %s\nstderr: %s", exit, out, errOut)
 	}
 	if err := os.Remove(filepath.Join(root, "q", "q.gon")); err != nil {

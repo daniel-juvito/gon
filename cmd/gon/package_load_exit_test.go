@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -49,7 +50,34 @@ func TestCheckExcludedFileIsSkippedWhateverTheOrder(t *testing.T) {
 		if len(env.Diagnostics) != 1 || env.Diagnostics[0].Code != "GN001" || filepath.Base(env.Diagnostics[0].File) != tc.checked {
 			t.Fatalf("%s: want one GN001 in %s, got %+v", tc.name, tc.checked, env.Diagnostics)
 		}
-		results = append(results, strings.ReplaceAll(strings.ReplaceAll(out, root, "<root>"), tc.checked, "<checked>"))
+		// Compare the decoded values, not the raw JSON: JSON escapes the
+		// backslashes of a Windows path, so replacing the directory in the text
+		// would miss them. The path is made relative to the directory of this
+		// iteration, with the checked file's name blanked.
+		// Both sides are resolved first: the directory can be a symlink (macOS
+		// /var is /private/var) while the diagnostic names the real path.
+		realRoot := root
+		if r, err := filepath.EvalSymlinks(root); err == nil {
+			realRoot = r
+		}
+		norm := env
+		norm.Diagnostics = append([]protocolDiagnostic(nil), env.Diagnostics...)
+		for i := range norm.Diagnostics {
+			file := norm.Diagnostics[i].File
+			if f, err := filepath.EvalSymlinks(file); err == nil {
+				file = f
+			}
+			rel, err := filepath.Rel(realRoot, file)
+			if err != nil {
+				t.Fatalf("%s: %v", tc.name, err)
+			}
+			norm.Diagnostics[i].File = strings.ReplaceAll(filepath.ToSlash(rel), tc.checked, "<checked>")
+		}
+		normJSON, err := json.Marshal(norm)
+		if err != nil {
+			t.Fatal(err)
+		}
+		results = append(results, string(normJSON))
 		for _, args := range [][]string{{"check", "./p"}, {"vet", "--json", "./p"}} {
 			if exit, _, errOut := captureRun(args); exit != 1 || strings.Contains(errOut, "excluded") {
 				t.Fatalf("%s %v: exit %d (want 1)\n%s", tc.name, args, exit, errOut)
@@ -78,7 +106,7 @@ func TestCheckAllSourcesExcludedIsExit2(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			root := pkgModule(t, tc.files)
 			chdir(t, root)
-			want := "gon: build constraints exclude all Go files in ./p (.gon files: " + tc.want + ")\n"
+			want := "gon: build constraints exclude all Go files in ./p (.gon files: " + filepath.FromSlash(tc.want) + ")\n"
 			for _, args := range [][]string{{"check", "--json", "./p"}, {"check", "./p"}, {"vet", "--json", "./p"}} {
 				exit, out, errOut := captureRun(args)
 				if exit != 2 || out != "" || errOut != want {
@@ -214,7 +242,7 @@ func TestEmitDirLoadFailureIsExit2(t *testing.T) {
 		files map[string]string
 		want  string
 	}{
-		{"S3 no source in the build", map[string]string{"p/a.gon": exitIgnored}, "build constraints exclude all Go files in ./p (.gon files: p/a.gon)"},
+		{"S3 no source in the build", map[string]string{"p/a.gon": exitIgnored}, "build constraints exclude all Go files in ./p (.gon files: " + filepath.FromSlash("p/a.gon") + ")"},
 		{"R12 broken go.mod", map[string]string{"go.mod": "garbage\n", "p/a.gon": exitOK}, "errors parsing go.mod"},
 	} {
 		for _, cmd := range []string{"transpile", "build"} {

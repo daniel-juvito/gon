@@ -61,13 +61,14 @@ func TestPackageExcludedFileIsSkippedWhateverTheOrder(t *testing.T) {
 // D1a / D1f: no source of the package is in the build. Every .gon is named,
 // sorted, whatever the order they were given in.
 func TestPackageAllSourcesExcludedIsExcludedError(t *testing.T) {
-	dir := pkgDir(t, map[string]string{"c.gon": loadIgnored, "a_windows.gon": loadOK, "b.gon": loadIgnoredGN001})
-	_, err := checkPkg(t, dir, "c.gon", "b.gon", "a_windows.gon")
+	osSuffixed := "a_" + otherThan("windows") + ".gon" // sorts before b.gon whatever the OS
+	dir := pkgDir(t, map[string]string{"c.gon": loadIgnored, osSuffixed: loadOK, "b.gon": loadIgnoredGN001})
+	_, err := checkPkg(t, dir, "c.gon", "b.gon", osSuffixed)
 	var ex *ExcludedError
 	if !errors.As(err, &ex) {
 		t.Fatalf("want *ExcludedError, got %v", err)
 	}
-	want := []string{filepath.Join(dir, "a_windows.gon"), filepath.Join(dir, "b.gon"), filepath.Join(dir, "c.gon")}
+	want := []string{filepath.Join(dir, osSuffixed), filepath.Join(dir, "b.gon"), filepath.Join(dir, "c.gon")}
 	if strings.Join(ex.Files, "|") != strings.Join(want, "|") {
 		t.Fatalf("files %v, want %v", ex.Files, want)
 	}
@@ -100,11 +101,11 @@ func TestPackageWithOnlyExcludedGonButGoFilesIsChecked(t *testing.T) {
 // file in one directory. Only the included .gon is checked.
 func TestPackageMembershipMapsOverlaysToTheirGon(t *testing.T) {
 	dir := pkgDir(t, map[string]string{
-		"a.gon":        loadGN001,
-		"b.go":         "package main\n\nfunc helper() {}\n",
-		"c.gon":        loadIgnoredGN001,
-		"d_windows.go": "package main\n\nfunc win() {}\n",
-		"e_plan9.gon":  "package main\n\nfunc g() !*int {\n\treturn nil\n}\n",
+		"a.gon":                             loadGN001,
+		"b.go":                              "package main\n\nfunc helper() {}\n",
+		"c.gon":                             loadIgnoredGN001,
+		"d_" + otherThan("windows") + ".go": "package main\n\nfunc win() {}\n",
+		"e_plan9.gon":                       "package main\n\nfunc g() !*int {\n\treturn nil\n}\n",
 	})
 	res, err := checkPkg(t, dir, "e_plan9.gon", "c.gon", "a.gon")
 	if err != nil {
