@@ -74,8 +74,8 @@ the `main` sources of `gon`, `gon-examples` and `gon-vscode`:
 | Scope | Flows into `!T` | Already a recognised source | Needing classification |
 |-------|-----------------|-----------------------------|------------------------|
 | gon, production `.gon` | 25 (47 with §6.8) | 15 (36) | 10 (11 with §6.8 and C15: the 10 plus `x = c.pkg.files`; 9 of the 10 from guards and external constructors, plus `&cp`, see the `&x` note in §4) |
-| gon-examples (5 modules) | 11 | 10 | 0 genuine (1 false positive: `.gna`-annotated `store.Open()`) |
-| gon-vscode fixtures | 2 | 1 | 0 |
+| gon-examples (5 modules) | 11 | 10 | 0 genuine **in this scan, which does not read `.gna`** (it counted 1 false positive, `.gna`-annotated `store.Open()`, an effect of that limit); see "Re-measurement with `.gna`" below |
+| gon-vscode fixtures | 2 | 1 | 0 in this scan; see "Re-measurement with `.gna`" below |
 
 The nine production sites are all pointer destinations and all of the form
 "knowledge from a guard or an external constructor that Gon does not track":
@@ -163,11 +163,45 @@ commits only:
   checker is. Predicted GW001 under the v1.20.0 rules was compared with the real
   `gon check`: it **matched in six modules** (`gon`, `gon` fixtures, `package-check`,
   `source-contracts`, `transpile-dir`, `gon-vscode` `sourcecontracts`) and could **not be
-  assessed in four** whose GW001 comes from `.gna` contracts, which the instrument does
-  not model. This validates the GW001 prediction under the old rules; it does not
+  assessed in four** whose GW001 comes from `.gna` contracts, which that instrument did
+  not model (assessed afterwards, see "Re-measurement with `.gna`"). This validates the GW001 prediction under the old rules; it does not
   validate GW006, which no checker implements yet.
 
-Unchanged limits: `.gna` of external packages, generic instantiation, channel sends,
+**Re-measurement with `.gna` (plan §5; 2026-11-21; `gon` `main` 97bba38, `gon-examples` and `gon-vscode` as
+in the M0–M4 run; Gon built from `main` for the control runs).** This block **corrects** the migration
+rows above, which were produced by an instrument that did not read `.gna`. A third version of the temporary
+instrument reads the `.gna` files through the repository's `gna` registry (function, method and field
+contracts, results as recognised sources, explicit generic instantiation). It is not part of any repository; its
+source and raw output are kept for audit on the branch `docs/gna-slot-measurement` and are not on `main`, and the
+result is UNAUDITED as a measurement of the checker, which does not implement GW006. It does not reopen any
+semantic decision.
+
+- **Coverage.** Nine directories were measured: `gon`, the five modules of `gon-examples` that have a `go.mod`
+  (`ecosystem-contracts`, `generic-gna`, `package-check`, `source-contracts`, `transpile-dir`) and the three
+  subdirectories of `gon-vscode/fixtures`. The fourteen single-file demos of `gon-examples` have no `go.mod`, so the
+  loader fails on them and nothing was measured for them; none has a `.gna` file. The five "modules" of the rows
+  above are the five that were measured.
+- **Control.** Predicted GW001 under the v1.20.0 rules against the real `gon check --json` agrees on the five
+  modules that carry a `.gna` contract: `ecosystem-contracts` 3 and 3, `generic-gna` 2 and 2,
+  `gon-vscode/fixtures/ecosystem` 1 and 1, `genericgna` 2 and 2, `sourcecontracts` 1 and 1 (a stale `.gna`
+  that `.gon` sources shadow). For `gon` itself the `.gna` model changes nothing: 19 flows with GW006 under the
+  Part A rules (10 in production, 9 in fixtures) and 20 under Part A and Part B, with and without `.gna`.
+- **Result.** Flows into a `.gna` slot (counted as flows, not as lines): Part A alone, **10** GW006 in `gon-examples`
+  (6 in `ecosystem-contracts`, on 4 lines, since lines 28 and 31 hold two flows each; 4 in `generic-gna`); Part A and
+  Part B, **2**, both `cache.Must(&x)` and `cache.Must[int](&x)` in `generic-gna`, which is `&x` (OPEN, §4).
+  `gon-vscode/fixtures/genericgna` is a copy of `generic-gna` and repeats the same flows (4 and 2), so across both
+  repositories the totals are 14 and 4 if the copy is counted and 10 and 2 if it is counted once. The 8 other
+  Part A flows are locals built from a literal (`db := &store.DB{}`) and passed to a `.gna` field: Part A does not
+  bind them and Part B does, which is the difference the split of §5.1 is meant to show. Results of `.gna`
+  functions (`store.Open()`, `store.Connect()`) are recognised sources: the false positive of the rows above
+  does not exist.
+- **Comparison with this RFC.** GW006 applies to a `.gna` slot as §6.6 and Q1 of the plan state. No flow was found
+  that the rule warns on for a reason other than the Part A and Part B split or the `&x` limit. There is no unexplained
+  difference.
+- **Limits.** Only the three repositories at the named commits; `receivers:` claims, embedded structs and aliases
+  are not modelled, and the result does not validate GW006.
+
+Unchanged limits: `.gna` of external packages that users write, channel sends,
 `range` and embedded structs are not modelled; users outside the three repositories
 are not measured. The instrument has not been validated universally: its results hold
 only for the three repositories and commits named above, and it does not cover every
@@ -178,8 +212,9 @@ form of contract or value flow.
 production sources: the ten flows into `!T` slots measured before the binding rule
 (nine derived from guards and external constructors, and `&cp`), and one
 assignment, `x = c.pkg.files`, to a bound local. Without C15 the baseline is 12
-(`x = queries[:0]` too). `gon-examples` and `gon-vscode` produce none that are
-genuine. These are diagnostic counts; the migration counts of §10.7 are
+(`x = queries[:0]` too). `gon-examples` and `gon-vscode` produced none that were
+genuine in the scan that did not read `.gna`; with `.gna` modelled they produce 10 and
+4 flows under Part A (2 and 2 under Part A and Part B; see "Re-measurement with `.gna`"). These are diagnostic counts; the migration counts of §10.7 are
 separate.
 
 **Syntax.** `(!T)(x)` is not recognised today: for `(!*int)(a)`, `(![]int)(a)`,
@@ -212,7 +247,7 @@ type set (`*A → T` with `~*A | ~[]int` is rejected).
 Not measured: channel sends, closures capturing a variable, `map[K]!V` written
 by assignment, embedded structs, generic type declarations and generic methods,
 instantiation. The `.gna` contracts of external packages are not modelled in the
-scan (counts are an upper bound); the inventory of §2.1 covers `:=` and untyped `var` definitions of nilable kinds only, in the three repositories. Gon's own `.go` tests are not checked by Gon.
+scan of the inventory (counts are an upper bound; the flows into `.gna` slots were re-measured separately, §2.1); the inventory of §2.1 covers `:=` and untyped `var` definitions of nilable kinds only, in the three repositories. Gon's own `.go` tests are not checked by Gon.
 Users outside the three repositories are not measured. The expression-position
 nilability check for `(!T)(x)` does not exist yet and is reasoned, not measured.
 
@@ -306,7 +341,8 @@ same commits as §2.1): in `gon`'s production sources, Part A alone gives **10 G
 (25 flows; the nine guard- or constructor-derived sites and `&cp`); Part A and
 Part B give 11 (47 flows; the one extra is `x = c.pkg.files`, which is a flow only
 because Part B binds the local). Fixtures of `gon`: 9 either way. `gon-examples` and
-`gon-vscode`: no genuine GW006 either way. Part A alone binds no new local
+`gon-vscode`: no genuine GW006 either way **in the scan that did not read `.gna`** (with `.gna` modelled: Part A 10 and 4,
+Part A and Part B 2 and 2, see "Re-measurement with `.gna`"). Part A alone binds no new local
 (76 are Part B). These counts were measured with the same limits as §2.1.
 
 Items outside both parts and still OPEN: `--strict`, GW007, `&x`, the release shape,
@@ -767,8 +803,9 @@ non-nil conversion it performs no runtime check, and an ordinary conversion to
   value that is not a recognised non-nil source into a `!T` slot of a non-interface
   kind, including a recognised source of a different, Go-assignable type (§6.4;
   today silent). Measured on `main` of the three repositories: 11 in `gon`'s
-  production sources and none that are genuine in `gon-examples` and
-  `gon-vscode`. The different-type case was not measured separately. Users
+  production sources; in `gon-examples` and `gon-vscode`, 10 and 4 flows under
+  Part A (2 and 2 under Part A and Part B), all into `.gna` slots (see "Re-measurement
+  with `.gna`" in §2.1). The different-type case was not measured separately. Users
   outside the three repositories are not measured.
 - **Binding by inference (§6.8, Part B) changes the contract of identifiers**, so its
   effects are different in kind from GW006 and are listed separately:
