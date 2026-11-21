@@ -226,12 +226,13 @@ func TestNamesTheGoToolIgnoresInModule(t *testing.T) {
 // With nothing else in the build the package has no source: exit 2 named, and
 // skipped under `...` with the warning (the contract of package discovery).
 func TestOnlyIgnoredNamesIsNoSourceInTheBuild(t *testing.T) {
+	osSuffixed := "a_" + otherThan("windows") + ".gon" // excluded by its name, on every OS but Windows
 	root := pkgModule(t, map[string]string{
 		"p/_x.gon":        mcOK2,
-		"p/a_windows.gon": mcOK2,
+		"p/" + osSuffixed: mcOK2,
 	})
 	chdir(t, root)
-	want := "gon: build constraints exclude all Go files in ./p (.gon files: p/_x.gon, p/a_windows.gon)\n"
+	want := "gon: build constraints exclude all Go files in ./p (.gon files: p/_x.gon, p/" + osSuffixed + ")\n"
 	for _, cmd := range []string{"check", "vet", "transpile", "build"} {
 		exit, out, errOut := captureRun([]string{cmd, "./p"})
 		if exit != 2 || out != "" || errOut != want {
@@ -249,9 +250,9 @@ func TestOnlyIgnoredNamesIsNoSourceInTheBuild(t *testing.T) {
 // checked), by //go:build line and by file name suffix.
 func TestValidConstraintThatDoesNotMatchIsExcludedInModule(t *testing.T) {
 	root := pkgModule(t, map[string]string{
-		"p/a.gon":         "package p\n\nfunc F() {}\n",
-		"p/w.gon":         "//go:build windows\n\npackage p\n\nfunc w() !*int {\n\treturn nil\n}\n",
-		"p/b_windows.gon": "package p\n\nfunc b() !*int {\n\treturn nil\n}\n",
+		"p/a.gon":                              "package p\n\nfunc F() {}\n",
+		"p/w.gon":                              "//go:build " + otherThan("windows") + "\n\npackage p\n\nfunc w() !*int {\n\treturn nil\n}\n",
+		"p/b_" + otherThan("windows") + ".gon": "package p\n\nfunc b() !*int {\n\treturn nil\n}\n",
 	})
 	chdir(t, root)
 	if exit, out, errOut := captureRun([]string{"check", "--json", "./p"}); exit != 0 || strings.TrimSpace(out) != emptyEnv || errOut != "" {

@@ -20,10 +20,12 @@ import (
 	"golang.org/x/tools/go/packages"
 )
 
-const (
-	dropMalformed = "//go:build (linux\n\npackage main\n\nfunc f() !*int {\n\treturn nil\n}\n"
-	dropWindows   = "//go:build windows\n\npackage main\n\nfunc w() !*int {\n\treturn nil\n}\n"
-)
+const dropMalformed = "//go:build (linux\n\npackage main\n\nfunc f() !*int {\n\treturn nil\n}\n"
+
+// dropOtherOS is a valid constraint for an OS that is not this platform's, so
+// the go command leaves the file out of the build: `//go:build windows`, except
+// on Windows, where that file would be a member.
+var dropOtherOS = "//go:build " + otherThan("windows") + "\n\npackage main\n\nfunc w() !*int {\n\treturn nil\n}\n"
 
 func TestClassifyDropped(t *testing.T) {
 	dir := t.TempDir()
@@ -42,7 +44,7 @@ func TestClassifyDropped(t *testing.T) {
 		// same verdict from go/build. It never reaches this function for a real
 		// package, because the loader lists such a file in IgnoredFiles
 		// (TestPackageValidConstraintThatDoesNotMatchIsNotInvalid).
-		{"w.go", "//go:build windows\n\npackage p\n", dropIgnored, ""},
+		{"w.go", "//go:build " + otherThan("windows") + "\n\npackage p\n", dropIgnored, ""},
 		{"ok.go", "package p\n", dropUnexplained, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -155,7 +157,7 @@ func TestPackageOnlyMalformedConstraint(t *testing.T) {
 // not a malformed constraint: no InvalidFile, no error, and with nothing else
 // in the build it is the package-level "no source" (ExcludedError) listing it.
 func TestPackageValidConstraintThatDoesNotMatchIsNotInvalid(t *testing.T) {
-	dir := pkgDir(t, map[string]string{"a.gon": dropWindows, "b.gon": loadGN001, "c_plan9.gon": loadGN001})
+	dir := pkgDir(t, map[string]string{"a.gon": dropOtherOS, "b.gon": loadGN001, "c_plan9.gon": loadGN001})
 	res, err := checkPkg(t, dir, "a.gon", "b.gon", "c_plan9.gon")
 	if err != nil {
 		t.Fatal(err)
@@ -169,13 +171,14 @@ func TestPackageValidConstraintThatDoesNotMatchIsNotInvalid(t *testing.T) {
 
 	// Alone (plus a name the go tool ignores): the package has no source, and
 	// every file out of the build is listed, sorted, from both lists.
-	dir = pkgDir(t, map[string]string{"a_windows.gon": loadGN001, "_x.gon": loadGN001, "c.gon": dropWindows})
-	_, err = checkPkg(t, dir, "a_windows.gon", "_x.gon", "c.gon")
+	osSuffixed := "a_" + otherThan("windows") + ".gon"
+	dir = pkgDir(t, map[string]string{osSuffixed: loadGN001, "_x.gon": loadGN001, "c.gon": dropOtherOS})
+	_, err = checkPkg(t, dir, osSuffixed, "_x.gon", "c.gon")
 	var ex *ExcludedError
 	if !errors.As(err, &ex) {
 		t.Fatalf("want *ExcludedError, got %v", err)
 	}
-	want := []string{filepath.Join(dir, "_x.gon"), filepath.Join(dir, "a_windows.gon"), filepath.Join(dir, "c.gon")}
+	want := []string{filepath.Join(dir, "_x.gon"), filepath.Join(dir, osSuffixed), filepath.Join(dir, "c.gon")}
 	if strings.Join(ex.Files, "|") != strings.Join(want, "|") {
 		t.Fatalf("files %v, want %v", ex.Files, want)
 	}
