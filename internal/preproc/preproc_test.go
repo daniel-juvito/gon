@@ -289,3 +289,153 @@ func TestProcessResultAndCleanAreNeverNil(t *testing.T) {
 		}
 	}
 }
+
+// markOffsets renders Clean with a "<!>" before every recorded offset.
+func markOffsets(r *Result) string {
+	var b strings.Builder
+	for i := 0; i <= len(r.Clean); i++ {
+		if r.NonNilOffsets[i] {
+			b.WriteString("<!>")
+		}
+		if i < len(r.Clean) {
+			b.WriteByte(r.Clean[i])
+		}
+	}
+	return b.String()
+}
+
+// TestNonNilConversionRecognised covers RFC section 6.1: the expected marked
+// source is written by hand next to each input.
+func TestNonNilConversionRecognised(t *testing.T) {
+	cases := []struct{ name, src, want string }{
+		{"pointer", "v := (!*N)(x)", "v := (<!>*N)(x)"},
+		{"slice", "v := (![]T)(x)", "v := (<!>[]T)(x)"},
+		{"qualified", "v := (!io.Reader)(x)", "v := (<!>io.Reader)(x)"},
+		{"nested two", "v := ((!*N))(x)", "v := ((<!>*N))(x)"},
+		{"nested three spaced", "v := ( ( ( !*N ) ) )(x)", "v := ( ( ( <!>*N ) ) )(x)"},
+		{"comment before the bang", "v := (/* c */ !*N)(x)", "v := (/* c */ <!>*N)(x)"},
+		{"comment before the call", "v := (!*N) /* c */ (x)", "v := (<!>*N) /* c */ (x)"},
+		{"argument", "g((!*N)(x))", "g((<!>*N)(x))"},
+		{"after a keyword", "return (!*N)(x)", "return (<!>*N)(x)"},
+		{"two in one statement", "a, b := (!*N)(x), (!*M)(y)", "a, b := (<!>*N)(x), (<!>*M)(y)"},
+		{"index operand", "v := a[(!*N)(x).i]", "v := a[(<!>*N)(x).i]"},
+		{"after a semicolon", "a; (!*N)(x).Visit()", "a; (<!>*N)(x).Visit()"},
+		{"after a block", "if ok {\n}\n(!*N)(x).Visit()", "if ok {\n}\n(<!>*N)(x).Visit()"},
+		{"run in the target", "v := (!!*N)(x)", "v := (<!>*N)(x)"},
+		{"long run in the target", "v := (!!!!![]int)(x)", "v := (<!>[]int)(x)"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			pre := "package p\n\nfunc f() {\n"
+			r := Process("t.gon", []byte(pre+c.src+"\n}\n"))
+			if got, want := markOffsets(r), pre+c.want+"\n}\n"; got != want {
+				t.Errorf("got\n%s\nwant\n%s", got, want)
+			}
+			checkCleanToOrig(t, []byte(pre+c.src+"\n}\n"), r)
+		})
+	}
+}
+
+// checkCleanToOrig requires CleanToOrig to map every byte of Clean to the same
+// byte of the original source, in increasing order (Protocol v1 positions depend
+// on it).
+func checkCleanToOrig(t *testing.T, src []byte, r *Result) {
+	t.Helper()
+	if len(r.CleanToOrig) != len(r.Clean) {
+		t.Fatalf("CleanToOrig has %d entries for %d clean bytes", len(r.CleanToOrig), len(r.Clean))
+	}
+	prev := -1
+	for i, o := range r.CleanToOrig {
+		if o <= prev || o >= len(src) || src[o] != r.Clean[i] {
+			t.Fatalf("CleanToOrig[%d] = %d does not map %q to the same byte of the source", i, o, r.Clean[i])
+		}
+		prev = o
+	}
+}
+
+// TestNonNilConversionLookAlikesUnchanged is the "looks similar but keeps its old
+// meaning" criterion: each source keeps its clean source and has no offset.
+func TestNonNilConversionLookAlikesUnchanged(t *testing.T) {
+	cases := []struct{ name, src string }{
+		{"call result called", "w := adder(!flag)(3)"},
+		{"selector call result called", "w := p.f(!a)(b)"},
+		{"call of a call", "w := f(x)(!a)(b)"},
+		{"index then call", "w := m[k](!a)(b)"},
+		{"function literal called", "w := func() {}(!a)(b)"},
+		{"call paren then wrapper", "w := f((!a))(b)"},
+		{"literals", "w := 1(!a)(b)"},
+		{"string literal", "w := \"s\"(!a)(b)"},
+		{"comment between", "w := adder /* c */ (!flag)(3)"},
+		{"negation then operator", "ok := (!a) && b"},
+		{"negation alone", "ok := (!a)"},
+		{"negation then call of a call", "ok := (!a)\nreturn"},
+		{"double negation", "ok := !!a"},
+		{"double negation in parentheses", "ok := (!!a) && b"},
+		{"negated parenthesis", "ok := !(!a)"},
+		{"unbalanced", "v := (!*N)(x"},
+		{"no call after", "v := (!*N)"},
+		{"close then operator", "v := (!*N) + 1"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			src := "package p\n\nfunc f() {\n" + c.src + "\n}\n"
+			r := Process("t.gon", []byte(src))
+			if string(r.Clean) != src || len(r.NonNilOffsets) != 0 {
+				t.Errorf("changed:\nclean   %q\noffsets %v", r.Clean, r.NonNilOffsets)
+			}
+		})
+	}
+}
+
+// A source that does not scan cleanly is left alone (RFC section 6.1, the
+// conservative rule), while the type positions that exist today still work.
+func TestNonNilConversionNeedsACleanScan(t *testing.T) {
+	src := "package p\n\nvar bad = 'ab'\n\nfunc f() {\n\tv := (!*N)(x)\n}\n"
+	r := Process("t.gon", []byte(src))
+	if string(r.Clean) != src || len(r.NonNilOffsets) != 0 {
+		t.Errorf("a conversion was recognised in a source that does not scan:\n%q\n%v", r.Clean, r.NonNilOffsets)
+	}
+	src = "package p\n\nvar bad = 'ab'\n\nvar x !*int\n"
+	r = Process("t.gon", []byte(src))
+	if strings.Contains(string(r.Clean), "!") || len(r.NonNilOffsets) != 1 {
+		t.Errorf("an ordinary type position stopped working in a source with a scan error:\n%q\n%v", r.Clean, r.NonNilOffsets)
+	}
+}
+
+// RFC section 6.7: a run of ! in a type position is one !, in every type position
+// that exists, and an expression position is never touched.
+func TestRunOfBangInTypePosition(t *testing.T) {
+	cases := []struct{ name, src, want string }{
+		{"var", "var x !!*int", "var x <!>*int"},
+		{"result", "func f() !!!*int { return nil }", "func f() <!>*int { return nil }"},
+		{"parameter", "func f(a !!*int, b !![]T) {}", "func f(a <!>*int, b <!>[]T) {}"},
+		{"multi result", "func f() (!!*int, error) { return nil, nil }", "func f() (<!>*int, error) { return nil, nil }"},
+		{"element", "var x []!!*int", "var x []<!>*int"},
+		{"map value", "var x map[string]!!*int", "var x map[string]<!>*int"},
+		{"channel", "var x chan !!*int", "var x chan <!>*int"},
+		{"field", "type S struct{ f !!*int }", "type S struct{ f <!>*int }"},
+		{"expression untouched", "var ok = !!f", "var ok = !!f"},
+		{"expression in a call", "var v = g(a, !!f)", "var v = g(a, !!f)"},
+		{"expression after a modifier line", "var x !*int; var ok = !!f", "var x <!>*int; var ok = !!f"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			src := "package p\n\n" + c.src + "\n"
+			r := Process("t.gon", []byte(src))
+			if got, want := markOffsets(r), "package p\n\n"+c.want+"\n"; got != want {
+				t.Errorf("got\n%s\nwant\n%s", got, want)
+			}
+			checkCleanToOrig(t, []byte(src), r)
+		})
+	}
+}
+
+// Running the preprocessor on its own clean output must find nothing more.
+func TestProcessCleanIsStable(t *testing.T) {
+	src := "package p\n\nvar x !!*int\n\nfunc f() {\n\tv := ((!!*N))(x)\n}\n"
+	r := Process("t.gon", []byte(src))
+	again := Process("t.gon", r.Clean)
+	if string(again.Clean) != string(r.Clean) || len(again.NonNilOffsets) != 0 {
+		t.Errorf("the clean source is not stable:\n%q\n%v", again.Clean, again.NonNilOffsets)
+	}
+}

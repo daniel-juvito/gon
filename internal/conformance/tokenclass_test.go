@@ -5,6 +5,8 @@ import (
 	"go/token"
 	"strings"
 	"testing"
+
+	"github.com/daniel-juvito/gon/internal/preproc"
 )
 
 // The token-class table (SF-1 of the plan): for the first "(" that is followed
@@ -135,5 +137,27 @@ func TestTokenClassIDsMatchManifest(t *testing.T) {
 		if !inTable[id] {
 			t.Errorf("manifest entry %s has no table row", id)
 		}
+	}
+}
+
+// TestRecognizerAgreesWithTokenClassTable is the second half of SF-1: PR 1 is not
+// mergeable if the recognizer and the table disagree. Each row is run through the
+// preprocessor; a row whose "(" groups must have its "!" recorded and stripped, and
+// a row whose "(" does not group must keep its source and have no offset.
+func TestRecognizerAgreesWithTokenClassTable(t *testing.T) {
+	for _, row := range tokenClassRows {
+		t.Run(row.id, func(t *testing.T) {
+			src := "package p\n\nfunc f() {\n" + row.src + "\n}\n"
+			r := preproc.Process("c.gon", []byte(src))
+			if row.grouping {
+				if len(r.NonNilOffsets) != 1 || strings.Count(string(r.Clean), "!") != strings.Count(src, "!")-1 {
+					t.Errorf("a grouping \"(\" was not recognised: %d offsets\n%s", len(r.NonNilOffsets), r.Clean)
+				}
+				return
+			}
+			if string(r.Clean) != src || len(r.NonNilOffsets) != 0 {
+				t.Errorf("a non-grouping \"(\" was recognised as a conversion:\n%s\n%v", r.Clean, r.NonNilOffsets)
+			}
+		})
 	}
 }

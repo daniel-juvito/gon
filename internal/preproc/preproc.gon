@@ -34,14 +34,26 @@ type tokInfo struct {
 //     parenthesized result list, function type, or interface method signature
 //     — covering multi-return forms such as func Open() (!*string, error)
 //
-// Unary ! in expressions (f(a, !b), (!flag), !ok) is left untouched.
+// A non-nil conversion (!T)(x) also marks a type position: a ! directly after a
+// grouping "(" whose closing ")" is followed by "(" (RFC section 6.1). The "("
+// groups only when the previous significant token cannot end an operand; after an
+// identifier, a literal, ")", "]" or "}" it opens the argument list of a call and
+// the source is left unchanged (adder(!flag)(3) keeps its meaning).
+//
+// A run of ! in a type position is one ! (!!T is !T, RFC section 6.7): every !
+// after a type-modifier ! is itself a modifier and records the same clean offset.
+//
+// Unary ! in expressions (f(a, !b), (!flag), !ok, !!ok) is left untouched.
 func Process(filename string, src []byte) !*Result {
 	fset := token.NewFileSet()
 	file := fset.AddFile(filename, 1, len(src))
 
 	var s scanner.Scanner
-	// Suppress scanner errors — we'll catch real parse errors later.
-	s.Init(file, src, nil, scanner.ScanComments)
+	// Scanner errors are not reported here — real parse errors are caught later.
+	// They are counted, because a conversion is recognised only in a source that
+	// scans cleanly (RFC section 6.1, conservative rule).
+	scanErrors := 0
+	s.Init(file, src, func(pos token.Position, msg string) { scanErrors++ }, scanner.ScanComments)
 
 	// Collect all tokens with their byte offsets.
 	var tokens []tokInfo
@@ -92,6 +104,16 @@ func Process(filename string, src []byte) !*Result {
 						// Type-assertion target: x.(!T). Not a Gon mechanism, but
 						// strip the ! and record the offset so the checker can
 						// report it cleanly (RFC D6a) instead of a parse error.
+						typeModifiers[t.offset] = true
+					} else if prev.kind == token.LPAREN && scanErrors == 0 && isNonNilConversion(tokens, i) {
+						// Non-nil conversion (!T)(x), RFC section 6.1.
+						typeModifiers[t.offset] = true
+					}
+				case token.NOT:
+					// A run of ! in a type position is one !: a ! that follows a
+					// type-modifier ! is a modifier too (!!T, (!!T)(x)). After an
+					// expression-position ! (!!ok) it is the Go double negation.
+					if typeModifiers[prev.offset] {
 						typeModifiers[t.offset] = true
 					}
 				case token.RBRACK:
@@ -303,6 +325,83 @@ func isTypeAssertLParen(tokens []tokInfo, lparenIdx int) bool {
 		j--
 	}
 	return j >= 0 && tokens[j].kind == token.PERIOD
+}
+
+// endsOperand reports whether a token of this kind can end an operand: an
+// identifier, an integer, floating-point, imaginary, character or string literal,
+// ")", "]" or "}" (RFC section 6.1). A "(" that follows such a token opens the
+// argument list of a call; it is not a grouping parenthesis.
+func endsOperand(kind token.Token) bool {
+	switch kind {
+	case token.IDENT, token.INT, token.FLOAT, token.IMAG, token.CHAR, token.STRING,
+		token.RPAREN, token.RBRACK, token.RBRACE:
+		return true
+	}
+	return false
+}
+
+// isNonNilConversion reports whether the ! at tokens[bangIdx], which follows a
+// "(", begins the target type of a non-nil conversion (!T)(x): the "(" directly
+// before the !, after skipping the wrapping ")" that close the "(" immediately
+// before it, has a closing ")" that is followed by "(", and the outermost of those
+// "(" is a grouping parenthesis. The decision is taken on the token stream of the
+// Go scanner, which includes the semicolons it inserts at a line end; parentheses
+// are balanced with a counter, and the argument list that follows must close.
+// Anything else, including an unbalanced source, is not a conversion (RFC
+// section 6.1).
+func isNonNilConversion(tokens []tokInfo, bangIdx int) bool {
+	open := prevNonComment(tokens, bangIdx-1)
+	if open < 0 || tokens[open].kind != token.LPAREN {
+		return false
+	}
+	closeIdx := matchingRParen(tokens, open)
+	if closeIdx < 0 {
+		return false
+	}
+	for {
+		n := nextNonComment(tokens, closeIdx+1)
+		if n >= len(tokens) {
+			return false
+		}
+		if tokens[n].kind == token.LPAREN {
+			// The argument list of the conversion must close as well.
+			if matchingRParen(tokens, n) < 0 {
+				return false
+			}
+			break
+		}
+		if tokens[n].kind != token.RPAREN {
+			return false
+		}
+		// A wrapping ")": it must close a "(" that directly precedes the
+		// outermost "(" seen so far.
+		p := prevNonComment(tokens, open-1)
+		if p < 0 || tokens[p].kind != token.LPAREN {
+			return false
+		}
+		open = p
+		closeIdx = n
+	}
+	p := prevNonComment(tokens, open-1)
+	return p < 0 || !endsOperand(tokens[p].kind)
+}
+
+// matchingRParen returns the index of the ")" that closes the "(" at openIdx,
+// or -1 when the parentheses do not balance.
+func matchingRParen(tokens []tokInfo, openIdx int) int {
+	depth := 0
+	for i := openIdx; i < len(tokens); i++ {
+		switch tokens[i].kind {
+		case token.LPAREN:
+			depth++
+		case token.RPAREN:
+			depth--
+			if depth == 0 {
+				return i
+			}
+		}
+	}
+	return -1
 }
 
 // startsType reports whether the token after the `!` at tokens[bangIdx] can
