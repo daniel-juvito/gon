@@ -624,14 +624,16 @@ non-nil conversion it performs no runtime check, and an ordinary conversion to
 
 ## 10. Open Questions
 
-1. **Severity across kinds (decided: ordinary `T → !T` is GW006 for every
-   non-interface nilable kind, that is pointer, slice, map, channel and function; an
-   ordinary interface value into `!I` stays GN001).** This is a **revision of the scope of the
-   OQ-1 decision**: as first taken it named pointer, slice and map; this RFC proposes
-   extending it to channel and function, because `!` has had a uniform meaning on every
+1. **Severity across kinds. Decided earlier: ordinary `T → !T` is GW006 for pointer,
+   slice and map, and an ordinary interface value into `!I` stays GN001. Extended in
+   this draft to every non-interface nilable kind (adding channel and function); the
+   extension is not formally accepted until Part A is.** If the extension is not
+   accepted, GW006 narrows to pointer, slice and map with no other change. The
+   extension is a **revision of the scope of the OQ-1 decision**: as first taken it
+   named pointer, slice and map; this RFC proposes extending it to channel and function, because `!` has had a uniform meaning on every
    nilable kind since v1.6 and v1.20.0 accepts a plain channel or function value into
    a `!` slot without a diagnostic (§2.1). The extension is proposed here and is open to
-   the audit like the rest of the draft. The difference is a
+   the audit and to the acceptance decision like the rest of the draft. The difference is a
    **compatibility decision**. It is not a claim that the two groups have different
    contract semantics and therefore deserve different severities. `!I` is already
    enforced by D3b/D3d, and D3a and D3d govern when an interface contract can be
@@ -677,17 +679,18 @@ non-nil conversion it performs no runtime check, and an ordinary conversion to
    preprocessor owns the canonical form. Today `gon fmt` has not been measured on
    a run of `!`, since the preprocessor currently fails on it.
 7. **Migration.** *Migration count*: the sites to change so that `gon check ./...`
-   on Gon has no GW006 (and the generated-source gate passes). It is eleven
-   explicit conversions: the nine derived from guards and external constructors;
-   `&cp`, which stays unrecognised (no `&x` rule) and is converted like the
-   others; and the assignment `x = c.pkg.files` to a local bound by §6.8. (Twelve
-   if C15 is not adopted: `x = queries[:0]` too.) *Diagnostic count*: the 11
-   GW006 of the baseline in §2.1, measured on the same `main`. Here the two
-   coincide, one conversion per diagnostic; one site (`validateGnaFile`'s
-   parameter) moves the conversion to its caller instead of removing it. The
-   dogfood gate and `gon-vscode` must be checked against the added warnings; the
-   `testdata/` fixtures were recounted with D3a, `nil` literals and type parameters separated
-   (§2.1, "Re-measurement"): 9 GW006; no migration estimate rests on them.
+   on Gon has no GW006 (and the generated-source gate passes). **Part A alone: ten**
+   explicit conversions, the nine derived from guards and external constructors and
+   `&cp`, which stays unrecognised (no `&x` rule) and is converted like the others.
+   **Part A+B: eleven**, the ten and the assignment `x = c.pkg.files` to a local bound
+   by §6.8 (twelve if C15 is not adopted: `x = queries[:0]` too). *Diagnostic count*:
+   10 GW006 for Part A alone and 11 for Part A+B, measured on the same `main` (§2.1,
+   §5.1). Here the two counts coincide, one conversion per diagnostic; one site
+   (`validateGnaFile`'s parameter) moves the conversion to its caller instead of
+   removing it. The dogfood gate and `gon-vscode` must be checked against the added
+   warnings; the `testdata/` fixtures were recounted with D3a, `nil` literals and type
+   parameters separated (§2.1, "Re-measurement"): 9 GW006; no migration estimate rests
+   on them.
 8. **Evidence limits** in §2.2, in particular the expression-position nilability
    check for `(!T)(x)`.
 9. **Binding by inference (Part B).** Direction taken: the closed set of §6.8, an untyped
@@ -805,8 +808,18 @@ non-nil conversion it performs no runtime check, and an ordinary conversion to
   diagnostic positions; the VS Code grammar.
 - **Mutation tests** on the generated `.go` (the mutant must compile) and the
   cross-OS `test-os` job.
-- **Dogfood:** `gon check ./...` on Gon after all eleven flagged sites are
-  converted, expecting no GW006 (and the gate also checks the diagnostics, not the exit code alone, because warnings do not change it); and the generated-source gate.
+- **Dogfood, with separate criteria for Part A and for Part A+B** (§5.1). The gate
+  checks the diagnostics of `gon check ./...`, not the exit code alone, because
+  warnings do not change it, and the generated-source gate must pass.
+  - *Part A:* after the **ten** Part A sites (the nine derived from guards and
+    external constructors, and `&cp`) are converted, `gon check ./...` on Gon with the
+    Part A rules reports no GW006. `x = c.pkg.files` is not a flow under Part A, so it
+    is not part of this criterion. This criterion is the only dogfood condition for
+    accepting Part A.
+  - *Part A+B:* after all **eleven** flagged sites (the ten and `x = c.pkg.files`) are
+    converted, `gon check ./...` with the combined rules and C15 reports no GW006
+    (twelve sites if C15 is not adopted). This criterion belongs to Part B and must
+    not be a precondition for accepting Part A.
 
 ## 13. Alternatives Considered
 
