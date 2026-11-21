@@ -54,10 +54,20 @@ func TestCheckExcludedFileIsSkippedWhateverTheOrder(t *testing.T) {
 		// backslashes of a Windows path, so replacing the directory in the text
 		// would miss them. The path is made relative to the directory of this
 		// iteration, with the checked file's name blanked.
+		// Both sides are resolved first: the directory can be a symlink (macOS
+		// /var is /private/var) while the diagnostic names the real path.
+		realRoot := root
+		if r, err := filepath.EvalSymlinks(root); err == nil {
+			realRoot = r
+		}
 		norm := env
 		norm.Diagnostics = append([]protocolDiagnostic(nil), env.Diagnostics...)
 		for i := range norm.Diagnostics {
-			rel, err := filepath.Rel(root, norm.Diagnostics[i].File)
+			file := norm.Diagnostics[i].File
+			if f, err := filepath.EvalSymlinks(file); err == nil {
+				file = f
+			}
+			rel, err := filepath.Rel(realRoot, file)
 			if err != nil {
 				t.Fatalf("%s: %v", tc.name, err)
 			}
