@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 )
 
 // The module context of `gon build <dir>` (directory mode only).
@@ -77,8 +78,9 @@ const (
 // directory, is passed over). Absence is proven only when dir is a directory
 // that stat reaches and the lookup of go.mod fails with "does not exist" (or
 // finds a non-file) at dir and at every ancestor up to the root. Any other
-// error at any level (permissions, a loop, I/O, a path component that is not a
-// directory) is moduleUnknown, never a claim that there is no module.
+// error at any level (permissions, a loop, I/O) is moduleUnknown, and so is
+// ENOTDIR (a path component that is not a directory), whether or not the OS
+// also reports it as "does not exist": never a claim that there is no module.
 func nearestModule(dir string, stat func(string) (os.FileInfo, error)) (string, moduleProof) {
 	if fi, err := stat(dir); err != nil || !fi.IsDir() {
 		return "", moduleUnknown
@@ -88,6 +90,11 @@ func nearestModule(dir string, stat func(string) (os.FileInfo, error)) (string, 
 		switch {
 		case err == nil && fi.Mode().IsRegular():
 			return d, moduleFound
+		case errors.Is(err, syscall.ENOTDIR):
+			// Before "does not exist": on Windows ENOTDIR also satisfies
+			// fs.ErrNotExist, and a path through a file says nothing about
+			// whether a go.mod is there.
+			return "", moduleUnknown
 		case err == nil, errors.Is(err, fs.ErrNotExist):
 			// not a go.mod file here: look above
 		default:

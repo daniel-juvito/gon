@@ -157,6 +157,37 @@ func TestNearestModuleOnlyConsistentENOENTIsAbsent(t *testing.T) {
 	}
 }
 
+// notDirAndNotExist is the error Windows gives for a path through a file: it is
+// both "not a directory" and "does not exist" to errors.Is. Only the first is
+// the truth about the lookup; the second must not be read as proof that no
+// go.mod is there.
+type notDirAndNotExist struct{}
+
+func (notDirAndNotExist) Error() string { return "stat: not a directory (and does not exist)" }
+func (notDirAndNotExist) Is(target error) bool {
+	return target == fs.ErrNotExist || target == syscall.ENOTDIR
+}
+
+// ENOTDIR is classified before "does not exist", on every OS: an error that is
+// both is moduleUnknown at any level of the search, never the road to absent.
+func TestNearestModuleENOTDIRIsCheckedBeforeNotExist(t *testing.T) {
+	dirs := slashes([]string{"/", "/w", "/w/free", "/w/free/x"})
+	dir := filepath.FromSlash("/w/free/x")
+	for _, d := range dirs {
+		gm := filepath.Join(d, "go.mod")
+		t.Run(gm, func(t *testing.T) {
+			root, got := nearestModule(dir, fakeFS(dirs, nil, map[string]error{gm: notDirAndNotExist{}}))
+			if got != moduleUnknown || root != "" {
+				t.Fatalf("got (%q, %v), want unknown: an error that is also ENOTDIR is not proof of absence", root, got)
+			}
+		})
+	}
+	// A plain does-not-exist at every level is still the road to absent.
+	if _, got := nearestModule(dir, fakeFS(dirs, nil, nil)); got != moduleAbsent {
+		t.Fatalf("plain ENOENT at every level: got %v, want absent", got)
+	}
+}
+
 // go env GOMOD GOWORK is one pair: anything but exactly two lines is not used,
 // neither value on its own.
 func TestParseGoEnv(t *testing.T) {
