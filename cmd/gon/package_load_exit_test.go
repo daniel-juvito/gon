@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -49,7 +50,24 @@ func TestCheckExcludedFileIsSkippedWhateverTheOrder(t *testing.T) {
 		if len(env.Diagnostics) != 1 || env.Diagnostics[0].Code != "GN001" || filepath.Base(env.Diagnostics[0].File) != tc.checked {
 			t.Fatalf("%s: want one GN001 in %s, got %+v", tc.name, tc.checked, env.Diagnostics)
 		}
-		results = append(results, strings.ReplaceAll(strings.ReplaceAll(out, root, "<root>"), tc.checked, "<checked>"))
+		// Compare the decoded values, not the raw JSON: JSON escapes the
+		// backslashes of a Windows path, so replacing the directory in the text
+		// would miss them. The path is made relative to the directory of this
+		// iteration, with the checked file's name blanked.
+		norm := env
+		norm.Diagnostics = append([]protocolDiagnostic(nil), env.Diagnostics...)
+		for i := range norm.Diagnostics {
+			rel, err := filepath.Rel(root, norm.Diagnostics[i].File)
+			if err != nil {
+				t.Fatalf("%s: %v", tc.name, err)
+			}
+			norm.Diagnostics[i].File = strings.ReplaceAll(filepath.ToSlash(rel), tc.checked, "<checked>")
+		}
+		normJSON, err := json.Marshal(norm)
+		if err != nil {
+			t.Fatal(err)
+		}
+		results = append(results, string(normJSON))
 		for _, args := range [][]string{{"check", "./p"}, {"vet", "--json", "./p"}} {
 			if exit, _, errOut := captureRun(args); exit != 1 || strings.Contains(errOut, "excluded") {
 				t.Fatalf("%s %v: exit %d (want 1)\n%s", tc.name, args, exit, errOut)
