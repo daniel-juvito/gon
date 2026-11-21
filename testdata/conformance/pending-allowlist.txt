@@ -2,20 +2,8 @@
 # this list and the manifest agree, so that an entry cannot disappear or change status
 # silently. An implementation PR moves its entries to "enabled" in the manifest and
 # deletes them here.
-SYN-CV-01 pending-PR1
-SYN-CV-02 pending-PR1
-SYN-CV-03 pending-PR1
-SYN-CV-04 pending-PR1
-SYN-CV-05 pending-PR1
-SYN-CV-06 pending-PR1
-SYN-BANG-01 pending-PR1
-SYN-BANG-02 pending-PR1
-FMT-03 pending-PR1
 CV-NIL-01 pending-PR2a
 CV-NN-01 pending-PR2a
-CV-SIL-01 pending-PR2a
-CV-ID-01 pending-PR2a
-CV-ID-02 pending-PR2a
 CV-IF-01 pending-PR2a
 CV-TP-01 pending-PR2a
 GW-K-01 pending-PR2b

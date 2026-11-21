@@ -274,3 +274,142 @@ func TestFormatEdgeInputsAreUnchanged(t *testing.T) {
 		}
 	}
 }
+
+// The tests below are the formatter controls of SF-2 (plan section 9): every
+// expected output is written by hand, so the position of each ! does not come from
+// running the preprocessor on the formatted text. A bug that the first and the
+// second run share would pass a test that only compared the two runs.
+
+func wrapConv(body string) string {
+	return "package p\n\nfunc f() {\n" + body + "\n}\n"
+}
+
+func TestFormatNonNilConversionControls(t *testing.T) {
+	cases := []struct{ name, src, want string }{
+		{"one conversion", "\tv := (!*Node)(x)", "\tv := (!*Node)(x)"},
+		{"two adjacent conversions", "\ta, b := (!*N)(x), (!*M)(y)", "\ta, b := (!*N)(x), (!*M)(y)"},
+		{"two adjacent with spacing", "\ta,b:=(!*N)(x),(!*M)(y)", "\ta, b := (!*N)(x), (!*M)(y)"},
+		{"nested conversion", "\tg((!*N)((!*M)(x)))", "\tg((!*N)((!*M)(x)))"},
+		{"redundant two layers", "\tv := ((!*Node))(x)", "\tv := (!*Node)(x)"},
+		{"redundant three layers", "\tv := (((!*Node)))(x)", "\tv := (!*Node)(x)"},
+		{"redundant and spaced", "\tv := ( ( !*Node ) )(x)", "\tv := (!*Node)(x)"},
+		{"redundant in an argument", "\tg(((!*N))(x))", "\tg((!*N)(x))"},
+		{"redundant and not redundant", "\ta, b := ((!*N))(x), (!*M)(y)", "\ta, b := (!*N)(x), (!*M)(y)"},
+		{"redundant twice", "\ta, b := ((!*N))(x), ((!*M))(y)", "\ta, b := (!*N)(x), (!*M)(y)"},
+		{"qualified name", "\tv := ((!io.Reader))(x)", "\tv := (!io.Reader)(x)"},
+		{"comment after the target", "\tv := ((!*N) /* c */ )(x)", "\tv := (!*N) /* c */ (x)"},
+		{"comment inside the target", "\tv := (!*N /* c */)(x)", "\tv := (!*N /* c */)(x)"},
+		{"comment before the call", "\tv := (!*N) /* c */ (x)", "\tv := (!*N) /* c */ (x)"},
+		{"line comment after", "\tv := (!*N)(x) // c", "\tv := (!*N)(x) // c"},
+		{"several bang in one target", "\tv := (!func(!*A) !*B)(x)", "\tv := (!func(!*A) !*B)(x)"},
+		{"several bang in a map target", "\tv := (!map[string]!*T)(x)", "\tv := (!map[string]!*T)(x)"},
+		{"run in the target", "\tv := (!!*A)(x)", "\tv := (!*A)(x)"},
+		{"run and redundant", "\tv := ((!!!![]int))(x)", "\tv := (![]int)(x)"},
+		{"after a block", "\tif ok {\n\t}\n\t(!*N)(x).Visit()", "\tif ok {\n\t}\n\t(!*N)(x).Visit()"},
+		{"look-alike call", "\tw := adder(!flag)(3)", "\tw := adder(!flag)(3)"},
+		{"expression double negation", "\tw := !!flag", "\tw := !!flag"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			out := mustFormat(t, wrapConv(c.src))
+			if want := wrapConv(c.want); out != want {
+				t.Fatalf("got\n%s\nwant\n%s", out, want)
+			}
+			if again := mustFormat(t, out); again != out {
+				t.Fatalf("not idempotent:\n%s\nthen\n%s", out, again)
+			}
+		})
+	}
+}
+
+// An offset shift before a conversion: the removed ! and the removed
+// parentheses move every later clean offset.
+func TestFormatNonNilConversionAfterOffsetShift(t *testing.T) {
+	src := "package p\n\n" +
+		"var a   !!*int\n" +
+		"var b !!!![]T\n\n" +
+		"func f(p !!*N, q  !*M) {\n" +
+		"\tv := ( ( !!*N ) )(p)\n" +
+		"\tw := ((!*M))(q)\n" +
+		"\t_, _ = v, w\n" +
+		"}\n"
+	want := "package p\n\n" +
+		"var a !*int\n" +
+		"var b ![]T\n\n" +
+		"func f(p !*N, q !*M) {\n" +
+		"\tv := (!*N)(p)\n" +
+		"\tw := (!*M)(q)\n" +
+		"\t_, _ = v, w\n" +
+		"}\n"
+	out := mustFormat(t, src)
+	if out != want {
+		t.Fatalf("got\n%s\nwant\n%s", out, want)
+	}
+	if mustFormat(t, out) != out {
+		t.Fatalf("not idempotent:\n%s", out)
+	}
+}
+
+func TestFormatBangRunInTypePosition(t *testing.T) {
+	out := mustFormat(t, "package p\n\nvar x !!*int\nvar y []!!!*int\n")
+	if want := "package p\n\nvar x !*int\nvar y []!*int\n"; out != want {
+		t.Fatalf("got\n%s\nwant\n%s", out, want)
+	}
+}
+
+// Formatting a source with conversions changes nothing but what go/format would
+// change in the same source without the !.
+func TestFormatNonNilConversionMakesNoUnrelatedChange(t *testing.T) {
+	src := "package p\n\nfunc f( a  int ,b int)  int {\n  if a>b {return(a)}\n\tv:=((!*N))(x)\n\t_=v\n  return b\n}\n"
+	out := mustFormat(t, src)
+	plain := "package p\n\nfunc f( a  int ,b int)  int {\n  if a>b {return(a)}\n\tv:=((*N))(x)\n\t_=v\n  return b\n}\n"
+	gofmted, err := Format("t.gon", []byte(plain))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.ReplaceAll(out, "!", "") != string(gofmted) {
+		t.Fatalf("an unrelated change:\n%s\nvs\n%s", out, gofmted)
+	}
+	if !strings.Contains(out, "v := (!*N)(x)") {
+		t.Fatalf("the conversion lost its !:\n%s", out)
+	}
+}
+
+// Mismatch controls: a ! must never be dropped or placed wrongly. When the token
+// streams cannot be aligned the formatter returns an error, so the caller leaves
+// the file unformatted.
+func TestFormatMismatchLeavesTheFileUnformatted(t *testing.T) {
+	// Redundant parentheses around a whole conversion expression are outside the
+	// tolerance, which covers only the parentheses of the target itself.
+	src := wrapConv("\tv := (((!*N)(x)))")
+	if out, err := Format("t.gon", []byte(src)); err == nil {
+		t.Fatalf("expected an error, got\n%s", out)
+	}
+}
+
+func TestReinsertBangsMismatches(t *testing.T) {
+	cases := []struct {
+		name      string
+		clean     string
+		nonNil    []int
+		formatted string
+	}{
+		{"offset not at a token", "package p\nvar x *int\n", []int{15}, "package p\n\nvar x *int\n"},
+		{"offset after the last token", "package p\nvar x *int\n", []int{100}, "package p\n\nvar x *int\n"},
+		{"different token streams", "package p\nvar x *int\n", []int{16}, "package p\n\nvar y []int\n"},
+		{"missing token in formatted", "package p\nvar x *int\n", []int{16}, "package p\n\nvar x\n"},
+		{"parentheses removed without a conversion", "package p\nvar x = ((*int)(nil))\n", []int{20}, "package p\n\nvar x = (*int)(nil)\n"},
+		{"parentheses removed from a parameter list", "package p\nfunc f((*int)) {}\n", []int{18}, "package p\n\nfunc f(*int) {}\n"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			nonNil := map[int]bool{}
+			for _, o := range c.nonNil {
+				nonNil[o] = true
+			}
+			if out, err := reinsertBangs([]byte(c.clean), nonNil, []byte(c.formatted)); err == nil {
+				t.Fatalf("expected an error, got\n%s", out)
+			}
+		})
+	}
+}
