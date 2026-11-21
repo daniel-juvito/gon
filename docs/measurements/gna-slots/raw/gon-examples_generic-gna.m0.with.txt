@@ -1,0 +1,26 @@
+# gon-examples/generic-gna (1 .gon; loader errors: 0)
+## definitions of nilable variables by := / untyped var (new identifiers only)
+  production | bound today                 2
+  production | not bound                   1
+  production | total                       3
+    by form: production | := | bound today                                2
+    by form: production | := | not bound                                  1
+## flows into !T / bound slots (RFC rules)
+  production  GW006: no recognised source                          4
+  production  flows                                                8
+  production  nil literal (GN001 today)                            2
+  production  silent                                               1
+  production  type parameter (OQ-2; not counted)                   1
+## nil comparisons and nil assignments on bound identifiers
+  production | nil-compare => GW001 | exists today                                 2
+## existing identifiers (nilable kinds) assigned by a short declaration
+## typed plain var (var x T = recognised source): 0
+## GW006 sites
+  demo.gon:11 [param -> pointer] address-of-other
+  demo.gon:14 [param -> pointer] address-of-other
+  demo.gon:23 [field-init -> pointer] ident-plain
+  demo.gon:24 [field-init -> pointer] ident-plain
+## .gna contracts met by a call site (key: times)
+  gonexample.local/genericgna/cache.Describe                             1
+  gonexample.local/genericgna/cache.Keys                                 1
+  gonexample.local/genericgna/cache.Must                                 1
