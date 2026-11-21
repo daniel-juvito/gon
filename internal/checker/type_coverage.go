@@ -115,9 +115,56 @@ func (c *Checker) checkNonNilTypeKinds() {
 		case *ast.CompositeLit:
 			// `[]!int{}` written as an expression (v1.8: was unchecked).
 			c.validateElementContracts(x.Type)
+		case *ast.CallExpr:
+			// A non-nil conversion (!T)(x): the target must be a nilable kind
+			// (GN003, as for any `!T`) and the operand must not be the literal
+			// nil (GN001). Go decides whether the conversion itself is valid.
+			if target, ok := c.nonNilConversionTarget(x); ok {
+				c.validateNonNilKind(target)
+				c.validateElementContracts(target)
+				if isNilIdent(unparenExpr(x.Args[0])) {
+					c.addError(x.Args[0].Pos(), "GN001", fmt.Sprintf(
+						"cannot convert nil to non-nil type !%s", formatType(target)))
+				}
+			}
 		}
 		return true
 	})
+}
+
+// unparenExpr removes every enclosing pair of parentheses.
+func unparenExpr(expr ast.Expr) ast.Expr {
+	for {
+		p, ok := expr.(*ast.ParenExpr)
+		if !ok {
+			return expr
+		}
+		expr = p.X
+	}
+}
+
+// nonNilConversionTarget returns the target type expression of a non-nil
+// conversion (!T)(x) (RFC section 6.1) and true, or nil and false when call is
+// anything else. The preprocessor strips the ! of (!T)(x) and records the
+// offset of the first token of the target T, and it records such an offset only
+// there (RFC section 6.1), so the conversion is the one-argument call whose
+// function, without its parentheses, carries that offset. When type information
+// is available the function must also be a type, so a call is never mistaken for
+// a conversion.
+func (c *Checker) nonNilConversionTarget(call *ast.CallExpr) (ast.Expr, bool) {
+	if call == nil || len(call.Args) != 1 || call.Ellipsis.IsValid() {
+		return nil, false
+	}
+	target := unparenExpr(call.Fun)
+	if !c.isNonNil(target) {
+		return nil, false
+	}
+	if c.info != nil {
+		if tv, ok := c.info.Types[call.Fun]; ok && !tv.IsType() {
+			return nil, false
+		}
+	}
+	return target, true
 }
 
 // validateElementContracts walks the element / value / key positions of a type

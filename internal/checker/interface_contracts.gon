@@ -29,6 +29,11 @@ func (c *Checker) isNonNilSource(expr ast.Expr) bool {
 		nn, ok := c.lookup(e.Name)
 		return ok && nn
 	case *ast.CallExpr:
+		// A non-nil conversion (!T)(x) is a source (RFC section 6.4). Its static
+		// type is T, which cannotSatisfyBangInterface compares with the slot.
+		if _, ok := c.nonNilConversionTarget(e); ok {
+			return true
+		}
 		results := c.resolveCallResults(e.Fun)
 		return len(results) > 0 && results[0]
 	case *ast.SelectorExpr:
