@@ -1,6 +1,7 @@
 package conformance
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -54,6 +55,11 @@ func walkSources(t *testing.T, suffix string, fn func(path string, src []byte)) 
 	return n
 }
 
+// lf returns b with CRLF line endings replaced by LF.
+func lf(b []byte) []byte {
+	return bytes.ReplaceAll(b, []byte("\r\n"), []byte("\n"))
+}
+
 // TestDifferentialGoSourcesAreUntouched is the "identical" criterion of the plan
 // (WP1): the repository's own Go files are valid Go and use no Gon syntax, so
 // the preprocessor must return each one byte for byte with no offset. A new rule
@@ -61,7 +67,7 @@ func walkSources(t *testing.T, suffix string, fn func(path string, src []byte)) 
 func TestDifferentialGoSourcesAreUntouched(t *testing.T) {
 	n := walkSources(t, ".go", func(path string, src []byte) {
 		r := preproc.Process(path, src)
-		if string(r.Clean) != string(src) || len(r.NonNilOffsets) != 0 {
+		if !bytes.Equal(r.Clean, src) || len(r.NonNilOffsets) != 0 {
 			t.Errorf("%s: the preprocessor changed a plain Go file (%d offsets)", path, len(r.NonNilOffsets))
 		}
 	})
@@ -89,7 +95,10 @@ func TestDifferentialGonSourcesTranspileToTheCommittedGo(t *testing.T) {
 			t.Errorf("%s: %v", path, err)
 			return
 		}
-		if string(got) != string(want) {
+		// Only the line ending is normalised: a checkout with autocrlf (Windows)
+		// turns the committed .go and the .gon into CRLF. Any other difference
+		// still fails.
+		if !bytes.Equal(lf(got), lf(want)) {
 			t.Errorf("%s: the transpile output differs from the committed .go", path)
 		}
 	})
