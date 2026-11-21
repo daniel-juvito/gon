@@ -1,0 +1,26 @@
+# gon-vscode/fixtures/genericgna (1 .gon; loader errors: 0)
+## definitions of nilable variables by := / untyped var (new identifiers only)
+  fixtures | bound today                   2
+  fixtures | not bound                     1
+  fixtures | total                         3
+    by form: fixtures | := | bound today                                  2
+    by form: fixtures | := | not bound                                    1
+## flows into !T / bound slots (RFC rules)
+  fixtures    GW006: no recognised source                          4
+  fixtures    flows                                                8
+  fixtures    nil literal (GN001 today)                            2
+  fixtures    silent                                               1
+  fixtures    type parameter (OQ-2; not counted)                   1
+## nil comparisons and nil assignments on bound identifiers
+  fixtures | nil-compare => GW001 | exists today                                   2
+## existing identifiers (nilable kinds) assigned by a short declaration
+## typed plain var (var x T = recognised source): 0
+## GW006 sites
+  genericgna.gon:11 [param -> pointer] address-of-other
+  genericgna.gon:14 [param -> pointer] address-of-other
+  genericgna.gon:23 [field-init -> pointer] ident-plain
+  genericgna.gon:24 [field-init -> pointer] ident-plain
+## .gna contracts met by a call site (key: times)
+  gonfixgeneric/cache.Describe                                           1
+  gonfixgeneric/cache.Keys                                               1
+  gonfixgeneric/cache.Must                                               1

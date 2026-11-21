@@ -1,0 +1,73 @@
+# gon (54 .gon; loader errors: 0)
+## definitions of nilable variables by := / untyped var (new identifiers only)
+  fixtures | NEWLY bound                   3
+  fixtures | bound today                   1
+  fixtures | not bound                     3
+  fixtures | total                         7
+  production | NEWLY bound                 83
+  production | bound today                 12
+  production | not bound                   325
+  production | total                       420
+    by form: fixtures | := | NEWLY bound                                  2
+    by form: fixtures | := | bound today                                  1
+    by form: fixtures | := | not bound                                    3
+    by form: fixtures | var-untyped | NEWLY bound                         1
+    by form: production | := | NEWLY bound                                83
+    by form: production | := | bound today                                12
+    by form: production | := | not bound                                  139
+    by form: production | :=-multi | not bound                            186
+## flows into !T / bound slots (RFC rules)
+  production  GW006: no recognised source                          11
+  production  flows                                                49
+  production  silent                                               38
+  fixtures    GW006: no recognised source                          9
+  fixtures    flows                                                31
+  fixtures    interface (D3a/b/d, unchanged; not GW006)            6
+  fixtures    nil literal (GN001 today)                            12
+  fixtures    silent                                               3
+  fixtures    type parameter (OQ-2; not counted)                   1
+## nil comparisons and nil assignments on bound identifiers
+  fixtures | nil-compare => GW001 | exists today                                   1
+## existing identifiers (nilable kinds) assigned by a short declaration
+  production | existing-plain                                  18
+## typed plain var (var x T = recognised source): 0
+## GW006 sites
+  testdata/valid/basic.gon:13 [var-init -> pointer] address-of-other
+  testdata/valid/basic.gon:14 [param -> pointer] address-of-other
+  testdata/valid/basic.gon:15 [field-init -> pointer] address-of-other
+  testdata/valid/element_contracts.gon:11 [element-init -> pointer] call-plain-result
+  testdata/valid/element_contracts.gon:11 [element-init -> pointer] call-plain-result
+  testdata/valid/element_contracts.gon:15 [element-init -> pointer] call-plain-result
+  testdata/valid/generics.gon:16 [return -> pointer] ident-plain
+  testdata/valid/regression.gon:8 [var-init -> pointer] call-plain-result
+  testdata/valid/regression.gon:10 [var-init -> pointer] ident-plain
+  internal/checker/annotations.gon:135 [assign -> pointer] ident-plain
+  internal/checker/annotations.gon:172 [assign -> pointer] ident-plain
+  internal/checker/annotations.gon:173 [assign -> pointer] ident-plain
+  internal/checker/checker.gon:81 [field-init -> pointer] ident-plain
+  internal/checker/checker.gon:82 [field-init -> pointer] ident-plain
+  internal/checker/ecosystem.gon:346 [param -> pointer] ident-plain
+  internal/checker/ecosystem.gon:486 [return -> pointer] address-of-other
+  internal/checker/method_contracts.gon:54 [assign -> slice] field-plain
+  internal/checker/package.gon:272 [field-init -> pointer] ident-plain
+  internal/checker/package.gon:273 [field-init -> pointer] ident-plain
+  internal/checker/trace.gon:51 [return -> pointer] ident-plain
+## .gna contracts met by a call site (key: times)
+  io.NopCloser                                                           1
+  io.ReadFull                                                            1
+  os.Exit                                                                1
+  os.File.Close                                                          1
+  os.File.Name                                                           1
+  os.File.Write                                                          1
+  os.Getenv                                                              1
+  os.Getwd                                                               1
+  os.IsExist                                                             1
+  os.IsNotExist                                                          1
+  os.Open                                                                1
+  os.OpenFile                                                            1
+  os.ReadDir                                                             1
+  os.ReadFile                                                            1
+  os.Remove                                                              1
+  os.Rename                                                              1
+  os.Stat                                                                1
+  os.WriteFile                                                           1

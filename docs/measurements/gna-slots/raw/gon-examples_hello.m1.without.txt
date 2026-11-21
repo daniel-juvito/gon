@@ -1,0 +1,4 @@
+load: err: exit status 1: stderr: go: cannot find main module, but found .git/config in /home/user/gon-examples
+	to create a module there, run:
+	cd .. && go mod init
+

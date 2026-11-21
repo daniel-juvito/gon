@@ -1,0 +1,50 @@
+# gon (54 .gon; loader errors: 0)
+## definitions of nilable variables by := / untyped var (new identifiers only)
+  fixtures | bound today                   1
+  fixtures | not bound                     6
+  fixtures | total                         7
+  production | bound today                 12
+  production | not bound                   408
+  production | total                       420
+    by form: fixtures | := | bound today                                  1
+    by form: fixtures | := | not bound                                    5
+    by form: fixtures | var-untyped | not bound                           1
+    by form: production | := | bound today                                12
+    by form: production | := | not bound                                  222
+    by form: production | :=-multi | not bound                            186
+## flows into !T / bound slots (RFC rules)
+  production  GW006: no recognised source                          10
+  production  flows                                                25
+  production  silent                                               15
+  fixtures    GW006: no recognised source                          9
+  fixtures    flows                                                31
+  fixtures    interface (D3a/b/d, unchanged; not GW006)            6
+  fixtures    nil literal (GN001 today)                            12
+  fixtures    silent                                               3
+  fixtures    type parameter (OQ-2; not counted)                   1
+## nil comparisons and nil assignments on bound identifiers
+  fixtures | nil-compare => GW001 | exists today                                   1
+## existing identifiers (nilable kinds) assigned by a short declaration
+  production | existing-plain                                  18
+## typed plain var (var x T = recognised source): 0
+## GW006 sites
+  testdata/valid/basic.gon:13 [var-init -> pointer] address-of-other
+  testdata/valid/basic.gon:14 [param -> pointer] address-of-other
+  testdata/valid/basic.gon:15 [field-init -> pointer] address-of-other
+  testdata/valid/element_contracts.gon:11 [element-init -> pointer] call-plain-result
+  testdata/valid/element_contracts.gon:11 [element-init -> pointer] call-plain-result
+  testdata/valid/element_contracts.gon:15 [element-init -> pointer] call-plain-result
+  testdata/valid/generics.gon:16 [return -> pointer] ident-plain
+  testdata/valid/regression.gon:8 [var-init -> pointer] call-plain-result
+  testdata/valid/regression.gon:10 [var-init -> pointer] ident-plain
+  internal/checker/annotations.gon:135 [assign -> pointer] ident-plain
+  internal/checker/annotations.gon:172 [assign -> pointer] ident-plain
+  internal/checker/annotations.gon:173 [assign -> pointer] ident-plain
+  internal/checker/checker.gon:81 [field-init -> pointer] ident-plain
+  internal/checker/checker.gon:82 [field-init -> pointer] ident-plain
+  internal/checker/ecosystem.gon:346 [param -> pointer] ident-plain
+  internal/checker/ecosystem.gon:486 [return -> pointer] address-of-other
+  internal/checker/package.gon:272 [field-init -> pointer] ident-plain
+  internal/checker/package.gon:273 [field-init -> pointer] ident-plain
+  internal/checker/trace.gon:51 [return -> pointer] ident-plain
+## .gna contracts met by a call site (key: times)
