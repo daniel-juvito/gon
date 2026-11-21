@@ -488,7 +488,11 @@ func TestCheckWantLinesAreWellFormed(t *testing.T) {
 					t.Errorf("want line %d %q is not \"LINE CODE\" with a code GNnnn or GWnnn", i+1, l)
 					continue
 				}
-				n, _ := strconv.Atoi(m[1])
+				n, err := strconv.Atoi(m[1])
+				if err != nil || n < 1 {
+					t.Errorf("want line %d %q: %q is not a usable line number: %v", i+1, l, m[1], err)
+					continue
+				}
 				if n > len(src) || strings.TrimSpace(src[n-1]) == "" {
 					t.Errorf("want line %d %q: src line %d does not exist or is blank", i+1, l, n)
 				}
