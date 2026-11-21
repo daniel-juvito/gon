@@ -748,15 +748,18 @@ func main() {
 	label := os.Args[2]
 	overlay := map[string][]byte{}
 	dirs := map[string]bool{}
-	filepath.Walk(root, func(p string, fi os.FileInfo, err error) error {
+	srcErr := filepath.Walk(root, func(p string, fi os.FileInfo, err error) error {
 		if err != nil {
-			return nil
+			return err // an entry that cannot be read must not be skipped
 		}
 		if fi.IsDir() && (fi.Name() == "node_modules" || fi.Name() == ".git") {
 			return filepath.SkipDir
 		}
 		if !fi.IsDir() && strings.HasSuffix(p, ".gon") {
-			src, _ := os.ReadFile(p)
+			src, err := os.ReadFile(p)
+			if err != nil {
+				return err // a .gon source that cannot be read would give partial counts
+			}
 			r := preproc.Process(p, src)
 			op := strings.TrimSuffix(p, ".gon") + ".go"
 			realDir := filepath.Dir(p)
@@ -772,6 +775,10 @@ func main() {
 		}
 		return nil
 	})
+	if srcErr != nil {
+		fmt.Fprintln(os.Stderr, "sources:", srcErr)
+		os.Exit(1)
+	}
 	if os.Getenv("G9_NOGNA") != "" {
 		reg = gna.NewRegistry()
 	} else if err := reg.LoadDir(filepath.Join(root, "annotations")); err != nil {

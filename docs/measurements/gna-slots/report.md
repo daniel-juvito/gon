@@ -144,7 +144,13 @@ directory) for the five modules of the control table. The GW001 count of each fi
   with exit 1, so a partial registry cannot give partial counts. Checked with a nested malformed `.gna`
   (`annotations/sub/deep/bad.gna`): exit 1 with the file named. The walk-error branch itself was **not
   triggered** (the session runs as root and can read every directory); it rests on the code, not on a test.
-- All 92 outputs were produced again with the strict version. They are byte-identical to the ones in `raw/`;
+- Source discovery: the first versions ignored the error of the walk over the module (`return nil` in the callback,
+  `filepath.Walk` result unused) and the error of reading a `.gon` file (`src, _ := os.ReadFile`). Both now stop
+  the run with exit 1. Checked with a dangling `dangling.gon` symlink (exit 1, file named); the walk-error branch
+  itself was not triggered, for the same reason as above (root can read everything).
+- Classification of `raw/`: recounted by the first line of each file. 36 files start with the result header
+  (`# <module> ...`), 56 do not, and all 56 contain `cannot find main module`.
+- All 92 outputs were produced again with the strict version of every check above. They are byte-identical to the ones in `raw/`;
   `raw.sha256` holds the SHA-256 of each, so `cd raw && sha256sum -c ../raw.sha256` checks the files, and the
   regenerated set was compared with the same list (0 differences).
 - A field contract is matched by the name of the field on the named type (`Types.<T>.Fields`). Fields reached
