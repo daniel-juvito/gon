@@ -224,7 +224,7 @@ amendment, 2026-11-17). Implemented and audited in #38.
 **Breaking risk:** Possibly Yes (R1).
 **Rationale (R1):** solo release.
 
-### v1.15–v1.19 — Exit Codes and Package Discovery — SHIPPED
+### v1.15–v1.20 — Exit Codes and Package Discovery — SHIPPED
 No new milestone: an audit of `gon check --json`'s exit codes (B) and then of
 package discovery, each change measured against minimal reproductions,
 proposed, audited, and released solo because each one changes exit codes a
@@ -258,31 +258,32 @@ records every rule.
   `code`, no `range`). A name the go tool ignores (`_x.gon`, `.x.gon`) is not
   part of the package and is no error. Outside a module the rule of v1.18
   stands, with the same message.
-- **Merged, not yet released: file mode (#54, 2026-11-19; `CHANGELOG.md`
-  `[Unreleased]`).** A `.gon` **file operand** with a malformed `//go:build`
-  line is the same source error: not checked, the other operands are, one
-  envelope, exit 1, nothing written by `transpile` / `build`, and `fmt` is
-  unchanged. go/build is asked about the contents under a neutral file name,
-  so the operand's own name does not decide. The release number is not decided.
-- **Merged, not yet released: the module context of `gon build <dir>` (#56,
-  2026-11-21; `CHANGELOG.md` `[Unreleased]`; amends RFC M9 T4).** `build`
-  transpiled every package and then ran `go build`, which failed for want of a
-  module with the `.go` files already written. Now, when it can prove that no
-  module is in force where `go build` runs, or that the operand is outside the
-  main module it uses, it refuses before anything is checked or written: exit 2,
-  nothing on stdout, one of two messages. Whatever it cannot prove is left to
-  `go build`, as before; an active workspace is not predicted (`go.work` is not
-  read). Only the directory form of `build` is affected. Neither this nor the
-  file-mode entry has a release number, and whether they ship together or apart
-  is not decided.
+- **v1.20 (#54 and #56, released in #60, 2026-11-21)** — two changes in one
+  release. Each was merged on its own, and the second landed on the first, so
+  they ship together rather than as two solo releases (a conscious departure
+  from the R1 precedent of this series).
+  - **File mode (#54).** A `.gon` **file operand** with a malformed
+    `//go:build` line is the same source error as in v1.19: not checked, the
+    other operands are, one envelope, exit 1, nothing written by `transpile` /
+    `build`, and `fmt` is unchanged. go/build is asked about the contents under
+    a neutral file name, so the operand's own name does not decide.
+  - **The module context of `gon build <dir>` (#56; amends RFC M9 T4).**
+    `build` transpiled every package and then ran `go build`, which failed for
+    want of a module with the `.go` files already written. Now, when it can
+    prove that no module is in force where `go build` runs, or that the operand
+    is outside the main module it uses, it refuses before anything is checked
+    or written: exit 2, nothing on stdout, one of two messages. Whatever it
+    cannot prove is left to `go build`, as before; an active workspace is not
+    predicted (`go.work` is not read). Only the directory form of `build` is
+    affected.
 
 **Breaking risk:** Yes for exit-code consumers (each release lists the
 changed outcomes in `CHANGELOG.md`). **Rationale (R1):** one solo release per
-change.
+change, except v1.20, which carries two.
 
 ## 5. Open Sequencing Notes
 
-- **Open work after v1.19 (none scheduled, none audited as done).**
+- **Open work after v1.20 (none scheduled, none audited as done).**
   - **C — no RFC yet.** Cross-package contracts on a defined type whose base
     comes from another package, and checking a module-local dependency that
     has only `.gon` sources (no `.go`) before it is transpiled. Deferred by
@@ -297,7 +298,8 @@ change.
   Gon (`docs/dogfood.md`); `!` contracts are added package by package after
   measurement and audit (all of `internal/checker`'s approved groups are in).
   A release is needed only when the dogfood gate needs a checker it does not
-  pin yet.
+  pin yet. The gate and the two companion repositories (`gon-examples`,
+  `gon-vscode`) are pinned to v1.20.0.
 - **Cross-OS tests (CI, not a release track).** The `test-os` job of `ci.yml`
   (#58) runs `go vet` and `go test` on Windows and macOS besides the Linux gate.
   It is informational and not a required check. Its first run on Windows failed
