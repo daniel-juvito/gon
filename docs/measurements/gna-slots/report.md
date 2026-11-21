@@ -138,9 +138,14 @@ directory) for the five modules of the control table. The GW001 count of each fi
 ## Notes on the instrument
 
 - Loading of `.gna` files: the first version reported an error from the top-level `LoadDir` and ignored the
-  errors of nested directories. Both now stop the run, so a partial registry cannot give partial counts. All 92
-  outputs were produced again with the strict version and are byte-identical to the ones in `raw/`, so no
-  number of this report depended on a load error.
+  errors of nested directories, and it ignored the result of `filepath.Walk`. Now a `LoadDir` error in any
+  directory under `annotations/` and an error of the walk itself (a directory that cannot be read) stop the run
+  with exit 1, so a partial registry cannot give partial counts. Checked with a nested malformed `.gna`
+  (`annotations/sub/deep/bad.gna`): exit 1 with the file named. The walk-error branch itself was **not
+  triggered** (the session runs as root and can read every directory); it rests on the code, not on a test.
+- All 92 outputs were produced again with the strict version. They are byte-identical to the ones in `raw/`;
+  `raw.sha256` holds the SHA-256 of each, so `cd raw && sha256sum -c ../raw.sha256` checks the files, and the
+  regenerated set was compared with the same list (0 differences).
 - A field contract is matched by the name of the field on the named type (`Types.<T>.Fields`). Fields reached
   through an embedded struct or a type alias are not resolved safely by this approach. I did not check whether any of
   the measured `.gna` fields is reached that way, so this is a limit of the instrument and one more reason the

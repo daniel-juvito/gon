@@ -778,15 +778,23 @@ func main() {
 		fmt.Fprintln(os.Stderr, "gna:", err)
 		os.Exit(1) // a partial registry would give partial counts
 	}
-	filepath.Walk(filepath.Join(root, "annotations"), func(p string, fi os.FileInfo, err error) error {
-		if err == nil && fi.IsDir() && os.Getenv("G9_NOGNA") == "" {
-			if err := reg.LoadDir(p); err != nil {
-				fmt.Fprintln(os.Stderr, "gna:", p, err)
-				os.Exit(1) // a partial registry would give partial counts
+	if _, err := os.Stat(filepath.Join(root, "annotations")); err == nil && os.Getenv("G9_NOGNA") == "" {
+		walkErr := filepath.Walk(filepath.Join(root, "annotations"), func(p string, fi os.FileInfo, err error) error {
+			if err != nil {
+				return err // a directory that cannot be read must not be skipped
 			}
+			if fi.IsDir() {
+				if err := reg.LoadDir(p); err != nil {
+					return fmt.Errorf("%s: %w", p, err)
+				}
+			}
+			return nil
+		})
+		if walkErr != nil {
+			fmt.Fprintln(os.Stderr, "gna:", walkErr)
+			os.Exit(1) // a partial registry would give partial counts
 		}
-		return nil
-	})
+	}
 	var qs []string
 	for d := range dirs {
 		qs = append(qs, d)
