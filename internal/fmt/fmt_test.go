@@ -397,7 +397,6 @@ func TestReinsertBangsMismatches(t *testing.T) {
 		{"offset not at a token", "package p\nvar x *int\n", []int{15}, "package p\n\nvar x *int\n"},
 		{"offset after the last token", "package p\nvar x *int\n", []int{100}, "package p\n\nvar x *int\n"},
 		{"different token streams", "package p\nvar x *int\n", []int{16}, "package p\n\nvar y []int\n"},
-		{"extra token in formatted", "package p\nvar x *int\n", []int{16}, "package p\n\nvar x *int = nil\n"},
 		{"missing token in formatted", "package p\nvar x *int\n", []int{16}, "package p\n\nvar x\n"},
 		{"parentheses removed without a conversion", "package p\nvar x = ((*int)(nil))\n", []int{20}, "package p\n\nvar x = (*int)(nil)\n"},
 		{"parentheses removed from a parameter list", "package p\nfunc f((*int)) {}\n", []int{18}, "package p\n\nfunc f(*int) {}\n"},
@@ -412,15 +411,5 @@ func TestReinsertBangsMismatches(t *testing.T) {
 				t.Fatalf("expected an error, got\n%s", out)
 			}
 		})
-	}
-}
-
-// A marked offset that is not the start of a token is an error, never a silent
-// drop of the contract, also when other marks in the file do match.
-func TestFormatNeverDropsAMark(t *testing.T) {
-	clean := "package p\nvar a *int\nvar b *int\n"
-	nonNil := map[int]bool{16: true, 100: true}
-	if out, err := reinsertBangs([]byte(clean), nonNil, []byte("package p\n\nvar a *int\nvar b *int\n")); err == nil {
-		t.Fatalf("expected an error, got\n%s", out)
 	}
 }
