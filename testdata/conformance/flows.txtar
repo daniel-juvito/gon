@@ -433,3 +433,91 @@ func f(p *T) {
 }
 -- CV-BIND-01/want --
 10 GN001
+-- GW-E-01/src --
+package p
+
+type T struct{}
+
+func mk() *T { return &T{} }
+
+func f() {
+	_ = []!*T{mk()}
+	_ = map[string]!*T{"a": mk()}
+	_ = [2]!*T{mk(), &T{}}
+	_ = [...]!*T{mk()}
+	_ = []!*T{&T{}, new(T)}
+}
+-- GW-E-01/want --
+8 GW006
+9 GW006
+10 GW006
+11 GW006
+-- GW-G-01/src --
+package p
+
+type T struct{}
+
+func mk() *T { return &T{} }
+
+type Box[X any] struct {
+	v !*X
+}
+
+func Ptr[P ~*T](p !P) P { return p }
+
+func Must[V any](p *V) !*V { return p }
+
+func f() {
+	_ = Box[T]{v: mk()}
+	_ = Box[T]{v: &T{}}
+	_ = Ptr(mk())
+}
+-- GW-G-01/want --
+13 GW006
+16 GW006
+-- GW-C-01/src --
+package p
+
+type T struct{}
+
+type S struct {
+	p !*T
+}
+
+type Reg map[string]int
+
+func take(p !*T) {}
+
+func ret(q *T) !*T {
+	return (!*T)(q)
+}
+
+func f(q *T, m !map[string]int, mm map[string]int) {
+	var p !*T = (!*T)(q)
+	p = (!*T)(q)
+	take((!*T)(q))
+	_ = S{p: (!*T)(q)}
+	_ = S{(!*T)(q)}
+	_ = []!*T{(!*T)(q)}
+	var a !Reg = (!Reg)(m)
+	var b !Reg = (!Reg)(mm)
+	_, _, _ = p, a, b
+}
+-- GW-C-01/want --
+-- GW-P-01/src --
+package p
+
+type T struct{}
+
+func mk() *T { return &T{} }
+
+func f(q *T) {
+	var a !*T = (q)
+	var b !*T = (&T{})
+	var c !*T = ((new(T)))
+	var d !*T = (mk())
+	_, _, _, _ = a, b, c, d
+}
+-- GW-P-01/want --
+8 GW006
+11 GW006

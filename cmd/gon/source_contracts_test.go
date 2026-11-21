@@ -186,8 +186,9 @@ func TestSourceContractsGenericMethod(t *testing.T) {
 	})
 	chdir(t, root)
 	_, _, errOut := captureRun([]string{"check", "./app"})
-	// a typed nil is not a literal nil: only the result is checked here
-	wantDiags(t, errOut, "app/main.gon:9 GW001")
+	// a typed nil is not a literal nil (no GN001); it is an ordinary value into a
+	// `!` parameter (GW006), and the result is a non-nil source (GW001)
+	wantDiags(t, errOut, "app/main.gon:7 GW006", "app/main.gon:9 GW001")
 
 	root2 := scModule(t, "1.27", map[string]string{
 		"lib/lib.gon":  "package lib\n\ntype Box[X any] struct{ v X }\n\nfunc (b Box[X]) Map[Y any](p !*Y) !*Y { return p }\n",
@@ -269,8 +270,8 @@ func TestSourceContractsGW005Unit(t *testing.T) {
 		"lib/a.gon":              "package lib\n\nfunc A(p !*int) {}\n",
 		"lib/b.gon":              "package lib\n\nfunc B(p !*int) {}\n",
 		"annotations/ex/lib.gna": "schema: 1\npackage: ex/lib\n",
-		"app/one.gon":            "package main\n\nimport \"ex/lib\"\n\nfunc main() {\n\tx := 1\n\tlib.A(&x)\n\tlib.B(&x)\n\tlib.A(&x)\n}\n",
-		"app/two.gon":            "package main\n\nimport \"ex/lib\"\n\nfunc two() { x := 1; lib.B(&x) }\n",
+		"app/one.gon":            "package main\n\nimport \"ex/lib\"\n\nfunc main() {\n\tlib.A(new(int))\n\tlib.B(new(int))\n\tlib.A(new(int))\n}\n",
+		"app/two.gon":            "package main\n\nimport \"ex/lib\"\n\nfunc two() { lib.B(new(int)) }\n",
 	})
 	chdir(t, root)
 	var first string

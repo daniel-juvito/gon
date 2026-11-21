@@ -110,7 +110,7 @@ func f(b Box, pb *Box) { b.ValSet(nil); pb.ValSet(nil) }`)
 func TestMethodContractNonNilArgumentIsAccepted(t *testing.T) {
 	d := mcCheck(t, `
 func (b *Box) Set(p !*T) {}
-func f(b *Box, t *T) { b.Set(t); b.Set(&T{}) }`)
+func f(b *Box, t *T) { b.Set((!*T)(t)); b.Set(&T{}) }`)
 	mcWant(t, d, 0, 0)
 }
 
@@ -448,7 +448,7 @@ type G[V any] struct{}
 func (g G[V]) Map[Y any](p !*Y) !*Y { return p }
 func f(g G[int], x *int) {
 	g.Map(nil)
-	r := g.Map(x)
+	r := g.Map((!*int)(x))
 	if r == nil {}
 }`)
 	mcWant(t, d, 1, 1)

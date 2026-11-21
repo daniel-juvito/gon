@@ -312,6 +312,28 @@ Full format: [docs/gna-spec-v1.md](docs/gna-spec-v1.md)
 | GW003 | warning  | redundant type assertion on a declared `!T` identifier (v1.3) |
 | GW004 | warning  | `.gna` names a `functions:` / `methods:` / `types:` symbol the package does not provide (v1.5) |
 | GW005 | warning  | a `.gna` exists for an imported package of the main module that has `.gon` sources: the `.gna` is ignored, the `.gon` sources are authoritative (v1.14); once per import |
+| GW006 | warning  | *(on `main`, not yet released)* a value that is not a recognised non-nil source, or is one of a different (not identical) type, flows into a `!T` slot of a pointer, slice, map, channel or function kind; silenced by the explicit conversion `(!T)(x)`. An ordinary interface value into `!I` stays GN001 |
+
+### Explicit non-nil conversion (on `main`, not yet released)
+
+`(!T)(x)` is the author's claim that `x`, converted to `T`, is non-nil. It is valid
+exactly when the Go conversion `(T)(x)` is valid, it performs **no run-time check**,
+and it is a recognised non-nil source of type `T`. Its first `(` must be a
+grouping parenthesis, so `adder(!flag)(3)` keeps its meaning as a call.
+
+```go
+func lookup(m map[string]*Node, k string) !*Node {
+	n := m[k]            // an ordinary *Node
+	return (!*Node)(n)   // the claim; without it: GW006
+}
+```
+
+`(!T)(nil)` is GN001 and a target that is not a pointer, slice, map, channel,
+function or interface is GN003. The conversion binds no local variable, and a
+contract is never carried to a different type implicitly: `(!U)(x)` is the form
+that states the contract on `U`. In a type position a run of `!` is one `!` (`gon fmt`
+writes `!T`); `!!x` in an expression is still the Go double negation. See
+[docs/rfc-explicit-nonnil-conversion.md](docs/rfc-explicit-nonnil-conversion.md).
 
 ## Scope and limitations
 

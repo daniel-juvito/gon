@@ -37,7 +37,7 @@ func TestEC_SliceElementNil(t *testing.T) {
 }
 
 func TestEC_SliceElementsOK(t *testing.T) {
-	d := elemCheck(t, `func f() { _ = []!*T{mk(), mk()} }`)
+	d := elemCheck(t, `func f() { _ = []!*T{&T{}, new(T)} }`)
 	if len(d) != 0 {
 		t.Fatalf("non-nil slice elements must be clean: %v", d)
 	}
@@ -69,7 +69,7 @@ func TestEC_MapValueNil(t *testing.T) {
 }
 
 func TestEC_MapValuesOK(t *testing.T) {
-	d := elemCheck(t, `func f() { _ = map[string]!*T{"a": mk()} }`)
+	d := elemCheck(t, `func f() { _ = map[string]!*T{"a": &T{}} }`)
 	if len(d) != 0 {
 		t.Fatalf("non-nil map values must be clean: %v", d)
 	}
@@ -163,7 +163,7 @@ func TestEC_InterfaceElementOK(t *testing.T) {
 
 func TestEC_NonGoalsStaySilent(t *testing.T) {
 	d := elemCheck(t, `func f() {
-	s := []!*T{mk()}
+	s := []!*T{&T{}}
 	s[0] = nil
 	s = append(s, nil)
 	for _, p := range s {

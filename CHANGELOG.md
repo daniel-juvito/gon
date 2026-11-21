@@ -490,7 +490,47 @@ diagnostic code or severity, and exit 0/1/2/3 keep their meaning.
 
 ## [Unreleased]
 
+### Added
+
+Part A of the explicit non-nil conversion RFC
+(`docs/rfc-explicit-nonnil-conversion.md`). Not released: no version number, date
+or release shape is decided.
+
+- **The explicit non-nil conversion `(!T)(x)`.** The preprocessor recognises it when
+  its first `(` is a grouping parenthesis (decided on the Go scanner token stream),
+  strips the `!` and records its offset; `adder(!flag)(3)` and the other look-alikes
+  keep their meaning. It is valid exactly when `(T)(x)` is valid Go and performs no
+  run-time check.
+- **`!!T` is `!T` in a type position** (also as a conversion target); `gon fmt` writes
+  one `!`. `!!x` in an expression is untouched.
+- **`gon fmt`** keeps a `!` through the redundant parentheses that `go/format` removes
+  around a conversion target (`((!*T))(x)` is written `(!*T)(x)`).
+- **Checks of a conversion:** a `nil` operand is **GN001**, a target that is not a
+  nilable kind is **GN003** (existing wording and type-parameter rule), and the
+  conversion is a recognised non-nil source, so `(!I)(x)` satisfies D3d when its static
+  type is identical to the slot. It binds no local variable.
+- **GW006** (new warning, exit status unchanged): a value that flows into a `!T` slot of
+  a pointer, slice, map, channel or function kind without being a recognised non-nil
+  source of the identical type: a variable initialiser, an assignment, an argument
+  (also to a `.gna` parameter), a result, a field of a composite literal (also a `.gna`
+  field) and an element or map value. Recognised sources: an identifier declared `!T`
+  or bound as before, a call whose first result is `!T`, a selector of a `!` field, a
+  composite literal, `&literal`, `new`, `make`, a function literal and `(!T)(x)`. An
+  ordinary interface value into `!I` stays GN001 (D3b), a type-parameter slot is
+  unchanged. **Possibly noisy for existing code**: a value that was accepted silently
+  (for example a call result, a map lookup, `&x` or a local built from a literal) now
+  warns until it is written `(!T)(x)`.
+
 ### Fixed
+
+- **`gon fmt` could drop a `!` without a word** when another `!` in the same file
+  matched (for example `var y ! *int` next to `var z !*int`): it exited 0 and wrote
+  `var y *int`. It now stops with an error and leaves the file unchanged.
+- **A `!` followed by white space or a comment before the type (`var y ! *int`) was not
+  enforced.** The preprocessor recorded the offset of the space, which no consumer
+  matched, so `gon check` accepted `var y ! *int` and `func g(p ! *int)` with no
+  GN002 or GN001, where the same code without the space is rejected. The offset is
+  now the start of the type, so the contract is enforced and `gon fmt` writes `!*int`.
 
 - **`gon check <dir>` on a directory with no `.gon` file at all** said
   `no .gon files in <dir> (*_test.gon files are not checked in package mode)`,

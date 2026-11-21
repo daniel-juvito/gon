@@ -2,8 +2,3 @@
 # this list and the manifest agree, so that an entry cannot disappear or change status
 # silently. An implementation PR moves its entries to "enabled" in the manifest and
 # deletes them here.
-GW-K-01 pending-PR2b
-GW-S-01 pending-PR2b
-GW-T-01 pending-PR2b
-GW-N-01 pending-PR2b
-GW-B-01 pending-PR2b

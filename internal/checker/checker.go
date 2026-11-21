@@ -296,6 +296,8 @@ func (c *Checker) registerPackageVars() {
 						c.addError(val.Pos(), "GN001", fmt.Sprintf("cannot assign nil to non-nil type !%s", formatType(vs.Type)))
 					} else if c.cannotSatisfyBangInterface(val, c.staticTypeOf(vs.Type)) {
 						c.addError(val.Pos(), "GN001", fmt.Sprintf("cannot assign ordinary interface value to non-nil type !%s", formatType(vs.Type)))
+					} else {
+						c.reportOrdinaryFlow(val, c.staticTypeOf(vs.Type))
 					}
 				}
 			}
@@ -521,6 +523,8 @@ func (c *Checker) checkLocalVarDecl(d *ast.GenDecl) {
 						c.addError(vs.Values[i].Pos(), "GN001", fmt.Sprintf("cannot assign nil to non-nil type !%s", formatType(vs.Type)))
 					} else if c.cannotSatisfyBangInterface(vs.Values[i], c.staticTypeOf(vs.Type)) {
 						c.addError(vs.Values[i].Pos(), "GN001", fmt.Sprintf("cannot assign ordinary interface value to non-nil type !%s", formatType(vs.Type)))
+					} else {
+						c.reportOrdinaryFlow(vs.Values[i], c.staticTypeOf(vs.Type))
 					}
 				}
 			}
@@ -587,6 +591,8 @@ func (c *Checker) checkAssignStmt(assign *ast.AssignStmt) {
 					}
 					if c.cannotSatisfyBangInterface(assign.Rhs[i], target) {
 						c.addError(assign.Rhs[i].Pos(), "GN001", fmt.Sprintf("cannot assign ordinary interface value to non-nil variable !%s", id.Name))
+					} else {
+						c.reportOrdinaryFlow(assign.Rhs[i], target)
 					}
 				}
 			}
@@ -598,6 +604,8 @@ func (c *Checker) checkAssignStmt(assign *ast.AssignStmt) {
 				} else if ft := c.selectorFieldType(sel); isInterfaceType(ft) && c.cannotSatisfyBangInterface(assign.Rhs[i], ft) {
 					// M4b E8/§4.5: ordinary interface value into a `!I` field.
 					c.addError(assign.Rhs[i].Pos(), "GN001", fmt.Sprintf("cannot assign ordinary interface value to non-nil field %s", sel.Sel.Name))
+				} else {
+					c.reportOrdinaryFlow(assign.Rhs[i], c.selectorFieldType(sel))
 				}
 			}
 		}
@@ -669,6 +677,8 @@ func (c *Checker) checkReturnStmt(ret *ast.ReturnStmt) {
 			}
 			if c.cannotSatisfyBangInterface(result, target) {
 				c.addError(result.Pos(), "GN001", "cannot return ordinary interface value from function with non-nil return type")
+			} else {
+				c.reportOrdinaryFlow(result, target)
 			}
 		}
 	}
@@ -706,6 +716,8 @@ func (c *Checker) checkCallExpr(call *ast.CallExpr) {
 			c.addError(arg.Pos(), "GN001", fmt.Sprintf("cannot pass nil as non-nil argument %d to %s", pi+1, display))
 		} else if c.cannotSatisfyBangInterface(arg, c.callArgParamType(call.Fun, pi)) {
 			c.addError(arg.Pos(), "GN001", fmt.Sprintf("cannot pass ordinary interface value as non-nil argument %d to %s", pi+1, display))
+		} else if !c.declaredParamIsTypeParam(call.Fun, pi) {
+			c.reportOrdinaryFlow(arg, c.callArgParamType(call.Fun, pi))
 		}
 	}
 }
