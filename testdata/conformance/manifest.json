@@ -1,0 +1,596 @@
+[
+ {
+  "id": "TC-01",
+  "rfc": "§6.1",
+  "kind": "tokenclass",
+  "status": "enabled",
+  "site": "internal/preproc: grouping parenthesis (token-class oracle)",
+  "diagnostic": "-",
+  "note": "SF-1 of the plan: the table in tokenclass_test.go"
+ },
+ {
+  "id": "TC-02",
+  "rfc": "§6.1",
+  "kind": "tokenclass",
+  "status": "enabled",
+  "site": "internal/preproc: grouping parenthesis (token-class oracle)",
+  "diagnostic": "-",
+  "note": "SF-1 of the plan: the table in tokenclass_test.go"
+ },
+ {
+  "id": "TC-03",
+  "rfc": "§6.1",
+  "kind": "tokenclass",
+  "status": "enabled",
+  "site": "internal/preproc: grouping parenthesis (token-class oracle)",
+  "diagnostic": "-",
+  "note": "SF-1 of the plan: the table in tokenclass_test.go"
+ },
+ {
+  "id": "TC-04",
+  "rfc": "§6.1",
+  "kind": "tokenclass",
+  "status": "enabled",
+  "site": "internal/preproc: grouping parenthesis (token-class oracle)",
+  "diagnostic": "-",
+  "note": "SF-1 of the plan: the table in tokenclass_test.go"
+ },
+ {
+  "id": "TC-05",
+  "rfc": "§6.1",
+  "kind": "tokenclass",
+  "status": "enabled",
+  "site": "internal/preproc: grouping parenthesis (token-class oracle)",
+  "diagnostic": "-",
+  "note": "SF-1 of the plan: the table in tokenclass_test.go"
+ },
+ {
+  "id": "TC-06",
+  "rfc": "§6.1",
+  "kind": "tokenclass",
+  "status": "enabled",
+  "site": "internal/preproc: grouping parenthesis (token-class oracle)",
+  "diagnostic": "-",
+  "note": "SF-1 of the plan: the table in tokenclass_test.go"
+ },
+ {
+  "id": "TC-07",
+  "rfc": "§6.1",
+  "kind": "tokenclass",
+  "status": "enabled",
+  "site": "internal/preproc: grouping parenthesis (token-class oracle)",
+  "diagnostic": "-",
+  "note": "SF-1 of the plan: the table in tokenclass_test.go"
+ },
+ {
+  "id": "TC-08",
+  "rfc": "§6.1",
+  "kind": "tokenclass",
+  "status": "enabled",
+  "site": "internal/preproc: grouping parenthesis (token-class oracle)",
+  "diagnostic": "-",
+  "note": "SF-1 of the plan: the table in tokenclass_test.go"
+ },
+ {
+  "id": "TC-09",
+  "rfc": "§6.1",
+  "kind": "tokenclass",
+  "status": "enabled",
+  "site": "internal/preproc: grouping parenthesis (token-class oracle)",
+  "diagnostic": "-",
+  "note": "SF-1 of the plan: the table in tokenclass_test.go"
+ },
+ {
+  "id": "TC-10",
+  "rfc": "§6.1",
+  "kind": "tokenclass",
+  "status": "enabled",
+  "site": "internal/preproc: grouping parenthesis (token-class oracle)",
+  "diagnostic": "-",
+  "note": "SF-1 of the plan: the table in tokenclass_test.go"
+ },
+ {
+  "id": "TC-11",
+  "rfc": "§6.1",
+  "kind": "tokenclass",
+  "status": "enabled",
+  "site": "internal/preproc: grouping parenthesis (token-class oracle)",
+  "diagnostic": "-",
+  "note": "SF-1 of the plan: the table in tokenclass_test.go"
+ },
+ {
+  "id": "TC-12",
+  "rfc": "§6.1",
+  "kind": "tokenclass",
+  "status": "enabled",
+  "site": "internal/preproc: grouping parenthesis (token-class oracle)",
+  "diagnostic": "-",
+  "note": "SF-1 of the plan: the table in tokenclass_test.go"
+ },
+ {
+  "id": "TC-13",
+  "rfc": "§6.1",
+  "kind": "tokenclass",
+  "status": "enabled",
+  "site": "internal/preproc: grouping parenthesis (token-class oracle)",
+  "diagnostic": "-",
+  "note": "SF-1 of the plan: the table in tokenclass_test.go"
+ },
+ {
+  "id": "TC-14",
+  "rfc": "§6.1",
+  "kind": "tokenclass",
+  "status": "enabled",
+  "site": "internal/preproc: grouping parenthesis (token-class oracle)",
+  "diagnostic": "-",
+  "note": "SF-1 of the plan: the table in tokenclass_test.go"
+ },
+ {
+  "id": "TC-15",
+  "rfc": "§6.1",
+  "kind": "tokenclass",
+  "status": "enabled",
+  "site": "internal/preproc: grouping parenthesis (token-class oracle)",
+  "diagnostic": "-",
+  "note": "SF-1 of the plan: the table in tokenclass_test.go"
+ },
+ {
+  "id": "TC-16",
+  "rfc": "§6.1",
+  "kind": "tokenclass",
+  "status": "enabled",
+  "site": "internal/preproc: grouping parenthesis (token-class oracle)",
+  "diagnostic": "-",
+  "note": "SF-1 of the plan: the table in tokenclass_test.go"
+ },
+ {
+  "id": "TC-17",
+  "rfc": "§6.1",
+  "kind": "tokenclass",
+  "status": "enabled",
+  "site": "internal/preproc: grouping parenthesis (token-class oracle)",
+  "diagnostic": "-",
+  "note": "SF-1 of the plan: the table in tokenclass_test.go"
+ },
+ {
+  "id": "TC-18",
+  "rfc": "§6.1",
+  "kind": "tokenclass",
+  "status": "enabled",
+  "site": "internal/preproc: grouping parenthesis (token-class oracle)",
+  "diagnostic": "-",
+  "note": "SF-1 of the plan: the table in tokenclass_test.go"
+ },
+ {
+  "id": "TC-19",
+  "rfc": "§6.1",
+  "kind": "tokenclass",
+  "status": "enabled",
+  "site": "internal/preproc: grouping parenthesis (token-class oracle)",
+  "diagnostic": "-",
+  "note": "SF-1 of the plan: the table in tokenclass_test.go"
+ },
+ {
+  "id": "TC-20",
+  "rfc": "§6.1",
+  "kind": "tokenclass",
+  "status": "enabled",
+  "site": "internal/preproc: grouping parenthesis (token-class oracle)",
+  "diagnostic": "-",
+  "note": "SF-1 of the plan: the table in tokenclass_test.go"
+ },
+ {
+  "id": "TC-21",
+  "rfc": "§6.1",
+  "kind": "tokenclass",
+  "status": "enabled",
+  "site": "internal/preproc: grouping parenthesis (token-class oracle)",
+  "diagnostic": "-",
+  "note": "SF-1 of the plan: the table in tokenclass_test.go"
+ },
+ {
+  "id": "TC-22",
+  "rfc": "§6.1",
+  "kind": "tokenclass",
+  "status": "enabled",
+  "site": "internal/preproc: grouping parenthesis (token-class oracle)",
+  "diagnostic": "-",
+  "note": "SF-1 of the plan: the table in tokenclass_test.go"
+ },
+ {
+  "id": "TC-23",
+  "rfc": "§6.1",
+  "kind": "tokenclass",
+  "status": "enabled",
+  "site": "internal/preproc: grouping parenthesis (token-class oracle)",
+  "diagnostic": "-",
+  "note": "SF-1 of the plan: the table in tokenclass_test.go"
+ },
+ {
+  "id": "TC-24",
+  "rfc": "§6.1",
+  "kind": "tokenclass",
+  "status": "enabled",
+  "site": "internal/preproc: grouping parenthesis (token-class oracle)",
+  "diagnostic": "-",
+  "note": "SF-1 of the plan: the table in tokenclass_test.go"
+ },
+ {
+  "id": "TC-25",
+  "rfc": "§6.1",
+  "kind": "tokenclass",
+  "status": "enabled",
+  "site": "internal/preproc: grouping parenthesis (token-class oracle)",
+  "diagnostic": "-",
+  "note": "SF-1 of the plan: the table in tokenclass_test.go"
+ },
+ {
+  "id": "TC-26",
+  "rfc": "§6.1",
+  "kind": "tokenclass",
+  "status": "enabled",
+  "site": "internal/preproc: grouping parenthesis (token-class oracle)",
+  "diagnostic": "-",
+  "note": "SF-1 of the plan: the table in tokenclass_test.go"
+ },
+ {
+  "id": "SYN-LA-01",
+  "rfc": "§6.1",
+  "kind": "preproc",
+  "status": "enabled",
+  "site": "internal/preproc: Process",
+  "diagnostic": "-",
+  "note": "adder(!flag)(3): a call whose result is called; keeps its clean source"
+ },
+ {
+  "id": "SYN-LA-02",
+  "rfc": "§6.1",
+  "kind": "preproc",
+  "status": "enabled",
+  "site": "internal/preproc: Process",
+  "diagnostic": "-",
+  "note": "(!a) && b, g(!a, !b), !(!a)"
+ },
+ {
+  "id": "SYN-LA-03",
+  "rfc": "§6.1",
+  "kind": "preproc",
+  "status": "enabled",
+  "site": "internal/preproc: Process",
+  "diagnostic": "-",
+  "note": "a ( after } on the same line, ], ) or an identifier does not group"
+ },
+ {
+  "id": "SYN-LA-04",
+  "rfc": "§6.1",
+  "kind": "preproc",
+  "status": "enabled",
+  "site": "internal/preproc: Process",
+  "diagnostic": "-",
+  "note": "the pattern inside strings and comments"
+ },
+ {
+  "id": "SYN-LA-05",
+  "rfc": "§6.1",
+  "kind": "preproc",
+  "status": "enabled",
+  "site": "internal/preproc: Process",
+  "diagnostic": "-",
+  "note": "unbalanced parenthesis: conservative rule, unchanged"
+ },
+ {
+  "id": "SYN-TA-01",
+  "rfc": "§6.1",
+  "kind": "preproc",
+  "status": "enabled",
+  "site": "internal/preproc: Process",
+  "diagnostic": "-",
+  "note": "type assertion x.(!T) (D6a) is not a conversion"
+ },
+ {
+  "id": "SYN-TY-01",
+  "rfc": "§6.7",
+  "kind": "preproc",
+  "status": "enabled",
+  "site": "internal/preproc: Process",
+  "diagnostic": "-",
+  "note": "single ! in type positions (baseline)"
+ },
+ {
+  "id": "SYN-EX-01",
+  "rfc": "§6.7",
+  "kind": "preproc",
+  "status": "enabled",
+  "site": "internal/preproc: Process",
+  "diagnostic": "-",
+  "note": "!!x and !(!x) in expressions stay Go"
+ },
+ {
+  "id": "SYN-CV-01",
+  "rfc": "§6.1",
+  "kind": "preproc",
+  "status": "pending-PR1",
+  "site": "internal/preproc: Process",
+  "diagnostic": "-",
+  "note": "(!*Node)(x)"
+ },
+ {
+  "id": "SYN-CV-02",
+  "rfc": "§6.1",
+  "kind": "preproc",
+  "status": "pending-PR1",
+  "site": "internal/preproc: Process",
+  "diagnostic": "-",
+  "note": "slice, map, chan, func, qualified, generic targets"
+ },
+ {
+  "id": "SYN-CV-03",
+  "rfc": "§6.1",
+  "kind": "preproc",
+  "status": "pending-PR1",
+  "site": "internal/preproc: Process",
+  "diagnostic": "-",
+  "note": "nested and spaced parentheses"
+ },
+ {
+  "id": "SYN-CV-04",
+  "rfc": "§6.1",
+  "kind": "preproc",
+  "status": "pending-PR1",
+  "site": "internal/preproc: Process",
+  "diagnostic": "-",
+  "note": "a statement after a block }: the scanner inserts a semicolon, so the ( groups"
+ },
+ {
+  "id": "SYN-CV-05",
+  "rfc": "§6.1",
+  "kind": "preproc",
+  "status": "pending-PR1",
+  "site": "internal/preproc: Process",
+  "diagnostic": "-",
+  "note": "argument, operator, send, defer, return contexts"
+ },
+ {
+  "id": "SYN-CV-06",
+  "rfc": "§6.1",
+  "kind": "preproc",
+  "status": "pending-PR1",
+  "site": "internal/preproc: Process",
+  "diagnostic": "-",
+  "note": "field value and a multi-value declaration"
+ },
+ {
+  "id": "SYN-BANG-01",
+  "rfc": "§6.7",
+  "kind": "preproc",
+  "status": "pending-PR1",
+  "site": "internal/preproc: Process",
+  "diagnostic": "-",
+  "note": "a run of ! in a type position is one !"
+ },
+ {
+  "id": "SYN-BANG-02",
+  "rfc": "§6.7",
+  "kind": "preproc",
+  "status": "pending-PR1",
+  "site": "internal/preproc: Process",
+  "diagnostic": "-",
+  "note": "a run of ! in the target of a conversion"
+ },
+ {
+  "id": "FMT-00",
+  "rfc": "§6.7",
+  "kind": "fmt",
+  "status": "enabled",
+  "site": "internal/fmt: Format",
+  "diagnostic": "-",
+  "note": "baseline formatting of ! types"
+ },
+ {
+  "id": "FMT-01",
+  "rfc": "§6.7",
+  "kind": "fmt",
+  "status": "enabled",
+  "site": "internal/fmt: reinsertBangs",
+  "diagnostic": "-",
+  "note": "a conversion is formatted unchanged; holds today because the ! passes through go/format as plain text; PR 1 replaces that by a marker and a re-insertion, and must keep it true"
+ },
+ {
+  "id": "FMT-02",
+  "rfc": "§6.7",
+  "kind": "fmt",
+  "status": "enabled",
+  "site": "internal/fmt: reinsertBangs",
+  "diagnostic": "-",
+  "note": "redundant parentheses go; one layer is the canonical form; holds today because the ! passes through go/format as plain text; PR 1 replaces that by a marker and a re-insertion, and must keep it true"
+ },
+ {
+  "id": "FMT-03",
+  "rfc": "§6.7",
+  "kind": "fmt",
+  "status": "pending-PR1",
+  "site": "internal/fmt: Format",
+  "diagnostic": "-",
+  "note": "!!T is written !T"
+ },
+ {
+  "id": "FL-NIL-01",
+  "rfc": "§6.6",
+  "kind": "check",
+  "status": "enabled",
+  "site": "internal/checker: nil literal (existing GN001)",
+  "diagnostic": "GN001",
+  "note": "nil literal into a !T slot of five kinds"
+ },
+ {
+  "id": "FL-SIL-01",
+  "rfc": "§6.6",
+  "kind": "check",
+  "status": "enabled",
+  "site": "internal/checker: isNonNilSource and construction forms",
+  "diagnostic": "-",
+  "note": "recognised sources are silent"
+ },
+ {
+  "id": "FL-IF-01",
+  "rfc": "§6.4",
+  "kind": "check",
+  "status": "enabled",
+  "site": "internal/checker: cannotSatisfyBangInterface (D3a, D3b, D3d)",
+  "diagnostic": "GN001",
+  "note": "interface rules unchanged; not GW006"
+ },
+ {
+  "id": "FL-IF-02",
+  "rfc": "§6.4",
+  "kind": "check",
+  "status": "enabled",
+  "site": "internal/checker: isNonNilSource",
+  "diagnostic": "-",
+  "note": "an identical !I source is silent"
+ },
+ {
+  "id": "FL-TP-01",
+  "rfc": "§6.4",
+  "kind": "check",
+  "status": "enabled",
+  "site": "internal/checker: cannotSatisfyBangInterface (type parameter, D3b)",
+  "diagnostic": "GN001",
+  "note": "OQ-2: D3b unchanged"
+ },
+ {
+  "id": "FL-TP-02",
+  "rfc": "§6.3",
+  "kind": "check",
+  "status": "enabled",
+  "site": "internal/checker: validateNonNilKind",
+  "diagnostic": "GN003",
+  "note": "a constraint that is not nilable-only: GN003; the flow is also GN001 in v1.20.0"
+ },
+ {
+  "id": "FL-NN-01",
+  "rfc": "§6.3",
+  "kind": "check",
+  "status": "enabled",
+  "site": "internal/checker: validateNonNilKind",
+  "diagnostic": "GN003",
+  "note": "a non-nilable target"
+ },
+ {
+  "id": "FL-LA-01",
+  "rfc": "§6.1",
+  "kind": "check",
+  "status": "enabled",
+  "site": "internal/checker: whole check",
+  "diagnostic": "-",
+  "note": "adder(!flag)(3) is valid Go and silent"
+ },
+ {
+  "id": "CV-NIL-01",
+  "rfc": "§6.3",
+  "kind": "check",
+  "status": "pending-PR2a",
+  "site": "internal/checker: conversion recognition",
+  "diagnostic": "GN001",
+  "note": "(!T)(nil)"
+ },
+ {
+  "id": "CV-NN-01",
+  "rfc": "§6.3",
+  "kind": "check",
+  "status": "pending-PR2a",
+  "site": "internal/checker: validateNonNilKind on the conversion target",
+  "diagnostic": "GN003",
+  "note": "(!int)(x)"
+ },
+ {
+  "id": "CV-SIL-01",
+  "rfc": "§6.2",
+  "kind": "check",
+  "status": "pending-PR2a",
+  "site": "internal/checker: isRecognisedSource",
+  "diagnostic": "-",
+  "note": "a conversion is a source, for five kinds"
+ },
+ {
+  "id": "CV-ID-01",
+  "rfc": "§6.4",
+  "kind": "check",
+  "status": "pending-PR2a",
+  "site": "internal/checker: flowOutcome",
+  "diagnostic": "-",
+  "note": "(!Reg)(m) states the contract on Reg"
+ },
+ {
+  "id": "CV-ID-02",
+  "rfc": "§6.5",
+  "kind": "check",
+  "status": "pending-PR2a",
+  "site": "internal/checker: flowOutcome",
+  "diagnostic": "-",
+  "note": "a conversion of a !T into a !T is the identity"
+ },
+ {
+  "id": "CV-IF-01",
+  "rfc": "§6.4",
+  "kind": "check",
+  "status": "pending-PR2a",
+  "site": "internal/checker: isNonNilSource (D3d via the conversion)",
+  "diagnostic": "-",
+  "note": "(!R)(rw)"
+ },
+ {
+  "id": "CV-TP-01",
+  "rfc": "§6.4",
+  "kind": "check",
+  "status": "pending-PR2a",
+  "site": "internal/checker: isRecognisedSource (type parameter)",
+  "diagnostic": "-",
+  "note": "(!T)(x) on a type parameter"
+ },
+ {
+  "id": "GW-K-01",
+  "rfc": "§6.6",
+  "kind": "check",
+  "status": "pending-PR2b",
+  "site": "internal/checker: flowOutcome (variable initialiser)",
+  "diagnostic": "GW006",
+  "note": "five kinds"
+ },
+ {
+  "id": "GW-S-01",
+  "rfc": "§6.6",
+  "kind": "check",
+  "status": "pending-PR2b",
+  "site": "internal/checker: flowOutcome (assignment, argument, return, field, element)",
+  "diagnostic": "GW006",
+  "note": "every slot"
+ },
+ {
+  "id": "GW-T-01",
+  "rfc": "§6.4",
+  "kind": "check",
+  "status": "pending-PR2b",
+  "site": "internal/checker: flowOutcome (types.Identical)",
+  "diagnostic": "GW006",
+  "note": "a recognised source of another type"
+ },
+ {
+  "id": "GW-N-01",
+  "rfc": "§6.6",
+  "kind": "check",
+  "status": "pending-PR2b",
+  "site": "internal/checker: isRecognisedSource",
+  "diagnostic": "GW006",
+  "note": "map lookup, index, plain call, &x"
+ },
+ {
+  "id": "GW-B-01",
+  "rfc": "§6.6",
+  "kind": "check",
+  "status": "pending-PR2b",
+  "site": "internal/checker: isRecognisedSource (Part B must not leak)",
+  "diagnostic": "GW006",
+  "note": "append, slice expression, inferred local, a conversion that binds no local"
+ }
+]

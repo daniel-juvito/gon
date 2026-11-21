@@ -1,0 +1,325 @@
+Checker fixtures. The want part lists "LINE CODE" for every diagnostic that the
+checker must report (empty: none). Written by hand from the RFC, section 6.2 to
+6.6 and the decisions D3a, D3b and D3d of the interface RFC.
+
+-- FL-NIL-01/src --
+package p
+
+type T struct{}
+
+func f() {
+	var a !*T = nil
+	var b ![]int = nil
+	var c !map[string]int = nil
+	var d !chan int = nil
+	var e !func() = nil
+	_, _, _, _, _ = a, b, c, d, e
+}
+-- FL-NIL-01/want --
+6 GN001
+7 GN001
+8 GN001
+9 GN001
+10 GN001
+-- FL-SIL-01/src --
+package p
+
+type T struct{}
+
+type S struct{ nn !*T }
+
+func mk() !*T { return &T{} }
+
+func f(p !*T, s S) {
+	var a !*T = &T{}
+	var b !*T = new(T)
+	var c ![]int = make([]int, 0)
+	var d !map[string]int = map[string]int{}
+	var e !chan int = make(chan int)
+	var g !func() = func() {}
+	var h !*T = p
+	var i !*T = mk()
+	var j !*T = s.nn
+	_, _, _, _, _, _, _, _, _ = a, b, c, d, e, g, h, i, j
+}
+-- FL-SIL-01/want --
+-- FL-IF-01/src --
+package p
+
+type R interface{ M() }
+
+type RW interface {
+	R
+	W()
+}
+
+type C struct{}
+
+func (*C) M() {}
+
+func f(r R, rw !RW) {
+	var a !R = r
+	var b !R = &C{}
+	var c !R = rw
+	_, _, _ = a, b, c
+}
+-- FL-IF-01/want --
+15 GN001
+17 GN001
+-- FL-IF-02/src --
+package p
+
+type R interface{ M() }
+
+type C struct{}
+
+func (*C) M() {}
+
+func mk() !R { return &C{} }
+
+func f(rr !R) {
+	var a !R = rr
+	var b !R = mk()
+	_, _ = a, b
+}
+-- FL-IF-02/want --
+-- FL-TP-01/src --
+package p
+
+type A struct{}
+
+func f[T ~*A](x T) {
+	var a !T = x
+	_ = a
+}
+-- FL-TP-01/want --
+6 GN001
+-- FL-TP-02/src --
+package p
+
+func g[T any](x T) !T {
+	return x
+}
+-- FL-TP-02/want --
+3 GN003
+4 GN001
+-- FL-NN-01/src --
+package p
+
+type S struct{}
+
+func f() {
+	var x !int = 1
+	var y !S = S{}
+	_, _ = x, y
+}
+-- FL-NN-01/want --
+6 GN003
+7 GN003
+-- FL-LA-01/src --
+package p
+
+func adder(neg bool) func(int) int {
+	return func(x int) int {
+		if neg {
+			return -x
+		}
+		return x
+	}
+}
+
+func f(flag bool) int {
+	return adder(!flag)(3)
+}
+-- FL-LA-01/want --
+-- CV-NIL-01/src --
+package p
+
+type T struct{}
+
+func f() {
+	a := (!*T)(nil)
+	_ = a
+}
+-- CV-NIL-01/want --
+6 GN001
+-- CV-NN-01/src --
+package p
+
+func f(x int) {
+	a := (!int)(x)
+	_ = a
+}
+-- CV-NN-01/want --
+4 GN003
+-- CV-SIL-01/src --
+package p
+
+type T struct{}
+
+func f(q *T, s []int, m map[string]int, c chan int, g func()) {
+	var a !*T = (!*T)(q)
+	var b ![]int = (![]int)(s)
+	var d !map[string]int = (!map[string]int)(m)
+	var e !chan int = (!chan int)(c)
+	var h !func() = (!func())(g)
+	_, _, _, _, _ = a, b, d, e, h
+}
+-- CV-SIL-01/want --
+-- CV-ID-01/src --
+package p
+
+type Reg map[string]int
+
+func f(m !map[string]int) {
+	var a !Reg = (!Reg)(m)
+	_ = a
+}
+-- CV-ID-01/want --
+-- CV-ID-02/src --
+package p
+
+type T struct{}
+
+func f(p !*T) {
+	var a !*T = (!*T)(p)
+	_ = a
+}
+-- CV-ID-02/want --
+-- CV-IF-01/src --
+package p
+
+type R interface{ M() }
+
+type RW interface {
+	R
+	W()
+}
+
+func f(rw !RW) {
+	var a !R = (!R)(rw)
+	_ = a
+}
+-- CV-IF-01/want --
+-- CV-TP-01/src --
+package p
+
+type A struct{}
+
+func f[T ~*A](x T) {
+	var b !T = (!T)(x)
+	_ = b
+}
+-- CV-TP-01/want --
+-- GW-K-01/src --
+package p
+
+type T struct{}
+
+func f(q *T, s []int, m map[string]int, c chan int, g func()) {
+	var a !*T = q
+	var b ![]int = s
+	var d !map[string]int = m
+	var e !chan int = c
+	var h !func() = g
+	_, _, _, _, _ = a, b, d, e, h
+}
+-- GW-K-01/want --
+6 GW006
+7 GW006
+8 GW006
+9 GW006
+10 GW006
+-- GW-S-01/src --
+package p
+
+type T struct{}
+
+type S struct {
+	p !*T
+}
+
+type M struct{}
+
+func (M) take(p !*T) {}
+
+func take(p !*T) {}
+
+func ret(q *T) !*T {
+	return q
+}
+
+func multi(q *T) (!*T, error) {
+	return q, nil
+}
+
+func f(q *T, p !*T) {
+	p = q
+	take(q)
+	var m M
+	m.take(q)
+	_ = S{p: q}
+	_ = S{q}
+	_ = []!*T{q}
+}
+-- GW-S-01/want --
+16 GW006
+20 GW006
+24 GW006
+25 GW006
+27 GW006
+28 GW006
+29 GW006
+30 GW006
+-- GW-T-01/src --
+package p
+
+type Reg map[string]int
+
+func f(m !map[string]int) {
+	var a !Reg = m
+	_ = a
+}
+-- GW-T-01/want --
+6 GW006
+-- GW-N-01/src --
+package p
+
+type T struct{}
+
+func mkp() *T { return nil }
+
+func f(m map[string]*T, s []*T, v T) {
+	var a !*T = m["k"]
+	var b !*T = s[0]
+	var c !*T = mkp()
+	var d !*T = &v
+	_, _, _, _ = a, b, c, d
+}
+-- GW-N-01/want --
+8 GW006
+9 GW006
+10 GW006
+11 GW006
+-- GW-B-01/src --
+package p
+
+type T struct{}
+
+func f(s []int, q *T) {
+	a := []int{}
+	var t1 ![]int = a
+	var t2 ![]int = append(s, 1)
+	var t3 ![]int = s[:0]
+	x := &T{}
+	var p1 !*T = x
+	v := (!*T)(q)
+	var p2 !*T = v
+	_, _, _, _, _ = t1, t2, t3, p1, p2
+}
+-- GW-B-01/want --
+7 GW006
+8 GW006
+9 GW006
+11 GW006
+13 GW006
