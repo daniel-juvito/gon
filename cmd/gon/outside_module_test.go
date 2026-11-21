@@ -137,11 +137,16 @@ func TestOutsideModuleBuildConstraints(t *testing.T) {
 		t.Fatalf("P1: exit %d %+v\n%s", exit, env.Diagnostics, errOut)
 	}
 	want := "gon: build constraints exclude all Go files in ./all (.gon files: " + filepath.FromSlash("all/a.gon") + ", " + filepath.FromSlash("all/b_plan9.gon") + ")\n"
-	for _, cmd := range []string{"check", "vet", "transpile", "build"} {
+	for _, cmd := range []string{"check", "vet", "transpile"} {
 		exit, out, errOut := captureRun([]string{cmd, "./all"})
 		if exit != 2 || out != "" || errOut != want {
 			t.Fatalf("P2 %s: exit %d, stdout %q\nstderr %q\nwant   %q", cmd, exit, out, errOut, want)
 		}
+	}
+	// build outside a module is the module-context refusal first (exit 2, before
+	// the package is looked at): see build_context_integration_test.go.
+	if exit, out, errOut := captureRun([]string{"build", "./all"}); exit != 2 || out != "" || errOut != bcRefusal("./all", bcMsgNoModule) {
+		t.Fatalf("P2 build: exit %d, stdout %q\nstderr %q", exit, out, errOut)
 	}
 	if exit, env, errOut := outEnvelope(t, "check", "--json", "./gogo"); exit != 0 || len(env.Diagnostics) != 0 || errOut != "" {
 		t.Fatalf("P3: exit %d %+v\n%s", exit, env.Diagnostics, errOut)
@@ -208,11 +213,15 @@ func TestOutsideModuleTranspileUsesTheSameFiles(t *testing.T) {
 	if exists(filepath.Join(root, "tp", "c_plan9.go")) {
 		t.Fatal("the excluded file must not be written")
 	}
-	for _, cmd := range []string{"transpile", "build"} {
-		exit, _, errOut := captureRun([]string{cmd, "./fail"})
-		if exit != 1 || exists(filepath.Join(root, "fail", "a.go")) || exists(filepath.Join(root, "fail", "b.go")) {
-			t.Fatalf("%s: exit %d (want 1), nothing written\n%s", cmd, exit, errOut)
-		}
+	exit, _, errOut = captureRun([]string{"transpile", "./fail"})
+	if exit != 1 || exists(filepath.Join(root, "fail", "a.go")) || exists(filepath.Join(root, "fail", "b.go")) {
+		t.Fatalf("transpile: exit %d (want 1), nothing written\n%s", exit, errOut)
+	}
+	// build outside a module: the module-context refusal comes first, so the
+	// package is not even checked, and nothing is written either.
+	exit, out, errOut = captureRun([]string{"build", "./fail"})
+	if exit != 2 || out != "" || errOut != bcRefusal("./fail", bcMsgNoModule) || exists(filepath.Join(root, "fail", "a.go")) || exists(filepath.Join(root, "fail", "b.go")) {
+		t.Fatalf("build: exit %d (want 2), stdout %q\nstderr %q", exit, out, errOut)
 	}
 }
 
@@ -254,10 +263,13 @@ func TestOutsideModuleMalformedBuildConstraint(t *testing.T) {
 			t.Fatalf("%v: exit %d (want 1, not exit 2 and not skipped)\n%s", args, exit, errOut)
 		}
 	}
-	for _, cmd := range []string{"transpile", "build"} {
-		exit, _, errOut := captureRun([]string{cmd, "./m"})
-		if exit != 1 || exists(filepath.Join(root, "m", "a.go")) || exists(filepath.Join(root, "m", "b.go")) {
-			t.Fatalf("%s: exit %d (want 1), nothing written\n%s", cmd, exit, errOut)
-		}
+	exit, _, errOut = captureRun([]string{"transpile", "./m"})
+	if exit != 1 || exists(filepath.Join(root, "m", "a.go")) || exists(filepath.Join(root, "m", "b.go")) {
+		t.Fatalf("transpile: exit %d (want 1), nothing written\n%s", exit, errOut)
+	}
+	// build outside a module: the module-context refusal comes first.
+	exit, out, errOut := captureRun([]string{"build", "./m"})
+	if exit != 2 || out != "" || errOut != bcRefusal("./m", bcMsgNoModule) || exists(filepath.Join(root, "m", "a.go")) || exists(filepath.Join(root, "m", "b.go")) {
+		t.Fatalf("build: exit %d (want 2), stdout %q\nstderr %q", exit, out, errOut)
 	}
 }

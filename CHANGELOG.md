@@ -2,9 +2,10 @@
 
 ## [Unreleased]
 
-Malformed build constraints in file mode (proposal fm1). Diagnostic Protocol v1
-is unchanged: same `schemaVersion`, envelope, codes and exit-code meanings;
-all-or-nothing emission is unchanged.
+Malformed build constraints in file mode (proposal fm1) and the module context
+of `gon build <dir>` (proposal a2). Diagnostic Protocol v1 is unchanged: same
+`schemaVersion`, envelope, codes and exit-code meanings; all-or-nothing emission
+is unchanged.
 
 ### Changed
 
@@ -33,6 +34,29 @@ all-or-nothing emission is unchanged.
     Protocol v1 §7.
   - A valid constraint that does not match the platform, `// +build` lines, a
     `//go:build` after the `package` clause and `gon fmt` are unchanged.
+- **`gon build <dir>` refuses before transpiling when go build cannot find a
+  module that contains the operand.** `build` transpiled every package and then
+  ran `go build`, which failed for want of a module with the `.go` files already
+  written: no `go.mod` in the working directory or its parents, or an operand
+  outside the main module `go build` uses (in no module, or in a nested or a
+  sibling one). Now it is **exit 2**, nothing on stdout, nothing written, with
+  one of two messages, before the packages are checked (so before any contract
+  diagnostic):
+  - `gon: cannot build ./x: go build requires a module, but no go.mod was found
+    in the current directory or its parents`
+  - `gon: cannot build ../b/cmd: the package is outside the main module used by
+    go build`
+  - It refuses only when it can prove the condition, from `go env GOMOD GOWORK`
+    read as one pair in the directory go build runs in and a search for the
+    operand's `go.mod` that proves absence only when every lookup up to the root
+    fails with "does not exist". Anything it cannot prove is left to `go build`,
+    as before: a filesystem error, a missing or unreadable operand, a symlink
+    that cannot be resolved, a failing `go env`, a `-C` flag, an active
+    workspace (`go.work` is never read, so an operand outside a workspace still
+    fails in `go build` after the transpile), an empty `GOMOD` (GOPATH mode).
+  - A `go build` that runs and fails is still exit 1 (`gon: go build failed`).
+    `transpile`, the file form of `build` and `check` are unchanged. RFC M9 T4
+    records the exception.
 
 ## [1.19.0] — 2026-11-19
 

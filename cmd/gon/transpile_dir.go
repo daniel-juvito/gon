@@ -50,6 +50,16 @@ func runEmitDir(cmd string, operands []string) int {
 		}
 	}
 
+	// build: refuse before anything is transpiled when go build is certain to
+	// fail for want of a module that contains the operand (RFC M9 T4). The
+	// verdict comes before the contract diagnostics of the packages.
+	if cmd == "build" {
+		if problem := checkBuildContext(operands[0], goFlags); problem != buildContextOK {
+			fmt.Fprintf(os.Stderr, "gon: cannot build %s: %s\ngon: nothing was written\n", operands[0], problem.message())
+			return 2
+		}
+	}
+
 	targets, err := expandCheckOperands(operands)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "gon: %v\n", err)
