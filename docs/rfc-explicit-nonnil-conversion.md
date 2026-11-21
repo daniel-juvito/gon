@@ -1,6 +1,6 @@
 # RFC: Explicit Non-Nil Conversion `(!T)(x)`
 
-**Status:** Draft (OPEN / UNAUDITED; not accepted, not scheduled). Acceptance is split into **Part A** and **Part B** (§5.1); Part B stays OPEN.  
+**Status:** **Part A: ACCEPTED** (formal design decision, 2026-11-21), including the extension of the OQ-1 decision to channel and function. **Part B: OPEN, not accepted.** The acceptance is a design decision only: it is not approval to implement or to merge, and nothing is scheduled (§5.1).  
 **Target:** Unassigned (the owner decides the release number, date and shape)  
 **Related:** `docs/roadmap-v1.3-plus.md` (I1–I7), `docs/rfc-interface-semantics.md` (D3, D6),
 `docs/rfc-generic-semantics.md`, `docs/rfc-element-contract-construction.md` (E7),
@@ -268,7 +268,15 @@ converted explicitly in the migration (§10.7), so that the dogfood gate needs n
 
 ### 5.1 Acceptance structure (Part A and Part B)
 
-The proposal is accepted, if at all, in two parts. Accepting Part A does **not**
+**Status of acceptance.** Part A was formally accepted on 2026-11-21 as a design
+decision. The acceptance includes the extension of the OQ-1 decision to every
+non-interface nilable kind (pointer, slice, map, channel and function), so the
+normative text that names those kinds stands as written. **Part B is OPEN and is not
+accepted.** The acceptance of Part A is not approval to implement it, to merge it or
+to release it, and it does not schedule anything: the release shape, `--strict`,
+GW007, `&x` and the items G1–G6 of the roadmap are unchanged and remain open or on hold.
+
+The proposal is accepted in two parts, separately. Accepting Part A does **not**
 accept Part B.
 
 **Part A: additive, compatibility-preserving in intent** (not an absolute
