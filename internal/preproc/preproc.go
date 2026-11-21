@@ -157,6 +157,27 @@ func Process(filename string, src []byte) *Result {
 		prevIdx = i
 	}
 
+	// Where each removed !T type begins, in the original source: the first token
+	// after the run of ! modifiers. White space and comments between the ! and the
+	// type (`var y ! *int`) are not part of the type: every consumer matches a
+	// recorded offset against the position of the first token of a type
+	// expression, so an offset on the space loses the contract.
+	typeStart := make(map[int]bool)
+	for i, t := range tokens {
+		if !typeModifiers[t.offset] || t.kind != token.NOT {
+			continue
+		}
+		j := nextNonComment(tokens, i+1)
+		for j < len(tokens) && tokens[j].kind == token.NOT && typeModifiers[tokens[j].offset] {
+			j = nextNonComment(tokens, j+1)
+		}
+		if j < len(tokens) && tokens[j].kind != token.EOF {
+			typeStart[tokens[j].offset] = true
+		} else {
+			typeStart[t.offset+1] = true // no type follows: the old position
+		}
+	}
+
 	// Build clean source by removing ! type modifiers.
 	// Track the clean-source offset where each removed !T type begins.
 	clean := make([]byte, 0, len(src))
@@ -164,10 +185,10 @@ func Process(filename string, src []byte) *Result {
 
 	cleanToOrig := make([]int, 0, len(src))
 	for origOff := 0; origOff < len(src); origOff++ {
-		if typeModifiers[origOff] {
-			// This ! is a type modifier. The next character is the start
-			// of the type in clean source — record that clean offset.
+		if typeStart[origOff] {
 			nonNilOffsets[len(clean)] = true
+		}
+		if typeModifiers[origOff] {
 			continue // don't copy ! into clean source
 		}
 		cleanToOrig = append(cleanToOrig, origOff)
