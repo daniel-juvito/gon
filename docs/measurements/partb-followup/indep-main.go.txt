@@ -128,9 +128,11 @@ func main() {
 						case *ast.BinaryExpr:
 							if s.Op == token.EQL || s.Op == token.NEQ {
 								a, b := unparen(s.X), unparen(s.Y)
-								if x, ok := a.(*ast.Ident); ok && x.Name == id.Name {
-									if y, ok := b.(*ast.Ident); ok && y.Name == "nil" {
-										uses = append(uses, use{"nil-compare", fset.Position(s.Pos()).String() + " var " + id.Name})
+								for _, pr := range [][2]ast.Expr{{a, b}, {b, a}} { // x == nil and nil == x
+									if x, ok := pr[0].(*ast.Ident); ok && x.Name == id.Name {
+										if y, ok := pr[1].(*ast.Ident); ok && y.Name == "nil" {
+											uses = append(uses, use{"nil-compare", fset.Position(s.Pos()).String() + " var " + id.Name})
+										}
 									}
 								}
 							}

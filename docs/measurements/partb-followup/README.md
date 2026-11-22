@@ -73,6 +73,13 @@ These are not Gon sources: they show how Go programmers write, not how Gon users
   Neither occurs in the measured Gon code; both occur in the standard library.
 - Section 6.8 and the `&operand` amendment interact; the RFC does not mention it. This is a question for the owner, not a measured defect of Part A.
 
+## 4b. Correction of the counter after review of #83
+
+The first version of `indep-main.go.txt` looked for `x == nil` and `x != nil` only; `nil == x` and `nil != x` were not counted. The
+counter now accepts both orders and was run again on gon production, the standard library and the six modules (Go 1.24.7 toolchain for the
+standard library). Every figure of this report is unchanged and the raw outputs are byte-identical to the first run; the output for
+gon production is now kept too (`raw/gon-production-indep.txt`: 91 bindings, no `nil-compare`, no `assign-nil`). `raw.sha256` lists it.
+
 ## 5. Limits
 
 Instruments, not a checker; Part B is implemented nowhere; the second counter is syntax-only; corpora are samples (one standard library, six
