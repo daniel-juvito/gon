@@ -1,5 +1,30 @@
 # Changelog
 
+## [Unreleased]
+
+**Possibly breaking, by design (R1), to ship alone.** Amendment A2 of
+`docs/rfc-explicit-nonnil-conversion.md` (accepted 2026-11-22): an ordinary value of a
+nilable kind that flows into a `!T` slot is an **error**, not a warning.
+
+- **A flow that was the warning GW006 in v1.21.0 is now GN001, an error (exit 1).** The
+  rule is the same: a value of a pointer, slice, map, channel or function kind that is not a
+  recognised non-nil source of the identical type, flowing into a `!T` slot (a variable
+  initialiser, an assignment, an argument, a result, a field, an element, and the results
+  of a multi-value call by position). The message is
+  `cannot use value of type S as !U; use (!U)(x) to make an explicit claim`. GW006 is no
+  longer emitted. The recognised sources, the identity rule, the interface rows (D3a, D3b,
+  D3d) and the type-parameter rows are unchanged.
+- **What a build sees.** Code that compiled with a GW006 warning now fails `gon check`,
+  `gon vet`, `gon transpile` and `gon build`. Where the value is known to be non-nil,
+  write `(!T)(x)`; better, declare the function that returns it `!T` (its `return` is then
+  checked and its callers are silent), or use a form that is already recognised
+  (`&operand`, a literal, `new`, `make`). `x = (*int)(nil)` into a `!*int` slot, which was
+  only a warning, is now an error too.
+- **Measured on v1.21.0** (every GW006 of that release is one error here): `gon`'s own
+  sources 0 (after the nine conversions of v1.21), `gon-examples` 14 GW006 in 7 examples (of
+  which only `flow-ok` changed its exit code), `gon-vscode` 2. Users outside those three
+  repositories are not measured.
+
 ## [1.21.0] — 2026-11-22
 
 The explicit non-nil conversion `(!T)(x)` and the new warning **GW006**

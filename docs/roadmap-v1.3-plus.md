@@ -30,7 +30,7 @@ via its own RFC.
 - **I6 — No implicit contract propagation** through conversion, assertion,
   or ordinary assignment. `!T → T` may lose the guarantee; `T → !T`
   requires a source that satisfies the contract at that point. A `T → !T` flow
-  of a non-interface nilable kind is reported as a warning (GW006) in two cases:
+  of a non-interface nilable kind is reported in two cases (the warning GW006 in v1.21.0; **an error, GN001, since amendment A2 of 2026-11-22**, on `main`):
   when the source is not a recognised non-nil source, and when the source is
   recognised but its static type is not identical to the type of the `!U` slot even
   though Go accepts the assignment. The explicit non-nil conversion `(!U)(x)` is a
@@ -305,7 +305,7 @@ change, except v1.20, which carries two.
     decision (2026-11-21) and released (syntax, checks of a conversion, GW006, see the
     CHANGELOG `[1.21.0]`):** the explicit conversion `(!T)(x)` as an
     author's static claim with no runtime check (Go decides its validity), GW006 as
-    a warning for an ordinary `T → !T` flow of a non-interface nilable kind
+    a warning (v1.21.0; **an error, GN001, since amendment A2, on `main`, not yet released**) for an ordinary `T → !T` flow of a non-interface nilable kind
     (pointer, slice, map, channel, function; an ordinary interface value into `!I`
     stays GN001 and D3b is unchanged for type parameters), the identity rule of the
     contract, and idempotence of `!` in type positions. **Part B is open and not

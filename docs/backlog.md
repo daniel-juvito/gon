@@ -19,13 +19,13 @@ A note kept at the owner's request, not a decision or a schedule. The owner's wo
   GN001 (D3b). It reverses the severity decision of Part A (RFC OQ-1, section 6.6, "GW006 is a warning"), which shipped in v1.21.0,
   so it is an amendment of an accepted RFC, a breaking change (R1) and its own release; it also closes the `(*int)(nil)` gap below.
   Needs: an RFC amendment, a measurement (today 0 sites in gon production, 14 GW006 in gon-examples, 2 in gon-vscode fixtures) and a
-  migration plan for the examples. Not started.
+  migration plan for the examples. **Status (2026-11-22): accepted as amendment A2, code GN001, implemented on `main` (checker PR #85, documents after it), not released; the pin and the examples of the other two repositories follow the release.**
 
 - **Part B** of the explicit-conversion RFC: audits are in `docs/measurements/partb-initial/` (#81) and the follow-up in
   `docs/measurements/partb-followup/`. Open design points found there: `x = nil` on an inferred local becomes
   GN001 (release idiom), traversal loops `for p := &head; p != nil; p = p.next` get GW001 "always true" and GW006, interaction of
   section 6.8 with the `&operand` amendment, package-level `var x = e`, `make`/`new` with a type-parameter core type.
-- **The `(*int)(nil)` gap** (found 2026-11-22): `x = (*int)(nil)` into a `!*int` slot is only GW006. Option B: GN001 when the operand of a
+- **The `(*int)(nil)` gap** (found 2026-11-22): `x = (*int)(nil)` into a `!*int` slot was only GW006 (**closed by A2: it is GN001**). Option B, no longer needed: GN001 when the operand of a
   conversion is the literal `nil`. Not breaking in intent (the code already violates the contract). Not decided.
 - **`--strict`** and **GW007** (hint for `var x T = e`): undecided.
 - **RFC text**: no known stale figure left (the "2 and 2" and "10 and 4" markers were added in #82).
