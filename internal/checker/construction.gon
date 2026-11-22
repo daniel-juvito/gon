@@ -151,6 +151,9 @@ func (c *Checker) checkElementContracts(lit *ast.CompositeLit, elemTypeAST ast.E
 				&ContractTrace{Origin: compositeOrigin(lit)})
 			continue
 		}
+		if elemCarriesBang {
+			c.reportOrdinaryFlow(val, c.staticTypeOf(elemTypeAST))
+		}
 		if innerElemType != nil {
 			if child, ok := val.(*ast.CompositeLit); ok && child.Type == nil {
 				c.checkElementContracts(child, innerElemType)
@@ -356,6 +359,9 @@ func (c *Checker) checkExplicitNilInComposite(lit *ast.CompositeLit, fields map[
 			continue
 		}
 		fieldName := key.Name
+		if fields[fieldName] && !isNilIdent(kv.Value) {
+			c.reportOrdinaryFlow(kv.Value, c.litFieldType(lit, fieldName, -1))
+		}
 		if fields[fieldName] && isNilIdent(kv.Value) {
 			msg := fmt.Sprintf("cannot assign nil to non-nil field %s", fieldName)
 			if typeName != "" {
@@ -383,6 +389,9 @@ func (c *Checker) checkExplicitNilInComposite(lit *ast.CompositeLit, fields map[
 		}
 		fieldName := fieldNames[pos]
 		pos++
+		if fields[fieldName] && !isNilIdent(elt) {
+			c.reportOrdinaryFlow(elt, c.litFieldType(lit, "", pos-1))
+		}
 		if fields[fieldName] && isNilIdent(elt) {
 			msg := fmt.Sprintf("cannot assign nil to non-nil field %s", fieldName)
 			if typeName != "" {

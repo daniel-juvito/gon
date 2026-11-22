@@ -296,7 +296,18 @@ func (c *Checker) registerPackageVars() {
 						c.addError(val.Pos(), "GN001", fmt.Sprintf("cannot assign nil to non-nil type !%s", formatType(vs.Type)))
 					} else if c.cannotSatisfyBangInterface(val, c.staticTypeOf(vs.Type)) {
 						c.addError(val.Pos(), "GN001", fmt.Sprintf("cannot assign ordinary interface value to non-nil type !%s", formatType(vs.Type)))
+					} else {
+						c.reportOrdinaryFlow(val, c.staticTypeOf(vs.Type))
 					}
+				}
+			}
+			if nn && len(vs.Names) > 1 && len(vs.Values) == 1 {
+				if call, ok := unparenExpr(vs.Values[0]).(*ast.CallExpr); ok {
+					slots := make([]types.Type, len(vs.Names))
+					for i := range slots {
+						slots[i] = c.staticTypeOf(vs.Type)
+					}
+					c.reportTupleFlows(call, slots)
 				}
 			}
 			if vs.Type != nil && len(vs.Values) == 0 {
@@ -521,6 +532,8 @@ func (c *Checker) checkLocalVarDecl(d *ast.GenDecl) {
 						c.addError(vs.Values[i].Pos(), "GN001", fmt.Sprintf("cannot assign nil to non-nil type !%s", formatType(vs.Type)))
 					} else if c.cannotSatisfyBangInterface(vs.Values[i], c.staticTypeOf(vs.Type)) {
 						c.addError(vs.Values[i].Pos(), "GN001", fmt.Sprintf("cannot assign ordinary interface value to non-nil type !%s", formatType(vs.Type)))
+					} else {
+						c.reportOrdinaryFlow(vs.Values[i], c.staticTypeOf(vs.Type))
 					}
 				}
 			}
@@ -528,6 +541,15 @@ func (c *Checker) checkLocalVarDecl(d *ast.GenDecl) {
 				c.reportMissingNonNilFields(vs.Type.Pos(), vs.Type, nil, "")
 				if nn {
 					c.reportZeroValueNilableVar(vs.Names, vs.Type)
+				}
+			}
+			if nn && len(vs.Names) > 1 && len(vs.Values) == 1 {
+				if call, ok := unparenExpr(vs.Values[0]).(*ast.CallExpr); ok {
+					slots := make([]types.Type, len(vs.Names))
+					for i := range slots {
+						slots[i] = c.staticTypeOf(vs.Type)
+					}
+					c.reportTupleFlows(call, slots)
 				}
 			}
 			for _, val := range vs.Values {
@@ -568,6 +590,16 @@ func (c *Checker) checkLocalVarDecl(d *ast.GenDecl) {
 }
 
 func (c *Checker) checkAssignStmt(assign *ast.AssignStmt) {
+	// `a, b = f()`: the results of one call flow into several slots, by position.
+	if len(assign.Rhs) == 1 && len(assign.Lhs) > 1 && assign.Tok != token.DEFINE {
+		if call, ok := unparenExpr(assign.Rhs[0]).(*ast.CallExpr); ok {
+			slots := make([]types.Type, len(assign.Lhs))
+			for i, lhs := range assign.Lhs {
+				slots[i] = c.assignSlotType(lhs)
+			}
+			c.reportTupleFlows(call, slots)
+		}
+	}
 	for i, lhs := range assign.Lhs {
 		if i >= len(assign.Rhs) {
 			break
@@ -587,6 +619,8 @@ func (c *Checker) checkAssignStmt(assign *ast.AssignStmt) {
 					}
 					if c.cannotSatisfyBangInterface(assign.Rhs[i], target) {
 						c.addError(assign.Rhs[i].Pos(), "GN001", fmt.Sprintf("cannot assign ordinary interface value to non-nil variable !%s", id.Name))
+					} else {
+						c.reportOrdinaryFlow(assign.Rhs[i], target)
 					}
 				}
 			}
@@ -598,6 +632,8 @@ func (c *Checker) checkAssignStmt(assign *ast.AssignStmt) {
 				} else if ft := c.selectorFieldType(sel); isInterfaceType(ft) && c.cannotSatisfyBangInterface(assign.Rhs[i], ft) {
 					// M4b E8/§4.5: ordinary interface value into a `!I` field.
 					c.addError(assign.Rhs[i].Pos(), "GN001", fmt.Sprintf("cannot assign ordinary interface value to non-nil field %s", sel.Sel.Name))
+				} else {
+					c.reportOrdinaryFlow(assign.Rhs[i], c.selectorFieldType(sel))
 				}
 			}
 		}
@@ -656,6 +692,18 @@ func (c *Checker) defineFromCallResults(assign *ast.AssignStmt) {
 }
 
 func (c *Checker) checkReturnStmt(ret *ast.ReturnStmt) {
+	// `return f()`: the results of one call flow into the results of this function.
+	if len(ret.Results) == 1 && len(c.currentFuncReturns) > 1 {
+		if call, ok := unparenExpr(ret.Results[0]).(*ast.CallExpr); ok {
+			slots := make([]types.Type, len(c.currentFuncReturns))
+			for i := range slots {
+				if c.currentFuncReturns[i] && i < len(c.currentFuncResultTypes) {
+					slots[i] = c.currentFuncResultTypes[i]
+				}
+			}
+			c.reportTupleFlows(call, slots)
+		}
+	}
 	for i, result := range ret.Results {
 		if i >= len(c.currentFuncReturns) || !c.currentFuncReturns[i] {
 			continue
@@ -669,6 +717,8 @@ func (c *Checker) checkReturnStmt(ret *ast.ReturnStmt) {
 			}
 			if c.cannotSatisfyBangInterface(result, target) {
 				c.addError(result.Pos(), "GN001", "cannot return ordinary interface value from function with non-nil return type")
+			} else {
+				c.reportOrdinaryFlow(result, target)
 			}
 		}
 	}
@@ -697,6 +747,24 @@ func (c *Checker) checkCallExpr(call *ast.CallExpr) {
 			argOffset = 1
 		}
 	}
+	// `g(f())`: the results of one call are the arguments of another, by position.
+	if len(call.Args) == 1 {
+		if inner, ok := unparenExpr(call.Args[0]).(*ast.CallExpr); ok {
+			if tup, isTuple := c.staticTypeOf(inner).(*types.Tuple); isTuple && tup.Len() > 1 {
+				// Result ti is argument ti; for a method expression the first argument
+				// is the receiver, so the parameter index is shifted exactly as for the
+				// arguments below.
+				slots := make([]types.Type, tup.Len())
+				for ti := range slots {
+					pi := ti - argOffset
+					if pi >= 0 && pi < len(params) && params[pi] && !c.declaredParamIsTypeParam(call.Fun, pi) {
+						slots[ti] = c.callArgParamType(call.Fun, pi)
+					}
+				}
+				c.reportTupleFlows(inner, slots)
+			}
+		}
+	}
 	for i, arg := range call.Args {
 		pi := i - argOffset
 		if pi < 0 || pi >= len(params) || !params[pi] {
@@ -706,6 +774,8 @@ func (c *Checker) checkCallExpr(call *ast.CallExpr) {
 			c.addError(arg.Pos(), "GN001", fmt.Sprintf("cannot pass nil as non-nil argument %d to %s", pi+1, display))
 		} else if c.cannotSatisfyBangInterface(arg, c.callArgParamType(call.Fun, pi)) {
 			c.addError(arg.Pos(), "GN001", fmt.Sprintf("cannot pass ordinary interface value as non-nil argument %d to %s", pi+1, display))
+		} else if !c.declaredParamIsTypeParam(call.Fun, pi) {
+			c.reportOrdinaryFlow(arg, c.callArgParamType(call.Fun, pi))
 		}
 	}
 }

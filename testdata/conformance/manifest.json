@@ -567,7 +567,7 @@
   "id": "GW-K-01",
   "rfc": "§6.6",
   "kind": "check",
-  "status": "pending-PR2b",
+  "status": "enabled",
   "site": "internal/checker: flowOutcome (variable initialiser)",
   "diagnostics": [
    "GW006"
@@ -578,7 +578,7 @@
   "id": "GW-S-01",
   "rfc": "§6.6",
   "kind": "check",
-  "status": "pending-PR2b",
+  "status": "enabled",
   "site": "internal/checker: flowOutcome (assignment, argument, return, field, element)",
   "diagnostics": [
    "GW006"
@@ -589,7 +589,7 @@
   "id": "GW-T-01",
   "rfc": "§6.4",
   "kind": "check",
-  "status": "pending-PR2b",
+  "status": "enabled",
   "site": "internal/checker: flowOutcome (types.Identical)",
   "diagnostics": [
    "GW006"
@@ -600,7 +600,7 @@
   "id": "GW-N-01",
   "rfc": "§6.6",
   "kind": "check",
-  "status": "pending-PR2b",
+  "status": "enabled",
   "site": "internal/checker: isRecognisedSource",
   "diagnostics": [
    "GW006"
@@ -611,7 +611,7 @@
   "id": "GW-B-01",
   "rfc": "§6.6",
   "kind": "check",
-  "status": "pending-PR2b",
+  "status": "enabled",
   "site": "internal/checker: isRecognisedSource (Part B must not leak)",
   "diagnostics": [
    "GW006"
@@ -720,5 +720,69 @@
    "GN001"
   ],
   "note": "a := (!*T)(p) is not bound: no GW001 on a == nil and no GN001 on a = nil; a declared !*T still rejects nil"
+ },
+ {
+  "id": "GW-E-01",
+  "rfc": "§6.6",
+  "kind": "check",
+  "status": "enabled",
+  "site": "internal/checker: checkElementContracts (flowOutcome)",
+  "diagnostics": [
+   "GW006"
+  ],
+  "note": "slice, map value, fixed array and [...] elements; a literal and new are sources"
+ },
+ {
+  "id": "GW-G-01",
+  "rfc": "§6.6",
+  "kind": "check",
+  "status": "enabled",
+  "site": "internal/checker: flowOutcome (type parameters)",
+  "diagnostics": [
+   "GW006"
+  ],
+  "note": "an instantiated generic field and a result of type *V warn; a slot that is a type parameter does not (OQ-2)"
+ },
+ {
+  "id": "GW-C-01",
+  "rfc": "§6.4",
+  "kind": "check",
+  "status": "enabled",
+  "site": "internal/checker: isRecognisedSource (conversion at every slot)",
+  "diagnostics": [],
+  "note": "a conversion is silent in a variable, an assignment, an argument, a result, a keyed and an unkeyed field and an element, also to a named map type"
+ },
+ {
+  "id": "GW-P-01",
+  "rfc": "§6.6",
+  "kind": "check",
+  "status": "enabled",
+  "site": "internal/checker: isRecognisedSource (parentheses)",
+  "diagnostics": [
+   "GW006"
+  ],
+  "note": "parentheses never change recognition"
+ },
+ {
+  "id": "GW-M-01",
+  "rfc": "§6.6",
+  "kind": "check",
+  "status": "enabled",
+  "site": "internal/checker: reportTupleFlows (flowDecision per result position)",
+  "diagnostics": [
+   "GW006"
+  ],
+  "note": "a multi-value call into several slots: return f(), a, b = f(), var a, b !T = f(), g(f()); a result that is !T is a source"
+ },
+ {
+  "id": "GW-M-02",
+  "rfc": "§6.6",
+  "kind": "check",
+  "status": "enabled",
+  "site": "internal/checker: checkCallExpr (tuple, method expression)",
+  "diagnostics": [
+   "GW006"
+  ],
+  "note": "in (*R).M(f()) result 0 is the receiver and result 1 is the first parameter; a result that is !T is a source"
  }
 ]

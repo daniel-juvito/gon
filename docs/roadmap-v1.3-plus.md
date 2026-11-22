@@ -29,7 +29,13 @@ via its own RFC.
   representation or runtime nil-check.
 - **I6 — No implicit contract propagation** through conversion, assertion,
   or ordinary assignment. `!T → T` may lose the guarantee; `T → !T`
-  requires a source that satisfies the contract at that point.
+  requires a source that satisfies the contract at that point. A `T → !T` flow
+  of a non-interface nilable kind is reported as a warning (GW006) in two cases:
+  when the source is not a recognised non-nil source, and when the source is
+  recognised but its static type is not identical to the type of the `!U` slot even
+  though Go accepts the assignment. The explicit non-nil conversion `(!U)(x)` is a
+  recognised non-nil source of type `U`; it is a claim by the author and is not
+  checked. *(Amendment of `rfc-explicit-nonnil-conversion.md` §9, Part A; unreleased.)*
 - **I7 — Schema versioning is syntax-driven.** Semantic/feature changes do
   not by themselves bump the `.gna` schema version. `Requires .gna change
   = Yes` and `Schema bump = No` is a valid combination.
@@ -294,9 +300,10 @@ change, except v1.20, which carries two.
   - **`--strict`** — deferred since v1.5 (`rfc-ecosystem-contract-expansion.md`);
     unscheduled.
   - **A "nilable" constraint** — open, unscheduled (see the note below).
-  - **Explicit non-nil conversion — RFC accepted in part, not implemented, not
-    scheduled** (`rfc-explicit-nonnil-conversion.md`). **Part A is accepted as a
-    design decision (2026-11-21):** the explicit conversion `(!T)(x)` as an
+  - **Explicit non-nil conversion — Part A accepted and implemented on `main`, not
+    released; Part B open** (`rfc-explicit-nonnil-conversion.md`). **Part A is
+    accepted as a design decision (2026-11-21) and implemented, unreleased (syntax,
+    checks of a conversion, GW006, see the CHANGELOG `[Unreleased]`):** the explicit conversion `(!T)(x)` as an
     author's static claim with no runtime check (Go decides its validity), GW006 as
     a warning for an ordinary `T → !T` flow of a non-interface nilable kind
     (pointer, slice, map, channel, function; an ordinary interface value into `!I`
@@ -305,7 +312,8 @@ change, except v1.20, which carries two.
     accepted:** binding of locals by inference from a structural initialiser, with
     the `append` and slice-expression sources, which is potentially breaking. The
     acceptance of Part A is not approval to implement it and sets no release
-    number, date or schedule.
+    number, date or schedule; the release shape and the migration of Gon's own
+    sources (ten `(!T)(x)` sites) are still decisions of the owner.
 - **Dogfood (not a release track).** Gon's production packages are written in
   Gon (`docs/dogfood.md`); `!` contracts are added package by package after
   measurement and audit (all of `internal/checker`'s approved groups are in).

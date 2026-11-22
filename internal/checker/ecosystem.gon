@@ -247,6 +247,8 @@ func (c *Checker) checkExternalKeyedFieldValues(lit *ast.CompositeLit, sel *ast.
 			c.addErrorTrace(kv.Value.Pos(), "GN001",
 				fmt.Sprintf("cannot assign ordinary interface value to non-nil field %s.%s", sel.Sel.Name, key.Name),
 				&ContractTrace{Origin: compositeOrigin(lit), Path: path})
+		} else {
+			c.reportOrdinaryFlow(kv.Value, ft)
 		}
 	}
 }
