@@ -1,0 +1,66 @@
+// scratch: count `for x := <recognised form>; x != nil; x = ...` (traversal loops) syntactically.
+package main
+
+import (
+	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"os"
+	"path/filepath"
+	"strings"
+)
+
+func main() {
+	fset := token.NewFileSet()
+	n, files := 0, 0
+	filepath.Walk(os.Args[1], func(p string, fi os.FileInfo, err error) error {
+		if err != nil || fi.IsDir() || !strings.HasSuffix(p, ".go") || strings.HasSuffix(p, "_test.go") ||
+			strings.Contains(p, "/vendor/") || strings.Contains(p, "/testdata/") {
+			return nil
+		}
+		f, err := parser.ParseFile(fset, p, nil, 0)
+		if err != nil {
+			return nil
+		}
+		files++
+		ast.Inspect(f, func(m ast.Node) bool {
+			fs, ok := m.(*ast.ForStmt)
+			if !ok || fs.Init == nil || fs.Cond == nil || fs.Post == nil {
+				return true
+			}
+			as, ok := fs.Init.(*ast.AssignStmt)
+			if !ok || as.Tok != token.DEFINE || len(as.Lhs) != 1 || len(as.Rhs) != 1 {
+				return true
+			}
+			id, _ := as.Lhs[0].(*ast.Ident)
+			u, ok := as.Rhs[0].(*ast.UnaryExpr)
+			if id == nil || !ok || u.Op != token.AND {
+				return true
+			}
+			be, ok := fs.Cond.(*ast.BinaryExpr)
+			if !ok || be.Op != token.NEQ {
+				return true
+			}
+			x, _ := be.X.(*ast.Ident)
+			y, _ := be.Y.(*ast.Ident)
+			if x == nil || y == nil || x.Name != id.Name || y.Name != "nil" {
+				return true
+			}
+			pa, ok := fs.Post.(*ast.AssignStmt)
+			if !ok || pa.Tok != token.ASSIGN {
+				return true
+			}
+			for _, l := range pa.Lhs {
+				if li, ok := l.(*ast.Ident); ok && li.Name == id.Name {
+					n++
+					fmt.Println(fset.Position(fs.Pos()))
+					return true
+				}
+			}
+			return true
+		})
+		return nil
+	})
+	fmt.Println("traversal loops:", n, "files:", files)
+}

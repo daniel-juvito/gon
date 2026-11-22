@@ -1,0 +1,46 @@
+syntactic bindings of recognised forms: 100
+  address-of           38
+  composite-map        6
+  composite-slice      4
+  func-literal         10
+  make                 42
+later uses by name in the same function: map[assign-other:2 assign-source:37]
+  assign-other github.com/prometheus/client_golang@v1.20.5/prometheus/internal/difflib.go:262:3 var j2len = *ast.Ident
+  assign-other github.com/prometheus/client_golang@v1.20.5/prometheus/value.go:234:2 var labelPairs = *ast.CallExpr
+  assign-source github.com/prometheus/client_golang@v1.20.5/prometheus/collectors/gen_go_collector_set.go:134:5 var matchedMetrics = *ast.CallExpr
+  assign-source github.com/prometheus/client_golang@v1.20.5/prometheus/desc.go:114:3 var labelNames = *ast.CallExpr
+  assign-source github.com/prometheus/client_golang@v1.20.5/prometheus/desc.go:120:3 var labelValues = *ast.CallExpr
+  assign-source github.com/prometheus/client_golang@v1.20.5/prometheus/desc.go:136:3 var labelNames = *ast.CallExpr
+  assign-source github.com/prometheus/client_golang@v1.20.5/prometheus/desc.go:187:3 var lpStrings = *ast.CallExpr
+  assign-source github.com/prometheus/client_golang@v1.20.5/prometheus/desc.go:195:4 var vlStrings = *ast.CallExpr
+  assign-source github.com/prometheus/client_golang@v1.20.5/prometheus/desc.go:197:4 var vlStrings = *ast.CallExpr
+  assign-source github.com/prometheus/client_golang@v1.20.5/prometheus/go_collector_latest.go:210:3 var sampleBuf = *ast.CallExpr
+  assign-source github.com/prometheus/client_golang@v1.20.5/prometheus/go_collector_latest.go:243:3 var metricSet = *ast.CallExpr
+  assign-source github.com/prometheus/client_golang@v1.20.5/prometheus/go_collector_latest.go:256:3 var sampleBuf = *ast.CallExpr
+  assign-source github.com/prometheus/client_golang@v1.20.5/prometheus/go_collector_latest.go:274:4 var sampleBuf = *ast.CallExpr
+  assign-source github.com/prometheus/client_golang@v1.20.5/prometheus/go_collector_latest.go:563:3 var dtoBuckets = *ast.CallExpr
+  assign-source github.com/prometheus/client_golang@v1.20.5/prometheus/go_collector_latest.go:87:5 var ret = *ast.CallExpr
+  assign-source github.com/prometheus/client_golang@v1.20.5/prometheus/graphite/bridge.go:270:4 var labelStrings = *ast.CallExpr
+  assign-source github.com/prometheus/client_golang@v1.20.5/prometheus/histogram.go:1306:3 var buckets = *ast.CallExpr
+  assign-source github.com/prometheus/client_golang@v1.20.5/prometheus/internal/difflib.go:349:5 var nonAdjacent = *ast.CallExpr
+  assign-source github.com/prometheus/client_golang@v1.20.5/prometheus/internal/difflib.go:355:3 var nonAdjacent = *ast.CallExpr
+  assign-source github.com/prometheus/client_golang@v1.20.5/prometheus/internal/difflib.go:358:2 var nonAdjacent = *ast.CallExpr
+  assign-source github.com/prometheus/client_golang@v1.20.5/prometheus/internal/difflib.go:401:4 var opCodes = *ast.CallExpr
+  assign-source github.com/prometheus/client_golang@v1.20.5/prometheus/internal/difflib.go:407:4 var opCodes = *ast.CallExpr
+  assign-source github.com/prometheus/client_golang@v1.20.5/prometheus/internal/difflib.go:445:4 var group = *ast.CallExpr
+  assign-source github.com/prometheus/client_golang@v1.20.5/prometheus/internal/difflib.go:449:4 var groups = *ast.CallExpr
+  assign-source github.com/prometheus/client_golang@v1.20.5/prometheus/internal/difflib.go:450:4 var group = *ast.CompositeLit
+  assign-source github.com/prometheus/client_golang@v1.20.5/prometheus/internal/difflib.go:453:3 var group = *ast.CallExpr
+  assign-source github.com/prometheus/client_golang@v1.20.5/prometheus/internal/difflib.go:456:3 var groups = *ast.CallExpr
+  assign-source github.com/prometheus/client_golang@v1.20.5/prometheus/internal/metric.go:92:4 var names = *ast.CallExpr
+  assign-source github.com/prometheus/client_golang@v1.20.5/prometheus/internal/metric.go:98:3 var result = *ast.CallExpr
+  assign-source github.com/prometheus/client_golang@v1.20.5/prometheus/push/push.go:331:3 var urlComponents = *ast.CallExpr
+  assign-source github.com/prometheus/client_golang@v1.20.5/prometheus/push/push.go:333:3 var urlComponents = *ast.CallExpr
+  assign-source github.com/prometheus/client_golang@v1.20.5/prometheus/push/push.go:337:4 var urlComponents = *ast.CallExpr
+  assign-source github.com/prometheus/client_golang@v1.20.5/prometheus/push/push.go:339:4 var urlComponents = *ast.CallExpr
+  assign-source github.com/prometheus/client_golang@v1.20.5/prometheus/registry.go:1022:3 var dFns = *ast.CallExpr
+  assign-source github.com/prometheus/client_golang@v1.20.5/prometheus/registry.go:968:3 var lpsFromDesc = *ast.CallExpr
+  assign-source github.com/prometheus/client_golang@v1.20.5/prometheus/summary.go:343:3 var qs = *ast.CallExpr
+  assign-source github.com/prometheus/client_golang@v1.20.5/prometheus/summary.go:717:3 var qs = *ast.CallExpr
+  assign-source github.com/prometheus/client_golang@v1.20.5/prometheus/value.go:229:3 var labelPairs = *ast.CallExpr
+  assign-source github.com/prometheus/client_golang@v1.20.5/prometheus/value.go:264:3 var labelPairs = *ast.CallExpr

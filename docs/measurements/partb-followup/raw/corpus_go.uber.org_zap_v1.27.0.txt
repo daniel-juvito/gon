@@ -1,0 +1,19 @@
+syntactic bindings of recognised forms: 24
+  address-of           10
+  composite-slice      3
+  func-literal         2
+  make                 9
+later uses by name in the same function: map[assign-other:3 assign-source:10]
+  assign-other go.uber.org/zap@v1.27.0/zaptest/logger.go:91:2 var zapOptions = *ast.CallExpr
+  assign-other go.uber.org/zap@v1.27.0/zaptest/observer/observer.go:188:2 var all = *ast.CallExpr
+  assign-other go.uber.org/zap@v1.27.0/zaptest/observer/observer.go:189:2 var all = *ast.CallExpr
+  assign-source go.uber.org/zap@v1.27.0/config.go:268:3 var opts = *ast.CallExpr
+  assign-source go.uber.org/zap@v1.27.0/config.go:272:3 var opts = *ast.CallExpr
+  assign-source go.uber.org/zap@v1.27.0/config.go:280:3 var opts = *ast.CallExpr
+  assign-source go.uber.org/zap@v1.27.0/config.go:284:3 var opts = *ast.CallExpr
+  assign-source go.uber.org/zap@v1.27.0/config.go:303:4 var keys = *ast.CallExpr
+  assign-source go.uber.org/zap@v1.27.0/config.go:307:4 var fs = *ast.CallExpr
+  assign-source go.uber.org/zap@v1.27.0/config.go:309:3 var opts = *ast.CallExpr
+  assign-source go.uber.org/zap@v1.27.0/internal/readme/readme.go:125:3 var rows = *ast.CallExpr
+  assign-source go.uber.org/zap@v1.27.0/writer.go:76:3 var writers = *ast.CallExpr
+  assign-source go.uber.org/zap@v1.27.0/writer.go:77:3 var closers = *ast.CallExpr
