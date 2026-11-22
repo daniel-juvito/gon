@@ -104,7 +104,7 @@ A value that flows into a `!T` slot of a non-interface nilable kind (pointer, sl
 map, channel, function) without being a recognised non-nil source of the identical
 type is **GN001, an error** (since v1.22.0; amendment A2 of
 `rfc-explicit-nonnil-conversion.md`). It has the `gon-check` source, a range at the
-value, and no `relatedLocations`, and it makes the exit status 1. Its message is
+value, and no `relatedInformation` (the optional field has no producer in v1), and it makes the exit status 1. Its message is
 `cannot use value of type S as !U; use (!U)(x) to make an explicit claim`. In v1.21.0
 the same flow was the warning **GW006** (exit status unchanged); GW006 is no longer
 emitted. Consumers must not depend on the wording of `message`, only on `code` and `severity`.

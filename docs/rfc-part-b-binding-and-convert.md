@@ -10,7 +10,7 @@ is separately authorised.
 
 ## 1. Summary
 
-Part B binds a local variable `!` from the structural form of its initialiser (`x := make(...)`, `&T{}`, `new`, a literal, a function literal,
+Part B binds a local variable `!` (by `:=` or by `var x = e` with no written type) from the structural form of its initialiser (`x := make(...)`, `&T{}`, `new`, a literal, a function literal,
 `append` with elements): the initialiser is certainly non-nil, so the variable is a non-nil source and flows from it into `!T` slots need no
 conversion. Part B was left open because, after A2, the binding **breaks correct Go** whenever the variable is later reassigned to something nilable
 (`buf = nil`, `p = p.next`, `x = f()`): the follow-up audit counted 1% to 3% of such bindings in ordinary Go.
@@ -34,6 +34,8 @@ better"). The measured cost of Part B was never the flows it silences (11 flows 
 `gon convert` moves that cost from the author's keyboard to a one-time, reviewable, machine-checked rewrite.
 
 ## 3. The rule (unchanged from §6.8, with one addition)
+
+This RFC concerns **local variables**, declared in a function body. A package-level `var x = e` is outside it: it is not bound by Part B and the tool does not touch it.
 
 `x := e` and `var x = e` (no written type), with `e` a recognised non-nil source of a nilable kind, bind `x` `!`, per variable and per position
 (§6.8, "New identifiers only" and "Multi-value forms"). On a bound local, `x == nil` is GW001, `x = nil` is GN001, and `x = e'` is a flow into a `!T`
@@ -73,8 +75,14 @@ kind (§6.8), and decide, **by syntax and `go/types` objects, in one pass, witho
 `v = append(v, ...)`, or `v = v[a:b]` (C13, C15), and `&v` is never taken. A variable that is never assigned again is the common case (80% to 88% of the
 bindings measured).
 
-`T` is the type of `v` printed from `go/types` with the qualifiers of the file's imports. The rewrite is `v := (T)(e)`; for `a, b := e1, e2` each variable is
-rewritten on its own (`a, b := (T)(e1), e2`).
+`T` is the type of `v` printed from `go/types` with the qualifiers of the file's imports. The tool changes the **initialiser only** and keeps the form of the declaration:
+`v := e` becomes `v := (T)(e)`, and `var v = e` becomes `var v = (T)(e)` (also inside a `var ( ... )` group). For `a, b := e1, e2` each variable is rewritten on its
+own (`a, b := (T)(e1), e2`). The tool never turns a `:=` into a `var` or the reverse.
+
+**Only the identifiers that the declaration declares.** As in §6.8 ("New identifiers only"), a short declaration that also assigns to variables which already exist in the
+same scope (`x, err := f()` with `x` declared earlier) declares only the new ones. The tool decides from `go/types` (`Defs` against `Uses`), not from the spelling: an existing
+identifier, ordinary `T` or `!T`, is never rewritten and its contract is never changed; an identifier of an inner scope with the same name as an outer variable is a new
+identifier and is treated like any other; a blank `_` is never bound. In a declaration that mixes existing and new identifiers, only the new ones are candidates.
 
 ### 4.2 What it does not do, and says so
 
@@ -94,8 +102,9 @@ diff is the review) and `.go` input later.
 
 ### 4.4 Validation
 
-The tool runs the checker on its own output (a built-in `gon check`) and fails if the output has any diagnostic that the input did not have. It is idempotent:
-a second run changes nothing. Both are properties that tests fix (§7).
+The tool runs the checker on its own output (a built-in `gon check`) and fails if the output has any diagnostic that the input did not have. Positions move when the source is
+rewritten, so the comparison does not use raw line and column: the tool keeps the map from each edit (an initialiser wrapped in `(T)( ... )`) to the original range, translates
+every diagnostic position of the output back through that map, and compares the code, the severity and the original position. It is idempotent: a second run changes nothing. Both are properties that tests fix (§7).
 
 ## 5. Release order (no flag day)
 
@@ -112,8 +121,9 @@ The GN001 that Part B adds on a bound local is worded so that the fix is in the 
 
 `cannot use value of type S as !U; x was bound non-nil by its initialiser at <position>: declare it with a written type (var x T = ...) or convert the initialiser ((T)(e)) to keep it nilable`
 
-The initialiser's position is a `relatedLocations` entry when the Protocol allows it (to be checked against Protocol v1; the message text carries it otherwise).
-Consumers must still not rely on the wording.
+The initialiser's position would be an entry of `relatedInformation`, the optional field that Protocol v1 defines (`docs/diagnostic-protocol-v1.md`, "Related Locations"). Protocol v1 does not require
+the checker to produce it, and today's checker does not (the field is a schema with no producer); using it here is a separate decision, and until it is taken the message text carries the
+position. Consumers must still not rely on the wording.
 
 ## 7. Evidence and test plan
 
@@ -139,7 +149,7 @@ diagnostics, 0 rewrites in `gon` production but the one genuine site).
 
 1. The command and its modes (§4.3): `.gon` in place first, `.go` input later, or both at once; flags (`--check` to only report, `--write`).
 2. P1 (`&x` is not bound): accepted as an addition to §6.8?
-3. The wording of the hint (§6), and whether the initialiser position is a `relatedLocations` entry.
+3. The wording of the hint (§6), and whether the initialiser position is sent as `relatedInformation` (the checker has no producer for that field yet).
 4. Whether Release A (the tool alone) ships before the binding, as §5 proposes, or the tool and the binding ship together.
 5. Whether the tool should, later, also propose `!` for parameters, results and fields. This RFC does not.
 
