@@ -74,7 +74,7 @@ the `main` sources of `gon`, `gon-examples` and `gon-vscode`:
 
 | Scope | Flows into `!T` | Already a recognised source | Needing classification |
 |-------|-----------------|-----------------------------|------------------------|
-| gon, production `.gon` | 25 (47 with §6.8) | 15 (36) | 10 (11 with §6.8 and C15: the 10 plus `x = c.pkg.files`; 9 of the 10 from guards and external constructors, plus `&cp`, see the `&x` note in §4) |
+| gon, production `.gon` | 25 (47 with §6.8) | 15 (36) | 10 (11 with §6.8 and C15: the 10 plus `x = c.pkg.files`; 9 of the 10 from guards and external constructors, plus `&cp`, see the `&x` note in §4; **as measured then: after the amendment of 2026-11-22 `&cp` is recognised, so 9 and 10**) |
 | gon-examples (5 modules) | 11 | 10 | 0 genuine **in this scan, which does not read `.gna`** (it counted 1 false positive, `.gna`-annotated `store.Open()`, an effect of that limit); see "Re-measurement with `.gna`" below |
 | gon-vscode fixtures | 2 | 1 | 0 in this scan; see "Re-measurement with `.gna`" below |
 
@@ -145,7 +145,9 @@ identifiers explicitly; a second version corrects both (positional result mappin
 commits only:
 
 - The headline figures **stand**: 11 GW006, 76 newly bound locals, 0 new GW001, 0 new
-  GN001 in `gon`'s production sources; the 11 sites are the same.
+  GN001 in `gon`'s production sources; the 11 sites are the same. (Figures of that
+  run, before the amendment of 2026-11-22: `&cp` has since become a recognised source,
+  so the same rules now give 10 on the real checker, and 9 under Part A alone.)
 - Inventory: `gon` production has **409** definitions of nilable variables by `:=` or
   untyped `var` (225 single-value as before, plus **184** single-call multi-value
   definitions, none of which has a `!T` result position and so none is bound).
@@ -221,11 +223,12 @@ only for the three repositories and commits named above, and it does not cover e
 form of contract or value flow.
 
 **Baseline count.** On `gon`'s `main`, without any migration, the rules of §6.4,
-§6.6 and §6.8 (with the slice-expression rule C15) produce **11 GW006**, all in
-production sources: the ten flows into `!T` slots measured before the binding rule
-(nine derived from guards and external constructors, and `&cp`), and one
-assignment, `x = c.pkg.files`, to a bound local. Without C15 the baseline is 12
-(`x = queries[:0]` too). `gon-examples` and `gon-vscode` produced none that were
+§6.6 and §6.8 (with the slice-expression rule C15) produce **10 GW006**, all in
+production sources: the nine flows into `!T` slots measured before the binding rule
+(derived from guards and external constructors), and one assignment,
+`x = c.pkg.files`, to a bound local. Without C15 the baseline is 11
+(`x = queries[:0]` too). *Before the amendment of 2026-11-22 these were 11 and 12:
+the tenth Part A flow, `&cp`, warned until any `&operand` became a recognised source.* `gon-examples` and `gon-vscode` produced none that were
 genuine in the scan that did not read `.gna`; with `.gna` modelled they produce 10 and
 4 flows under Part A (2 and 2 under Part A and Part B; see "Re-measurement with `.gna`"). These are diagnostic counts; the migration counts of §10.7 are
 separate.
@@ -363,10 +366,12 @@ sources, until Part B is accepted. Part B builds on Part A (it adds sources to t
 same GW006 rule).
 
 **Measured effect of the split** (the second version of the temporary instrument of §2.1, run with the Part A rules,
-same commits as §2.1): in `gon`'s production sources, Part A alone gives **10 GW006**
+same commits as §2.1): in `gon`'s production sources, Part A alone gave **10 GW006**
 (25 flows; the nine guard- or constructor-derived sites and `&cp`); Part A and
-Part B give 11 (47 flows; the one extra is `x = c.pkg.files`, which is a flow only
-because Part B binds the local). Fixtures of `gon`: 9 either way. `gon-examples` and
+Part B gave 11 (47 flows; the one extra is `x = c.pkg.files`, which is a flow only
+because Part B binds the local). **After the amendment of 2026-11-22 (`&cp` is a
+recognised source): 9 for Part A alone and 10 for Part A and Part B** (the real
+checker gives 9 on Part A). Fixtures of `gon`: 9 either way. `gon-examples` and
 `gon-vscode`: no genuine GW006 either way **in the scan that did not read `.gna`** (with `.gna` modelled: Part A 10 and 4,
 Part A and Part B 2 and 2, see "Re-measurement with `.gna`"). Part A alone binds no new local
 (76 are Part B). These counts were measured with the same limits as §2.1.
@@ -787,20 +792,21 @@ non-nil conversion it performs no runtime check, and an ordinary conversion to
    preprocessor owns the canonical form. Today `gon fmt` has not been measured on
    a run of `!`, since the preprocessor currently fails on it.
 7. **Migration.** *Migration count*: the sites to change so that `gon check ./...`
-   on Gon has no GW006 (and the generated-source gate passes). **Part A alone: ten**
-   explicit conversions, the nine derived from guards and external constructors and
-   `&cp`, which stays unrecognised (no `&x` rule) and is converted like the others.
-   **After the amendment of 2026-11-22 `&cp` is recognised, so Part A alone is nine
-   conversions (and 9 GW006, measured with the real checker), and Part A+B is ten.**
-   **Part A+B: eleven**, the ten and the assignment `x = c.pkg.files` to a local bound
-   by §6.8 (twelve if C15 is not adopted: `x = queries[:0]` too). *Diagnostic count*:
-   10 GW006 for Part A alone and 11 for Part A+B, measured on the same `main` (§2.1,
-   §5.1). Here the two counts coincide, one conversion per diagnostic; one site
-   (`validateGnaFile`'s parameter) moves the conversion to its caller instead of
-   removing it. The dogfood gate and `gon-vscode` must be checked against the added
-   warnings; the `testdata/` fixtures were recounted with D3a, `nil` literals and type
-   parameters separated (§2.1, "Re-measurement"): 9 GW006; no migration estimate rests
-   on them.
+   on Gon has no GW006 (and the generated-source gate passes). **Part A alone: nine**
+   explicit conversions, all derived from guards and external constructors. **Part A+B:
+   ten**, the nine and the assignment `x = c.pkg.files` to a local bound by §6.8
+   (eleven if C15 is not adopted: `x = queries[:0]` too). *Diagnostic count*: 9 GW006
+   for Part A alone and 10 for Part A+B. Here the two counts coincide, one conversion
+   per diagnostic; one site (`validateGnaFile`'s parameter) moves the conversion to its
+   caller instead of removing it. *History:* before the amendment of 2026-11-22 these
+   were ten, eleven (twelve) and 10 and 11, because `&cp` was not a recognised source
+   and was converted like the others; the figures were measured on `main` with the
+   instrument (§2.1, §5.1) and the 9 for Part A was confirmed with the real checker.
+   The dogfood gate and `gon-vscode` must be checked against the added warnings; the
+   `testdata/` fixtures were recounted with D3a, `nil` literals and type parameters
+   separated (§2.1, "Re-measurement"): 9 GW006 by the instrument (14 with the real
+   checker, which also counts map values, fixed-array elements and an instantiated
+   generic field; none is a false positive); no migration estimate rests on them.
 8. **Evidence limits** in §2.2, in particular the expression-position nilability
    check for `(!T)(x)`.
 9. **Binding by inference (Part B).** Direction taken: the closed set of §6.8, an untyped
@@ -922,14 +928,14 @@ non-nil conversion it performs no runtime check, and an ordinary conversion to
 - **Dogfood, with separate criteria for Part A and for Part A+B** (§5.1). The gate
   checks the diagnostics of `gon check ./...`, not the exit code alone, because
   warnings do not change it, and the generated-source gate must pass.
-  - *Part A:* after the **ten** Part A sites (the nine derived from guards and
-    external constructors, and `&cp`) are converted, `gon check ./...` on Gon with the
+  - *Part A:* after the **nine** Part A sites (all derived from guards and external
+    constructors; `&cp` is recognised since 2026-11-22) are converted, `gon check ./...` on Gon with the
     Part A rules reports no GW006. `x = c.pkg.files` is not a flow under Part A, so it
     is not part of this criterion. This criterion is the only dogfood condition for
     accepting Part A.
-  - *Part A+B:* after all **eleven** flagged sites (the ten and `x = c.pkg.files`) are
+  - *Part A+B:* after all **ten** flagged sites (the nine and `x = c.pkg.files`) are
     converted, `gon check ./...` with the combined rules and C15 reports no GW006
-    (twelve sites if C15 is not adopted). This criterion belongs to Part B and must
+    (eleven sites if C15 is not adopted). This criterion belongs to Part B and must
     not be a precondition for accepting Part A.
 
 ## 13. Alternatives Considered
