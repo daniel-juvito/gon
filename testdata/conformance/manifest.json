@@ -605,7 +605,7 @@
   "diagnostics": [
    "GW006"
   ],
-  "note": "map lookup, index, plain call, &x"
+  "note": "map lookup, index and a plain call warn; &x is a recognised source since the owner decision of 2026-11-22 (see GW-A-01)"
  },
  {
   "id": "GW-B-01",
@@ -784,5 +784,16 @@
    "GW006"
   ],
   "note": "in (*R).M(f()) result 0 is the receiver and result 1 is the first parameter; a result that is !T is a source"
+ },
+ {
+  "id": "GW-A-01",
+  "rfc": "§6.6",
+  "kind": "check",
+  "status": "enabled",
+  "site": "internal/checker: isRecognisedSource (&identifier)",
+  "diagnostics": [
+   "GW006"
+  ],
+  "note": "&identifier of a variable is a recognised source, also in parentheses, and silent in a variable, an argument and an element; a named pointer type, &x.f, &a[i] and &p.f are not (the type is not identical, or the operand is not an identifier)"
  }
 ]

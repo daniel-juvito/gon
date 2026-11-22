@@ -313,7 +313,7 @@ change, except v1.20, which carries two.
     the `append` and slice-expression sources, which is potentially breaking. The
     acceptance of Part A is not approval to implement it and sets no release
     number, date or schedule; the release shape and the migration of Gon's own
-    sources (ten `(!T)(x)` sites) are still decisions of the owner.
+    sources (nine `(!T)(x)` sites) are still decisions of the owner.
 - **Dogfood (not a release track).** Gon's production packages are written in
   Gon (`docs/dogfood.md`); `!` contracts are added package by package after
   measurement and audit (all of `internal/checker`'s approved groups are in).
