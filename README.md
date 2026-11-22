@@ -43,6 +43,7 @@ One line per minor version, newest first; patch releases are folded into the lin
 
 | Version | What it added or changed |
 |---------|--------------------------|
+| [v1.22](CHANGELOG.md#1220--2026-11-22) | An ordinary value of a pointer, slice, map, channel or function kind flowing into a `!T` slot is now **GN001, an error (exit 1)**; in v1.21 it was the warning GW006, which is no longer emitted. `(!T)(x)` is the only way through. A possibly breaking change, shipped alone. |
 | [v1.21](CHANGELOG.md#1210--2026-11-22) | The explicit non-nil conversion `(!T)(x)` (an author's claim, no run-time check) and the new warning **GW006**: a value that Gon cannot see to be non-nil flowing into a `!T` slot of a pointer, slice, map, channel or function kind now warns (exit code unchanged), and `&operand`, `&T{}`, `new`, `make`, literals, a `!T` result and `(!T)(x)` are recognised. `!!T` is `!T`. `var x ! *T` is now enforced (it was silently ignored): **possibly breaking**, for a CI that fails on warnings and for code that relied on that. |
 | [v1.20](CHANGELOG.md#1200--2026-11-21) | File mode and `gon build <dir>`: a malformed `//go:build` in a file operand is now **exit 1** (it was exit 0), and `gon build <dir>` with no module for the operand is **exit 2** before anything is written (it was exit 1 after writing the `.go` files). |
 | [v1.19](CHANGELOG.md#1190--2026-11-19) | Package mode: a malformed `//go:build` line is a source error of its package (the file is not checked, the others are, **exit 1**; it was exit 2), and names the go tool ignores are not part of the package. |
@@ -69,7 +70,7 @@ One line per minor version, newest first; patch releases are folded into the lin
 ## Install
 
 ```bash
-go install github.com/daniel-juvito/gon/cmd/gon@v1.21.0
+go install github.com/daniel-juvito/gon/cmd/gon@v1.22.0
 ```
 
 Or from source:
@@ -305,7 +306,7 @@ Full format: [docs/gna-spec-v1.md](docs/gna-spec-v1.md)
 
 | Code  | Severity | Meaning |
 |-------|----------|---------|
-| GN001 | error    | literal `nil` assigned / passed / returned where `!T` is required; `nil` assigned into a `!T` field (local or external, v1.5); an ordinary interface value where `!I` is required (incl. an external `!I` field, v1.5); `!T` as a type-assertion target — interface (v1.4) or any kind (v1.6); `nil` as an element / map value under an element contract (v1.7); `nil` into a `!` field / argument through a generic instantiation (v1.8), including an explicit instantiation of an external generic (v1.9); **on `main`, not yet released:** a value of a pointer, slice, map, channel or function kind that is not a recognised non-nil source (or is one of a different type) flowing into a `!T` slot, which was the warning GW006 in v1.21 — write `(!T)(x)` to claim it |
+| GN001 | error    | literal `nil` assigned / passed / returned where `!T` is required; `nil` assigned into a `!T` field (local or external, v1.5); an ordinary interface value where `!I` is required (incl. an external `!I` field, v1.5); `!T` as a type-assertion target — interface (v1.4) or any kind (v1.6); `nil` as an element / map value under an element contract (v1.7); `nil` into a `!` field / argument through a generic instantiation (v1.8), including an explicit instantiation of an external generic (v1.9); **since v1.22:** a value of a pointer, slice, map, channel or function kind that is not a recognised non-nil source (or is one of a different type) flowing into a `!T` slot, which was the warning GW006 in v1.21 — write `(!T)(x)` to claim it |
 | GN002 | error    | construction leaves a required non-nil field at zero (including nested / embedded / array; includes `new(T)`; external `pkg.T` incl. one-hop embedded promotion, v1.5); bare `var x !S` of a nilable reference kind with no initializer (v1.6); fixed-array literal leaves a `!` nilable element index at zero (v1.7); construction of an instantiated generic struct leaves a `!` field at zero (v1.8), local or external via `.gna` `types:` (v1.9); `var v !P` with no initializer for a nilable type parameter `P` (v1.8) |
 | GN003 | error    | malformed `.gna`, or (v1.5) a `params`/`results` arity mismatch vs `go/types` — the entry is dropped; `!` on a non-nilable type (v1.6); element `!` on a channel element, map key, or non-nilable element kind (v1.7); `!X` on a type parameter not restricted to nilable kinds, and `!` inside a type argument or constraint (v1.8); a `.gna` `!` flag over a non-nilable kind or type parameter — only that flag is dropped (v1.9) |
 | GW001 | warning  | comparison of a non-nil name or `!T` field selector (local or external, v1.5) with `nil` (always true/false) |
@@ -313,7 +314,7 @@ Full format: [docs/gna-spec-v1.md](docs/gna-spec-v1.md)
 | GW003 | warning  | redundant type assertion on a declared `!T` identifier (v1.3) |
 | GW004 | warning  | `.gna` names a `functions:` / `methods:` / `types:` symbol the package does not provide (v1.5) |
 | GW005 | warning  | a `.gna` exists for an imported package of the main module that has `.gon` sources: the `.gna` is ignored, the `.gon` sources are authoritative (v1.14); once per import |
-| GW006 | warning  | (v1.21 only) a value that is not a recognised non-nil source, or is one of a different (not identical) type, flows into a `!T` slot of a pointer, slice, map, channel or function kind. **On `main` (not yet released) the same flow is GN001, an error, and GW006 is no longer emitted**; the explicit conversion `(!T)(x)` is the only way through. An ordinary interface value into `!I` was GN001 already |
+| GW006 | warning  | (v1.21 only) a value that is not a recognised non-nil source, or is one of a different (not identical) type, flows into a `!T` slot of a pointer, slice, map, channel or function kind. **Since v1.22 the same flow is GN001, an error, and GW006 is no longer emitted**; the explicit conversion `(!T)(x)` is the only way through. An ordinary interface value into `!I` was GN001 already |
 
 ### Explicit non-nil conversion (v1.21)
 
@@ -325,7 +326,7 @@ grouping parenthesis, so `adder(!flag)(3)` keeps its meaning as a call.
 ```go
 func lookup(m map[string]*Node, k string) !*Node {
 	n := m[k]            // an ordinary *Node
-	return (!*Node)(n)   // the claim; without it: GW006 (v1.21), GN001 on `main`
+	return (!*Node)(n)   // the claim; without it: GW006 (v1.21), GN001 (v1.22)
 }
 ```
 

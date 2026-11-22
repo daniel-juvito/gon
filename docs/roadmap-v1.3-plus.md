@@ -305,7 +305,7 @@ change, except v1.20, which carries two.
     decision (2026-11-21) and released (syntax, checks of a conversion, GW006, see the
     CHANGELOG `[1.21.0]`):** the explicit conversion `(!T)(x)` as an
     author's static claim with no runtime check (Go decides its validity), GW006 as
-    a warning (v1.21.0; **an error, GN001, since amendment A2, on `main`, not yet released**) for an ordinary `T → !T` flow of a non-interface nilable kind
+    a warning (v1.21.0; **an error, GN001, since amendment A2, released in v1.22.0**) for an ordinary `T → !T` flow of a non-interface nilable kind
     (pointer, slice, map, channel, function; an ordinary interface value into `!I`
     stays GN001 and D3b is unchanged for type parameters), the identity rule of the
     contract, and idempotence of `!` in type positions. **Part B is open and not
