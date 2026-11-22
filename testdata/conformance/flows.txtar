@@ -615,3 +615,142 @@ func f(v T, w W, arr [2]T, pw *W) {
 }
 -- GW-A-01/want --
 22 GW006
+-- GW-A-02/src --
+package p
+
+type In struct{ n int }
+
+type S struct {
+	f   int
+	in  In
+	arr [3]int
+	sl  []int
+	p   *In
+}
+
+type E struct{ In }
+
+var g S
+var ga [2]S
+
+func src() *S { return &g }
+
+func f(s S, ps *S, a [3]int, pa *[3]int, sl []int, e E, n int, pp **int, ch chan *int) (res int) {
+	var _ !*int = &n
+	var _ !*int = &res
+	var _ !*S = &g
+	var _ !*int = &s.f
+	var _ !*In = &s.in
+	var _ !*int = &s.in.n
+	var _ !*int = &ps.f
+	var _ !*int = &ps.in.n
+	var _ !*int = &a[0]
+	var _ !*int = &pa[1]
+	var _ !*int = &sl[0]
+	var _ !*int = &s.arr[2]
+	var _ !*int = &s.sl[0]
+	var _ !*int = &ga[1].f
+	var _ !*S = &ga[0]
+	var _ !*int = &e.n
+	var _ !*In = &e.In
+	var _ !*S = &*ps
+	var _ !*S = &(*ps)
+	var _ !*int = &(n)
+	var _ !*int = (&n)
+	var _ !*S = &S{}
+	var _ !*[]int = &[]int{1}
+	var _ !*[2]int = &[2]int{}
+	var _ !*int = &src().f
+	var _ !*int = &ps.p.n
+	var _ !*int = *pp // W
+	var _ !*int = <-ch // W
+	var _ !*int = n2(pp) // W
+	return
+}
+
+func n2(pp **int) *int { return *pp }
+-- GW-A-02/want --
+47 GW006
+48 GW006
+49 GW006
+-- GW-A-03/src --
+package p
+
+type T struct{ v !*int }
+
+type M struct{}
+
+func (M) m(p !*int) {}
+
+func take(p !*int) {}
+
+func two(n int) (!*int, error) {
+	return &n, nil
+}
+
+func one(n int) !*int {
+	return &n
+}
+
+func lit(n int) func() !*int {
+	return func() !*int { return &n }
+}
+
+func f(b !*int, t T, n int, arr [2]int, s struct{ k int }) {
+	b = &n
+	b = &arr[0]
+	b = &s.k
+	t.v = &n
+	take(&n)
+	take(&arr[1])
+	take(&s.k)
+	M{}.m(&n)
+	_ = T{v: &n}
+	_ = T{&n}
+	_ = T{v: &arr[0]}
+	_ = []!*int{&n, &arr[1], &s.k}
+	_ = [2]!*int{&n, &s.k}
+	_ = map[string]!*int{"a": &n, "b": &arr[0]}
+	var c, d !*int = &n, &s.k
+	_, _ = c, d
+	b = n3() // W
+}
+
+func n3() *int { return new(int) }
+-- GW-A-03/want --
+40 GW006
+-- GW-A-04/src --
+package p
+
+type S struct{ f int }
+
+type P *int
+
+type Q *S
+
+func Box[X any](v X) !*X {
+	return &v
+}
+
+func Deref[X any](p *X) !*X {
+	return &*p
+}
+
+func Field(s S) !*int {
+	return &s.f
+}
+
+func f(n int, s S) {
+	var _ !P = &n // W
+	var _ !Q = &s // W
+	var _ !P = (P)(&n) // W
+	var _ !P = (!P)(&n)
+	var _ !Q = (!Q)(&s)
+	var _ !*int = (*int)(&n) // W
+	var _ !*int = (!*int)(&n)
+}
+-- GW-A-04/want --
+22 GW006
+23 GW006
+24 GW006
+27 GW006

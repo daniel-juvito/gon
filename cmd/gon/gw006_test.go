@@ -150,6 +150,9 @@ func TestGW006GnaSlots(t *testing.T) {
 		"\tlib.Take(r)\n" + // silent
 		"\t_ = lib.Conn{P: y}\n" + // GW006: field
 		"\t_ = lib.Conn{P: r}\n" + // silent
+		"\tz := 1\n" +
+		"\tlib.Take(&z)\n" + // &operand: silent
+		"\t_ = lib.Conn{P: &z}\n" + // silent
 		"}\n"
 	root := scModule(t, "1.21", map[string]string{
 		"annotations/ex/lib.gna": gna,
