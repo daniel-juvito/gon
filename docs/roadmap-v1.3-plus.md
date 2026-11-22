@@ -35,7 +35,7 @@ via its own RFC.
   recognised but its static type is not identical to the type of the `!U` slot even
   though Go accepts the assignment. The explicit non-nil conversion `(!U)(x)` is a
   recognised non-nil source of type `U`; it is a claim by the author and is not
-  checked. *(Amendment of `rfc-explicit-nonnil-conversion.md` §9, Part A; unreleased.)*
+  checked. *(Amendment of `rfc-explicit-nonnil-conversion.md` §9, Part A; v1.21.)*
 - **I7 — Schema versioning is syntax-driven.** Semantic/feature changes do
   not by themselves bump the `.gna` schema version. `Requires .gna change
   = Yes` and `Schema bump = No` is a valid combination.
@@ -300,10 +300,10 @@ change, except v1.20, which carries two.
   - **`--strict`** — deferred since v1.5 (`rfc-ecosystem-contract-expansion.md`);
     unscheduled.
   - **A "nilable" constraint** — open, unscheduled (see the note below).
-  - **Explicit non-nil conversion — Part A accepted and implemented on `main`, not
-    released; Part B open** (`rfc-explicit-nonnil-conversion.md`). **Part A is
-    accepted as a design decision (2026-11-21) and implemented, unreleased (syntax,
-    checks of a conversion, GW006, see the CHANGELOG `[Unreleased]`):** the explicit conversion `(!T)(x)` as an
+  - **Explicit non-nil conversion — Part A SHIPPED in v1.21.0 (2026-11-22); Part B
+    open** (`rfc-explicit-nonnil-conversion.md`). **Part A was accepted as a design
+    decision (2026-11-21) and released (syntax, checks of a conversion, GW006, see the
+    CHANGELOG `[1.21.0]`):** the explicit conversion `(!T)(x)` as an
     author's static claim with no runtime check (Go decides its validity), GW006 as
     a warning for an ordinary `T → !T` flow of a non-interface nilable kind
     (pointer, slice, map, channel, function; an ordinary interface value into `!I`
@@ -311,9 +311,9 @@ change, except v1.20, which carries two.
     contract, and idempotence of `!` in type positions. **Part B is open and not
     accepted:** binding of locals by inference from a structural initialiser, with
     the `append` and slice-expression sources, which is potentially breaking. The
-    acceptance of Part A is not approval to implement it and sets no release
-    number, date or schedule; the release shape and the migration of Gon's own
-    sources (nine `(!T)(x)` sites) are still decisions of the owner.
+    release of Part A was decided on 2026-11-22 (v1.21.0, solo, R1). The migration
+    of Gon's own sources (nine `(!T)(x)` sites) and the new pin of the three
+    repositories follow the tag and are not part of it.
 - **Dogfood (not a release track).** Gon's production packages are written in
   Gon (`docs/dogfood.md`); `!` contracts are added package by package after
   measurement and audit (all of `internal/checker`'s approved groups are in).
