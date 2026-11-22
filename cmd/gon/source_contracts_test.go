@@ -186,9 +186,10 @@ func TestSourceContractsGenericMethod(t *testing.T) {
 	})
 	chdir(t, root)
 	_, _, errOut := captureRun([]string{"check", "./app"})
-	// a typed nil is not a literal nil (no GN001); it is an ordinary value into a
-	// `!` parameter (GW006), and the result is a non-nil source (GW001)
-	wantDiags(t, errOut, "app/main.gon:7 GW006", "app/main.gon:9 GW001")
+	// a typed nil is not a literal nil; it is an ordinary value into a `!`
+	// parameter (GN001 since amendment A2; GW006 until v1.21), and the result is a
+	// non-nil source (GW001)
+	wantDiags(t, errOut, "app/main.gon:7 GN001", "app/main.gon:9 GW001")
 
 	root2 := scModule(t, "1.27", map[string]string{
 		"lib/lib.gon":  "package lib\n\ntype Box[X any] struct{ v X }\n\nfunc (b Box[X]) Map[Y any](p !*Y) !*Y { return p }\n",

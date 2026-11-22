@@ -30,5 +30,5 @@ check of `.gon` files and the transpile gate of the pinned gon never read them.
 Not covered by this suite yet, and why: the Go type error of a conversion that Go
 rejects (it needs the CLI, because the checker treats a Go type error as non-fatal),
 slots declared by `.gna` (they wait for the measurement of section 5 of the plan),
-cross-package module-local slots, the JSON output and exit code of GW006 (the
+cross-package module-local slots, the JSON output and exit code of the ordinary-flow error (the
 protocol conformance suite of `cmd/gon`), and the formatter cases with comments.

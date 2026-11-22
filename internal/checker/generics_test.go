@@ -31,7 +31,7 @@ type T struct{}
 type A struct{}
 type B struct{}
 type Stringer interface{ String() string }
-func mk() *T { return &T{} }
+func mk() !*T { return &T{} }
 `
 
 func genCheck(t *testing.T, body string) []*Diagnostic {

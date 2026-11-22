@@ -130,8 +130,10 @@ func TestCLIRejectsNonGonExtension(t *testing.T) {
 	}
 }
 
-func TestCLIFlowInsensitiveAssignmentAllowed(t *testing.T) {
-	// Documents the v1 non-guarantee: non-literal assignments are accepted.
+func TestCLIOrdinaryFlowIntoNonNilIsAnError(t *testing.T) {
+	// Amendment A2 (2026-11-22): the checker is not flow-sensitive, so an ordinary
+	// value of a nilable kind is never taken to be non-nil; the author claims it with
+	// (!T)(x). Until v1.21 this was the warning GW006, and exit 0.
 	dir := t.TempDir()
 	path := writeTempGon(t, dir, "flow.gon", `package main
 func get() *int { return nil }
@@ -140,8 +142,18 @@ func main() {
 	_ = x
 }
 `)
+	if code := run([]string{"check", path}); code != 1 {
+		t.Fatalf("an ordinary value into a !T slot must be an error, got exit %d", code)
+	}
+	path = writeTempGon(t, dir, "claim.gon", `package main
+func get() *int { return nil }
+func main() {
+	var x !*int = (!*int)(get())
+	_ = x
+}
+`)
 	if code := run([]string{"check", path}); code != 0 {
-		t.Fatalf("flow-insensitive assignment must be accepted, got exit %d", code)
+		t.Fatalf("an explicit conversion must be accepted, got exit %d", code)
 	}
 }
 
