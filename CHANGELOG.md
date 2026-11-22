@@ -516,10 +516,11 @@ or release shape is decided.
   field), an element or map value, and the results of a multi-value call that flow into
   several slots (`a, b = f()`, `var a, b !T = f()`, `return f()`, `g(f())`), by position. Recognised sources: an identifier declared `!T`
   or bound as before, a call whose first result is `!T`, a selector of a `!` field, a
-  composite literal, `&literal`, `new`, `make`, a function literal and `(!T)(x)`. An
+  composite literal, any `&operand` (the address of a variable, field or element is
+  never nil), `new`, `make`, a function literal and `(!T)(x)`. An
   ordinary interface value into `!I` stays GN001 (D3b), a type-parameter slot is
   unchanged. **Possibly noisy for existing code**: a value that was accepted silently
-  (for example a call result, a map lookup, `&x` or a local built from a literal) now
+  (for example a call result, a map lookup or a local built from a literal) now
   warns until it is written `(!T)(x)`.
 
 ### Fixed

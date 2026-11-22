@@ -605,7 +605,7 @@
   "diagnostics": [
    "GW006"
   ],
-  "note": "map lookup, index, plain call, &x"
+  "note": "map lookup, index and a plain call warn; &x is a recognised source since the owner decision of 2026-11-22 (see GW-A-01)"
  },
  {
   "id": "GW-B-01",
@@ -784,5 +784,49 @@
    "GW006"
   ],
   "note": "in (*R).M(f()) result 0 is the receiver and result 1 is the first parameter; a result that is !T is a source"
+ },
+ {
+  "id": "GW-A-01",
+  "rfc": "§6.6",
+  "kind": "check",
+  "status": "enabled",
+  "site": "internal/checker: isRecognisedSource (any &operand)",
+  "diagnostics": [
+   "GW006"
+  ],
+  "note": "any &operand is a recognised source: an identifier, a field, an element, in parentheses, in a variable, an argument and an element; only a slot of a named pointer type warns, because *int is not identical to P"
+ },
+ {
+  "id": "GW-A-02",
+  "rfc": "§6.6",
+  "kind": "check",
+  "status": "enabled",
+  "site": "internal/checker: isRecognisedSource (every operand of &)",
+  "diagnostics": [
+   "GW006"
+  ],
+  "note": "every addressable operand of &: a parameter, a named result, a package variable, a field, a nested field, a field through a pointer, an array, pointer-to-array, slice and field element, a promoted and an embedded field, a dereference, parentheses, a composite literal and a field of a call result; a plain pointer value (*pp) and a call still warn"
+ },
+ {
+  "id": "GW-A-03",
+  "rfc": "§6.6",
+  "kind": "check",
+  "status": "enabled",
+  "site": "internal/checker: isRecognisedSource (& at every slot)",
+  "diagnostics": [
+   "GW006"
+  ],
+  "note": "&operand is silent in an assignment, an argument, a method argument, a result, a function literal result, a keyed and an unkeyed field, a slice, array and map element and a multiple var declaration; the plain call on the last line still warns"
+ },
+ {
+  "id": "GW-A-04",
+  "rfc": "§6.4",
+  "kind": "check",
+  "status": "enabled",
+  "site": "internal/checker: flowDecision (identity with &)",
+  "diagnostics": [
+   "GW006"
+  ],
+  "note": "the static type of &x is *T: a named pointer type slot warns, a conversion without ! is not a source, (!P)(&x) is, and a generic *X result is satisfied by &v"
  }
 ]

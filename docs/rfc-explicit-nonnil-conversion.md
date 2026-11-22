@@ -1,6 +1,7 @@
 # RFC: Explicit Non-Nil Conversion `(!T)(x)`
 
 **Status:** **Part A: ACCEPTED** (formal design decision, 2026-11-21), including the extension of the OQ-1 decision to channel and function. **Part B: OPEN, not accepted.** The acceptance is a design decision only: it is not approval to implement or to merge, and nothing is scheduled (§5.1). **Implementation (2026-11-21):** Part A is implemented on `main` and not released (syntax, the checks of a conversion, GW006, the conformance harness `testdata/conformance`); the release shape, the migration of Gon's own sources and Part B remain open.  
+**Amendment (2026-11-22, decision of the owner):** any `&operand` is a recognised non-nil source of Part A (§4 note, §6.6, §10.3): the address of an addressable operand or of a composite literal is never nil, and evaluating it either gives that address or panics, as in Go.
 **Target:** Unassigned (the owner decides the release number, date and shape)  
 **Related:** `docs/roadmap-v1.3-plus.md` (I1–I7), `docs/rfc-interface-semantics.md` (D3, D6),
 `docs/rfc-generic-semantics.md`, `docs/rfc-element-contract-construction.md` (E7),
@@ -73,7 +74,7 @@ the `main` sources of `gon`, `gon-examples` and `gon-vscode`:
 
 | Scope | Flows into `!T` | Already a recognised source | Needing classification |
 |-------|-----------------|-----------------------------|------------------------|
-| gon, production `.gon` | 25 (47 with §6.8) | 15 (36) | 10 (11 with §6.8 and C15: the 10 plus `x = c.pkg.files`; 9 of the 10 from guards and external constructors, plus `&cp`, see the `&x` note in §4) |
+| gon, production `.gon` | 25 (47 with §6.8) | 15 (36) | 10 (11 with §6.8 and C15: the 10 plus `x = c.pkg.files`; 9 of the 10 from guards and external constructors, plus `&cp`, see the `&x` note in §4; **as measured then: after the amendment of 2026-11-22 `&cp` is recognised, so 9 and 10**) |
 | gon-examples (5 modules) | 11 | 10 | 0 genuine **in this scan, which does not read `.gna`** (it counted 1 false positive, `.gna`-annotated `store.Open()`, an effect of that limit); see "Re-measurement with `.gna`" below |
 | gon-vscode fixtures | 2 | 1 | 0 in this scan; see "Re-measurement with `.gna`" below |
 
@@ -144,7 +145,9 @@ identifiers explicitly; a second version corrects both (positional result mappin
 commits only:
 
 - The headline figures **stand**: 11 GW006, 76 newly bound locals, 0 new GW001, 0 new
-  GN001 in `gon`'s production sources; the 11 sites are the same.
+  GN001 in `gon`'s production sources; the 11 sites are the same. (Figures of that
+  run, before the amendment of 2026-11-22: `&cp` has since become a recognised source,
+  so the same rules now give 10 on the real checker, and 9 under Part A alone.)
 - Inventory: `gon` production has **409** definitions of nilable variables by `:=` or
   untyped `var` (225 single-value as before, plus **184** single-call multi-value
   definitions, none of which has a `!T` result position and so none is bound).
@@ -188,7 +191,9 @@ semantic decision.
   Part A rules (10 in production, 9 in fixtures) and 20 under Part A and Part B, with and without `.gna`.
 - **Result.** Flows into a `.gna` slot (counted as flows, not as lines): Part A alone, **10** GW006 in `gon-examples`
   (6 in `ecosystem-contracts`, on 4 lines, since lines 28 and 31 hold two flows each; 4 in `generic-gna`); Part A and
-  Part B, **2**, both `cache.Must(&x)` and `cache.Must[int](&x)` in `generic-gna`, which is `&x` (OPEN, §4).
+  Part B, **2**, both `cache.Must(&x)` and `cache.Must[int](&x)` in `generic-gna`, which is `&x`
+  (decided on 2026-11-22: any `&operand` is recognised, so these two and the corresponding two of
+  Part A no longer warn; see the note below and the "Note on `&x`" of §4).
   `gon-vscode/fixtures/genericgna` is a copy of `generic-gna` and repeats the same flows (4 and 2), so across both
   repositories the totals are 14 and 4 if the copy is counted and 10 and 2 if it is counted once. The 8 other
   Part A flows are locals built from a literal (`db := &store.DB{}`) and passed to a `.gna` field: Part A does not
@@ -200,6 +205,16 @@ semantic decision.
   difference.
 - **Limits.** Only the three repositories at the named commits; `receivers:` claims, embedded structs and aliases
   are not modelled, and the result does not validate GW006.
+- **Measured with the real checker, before and after the amendment of 2026-11-22** (a `gon` built from
+  `main` at `ae2ca4d` and one with `&operand` recognised (measured first with `&identifier` only, with the same
+  result); `gon check --json`, every file of
+  `gon-examples` in single-file mode, which includes the fourteen demos that the instrument could not load):
+  GW006 in `gon-examples` 35 to 26 (the nine `&x` flows); the examples that differ from their
+  `expected.txt` 11 to 7 of 20 (`hello`, `cli`, `return-value` and `construction` are clean again);
+  the fixtures of `gon-vscode` that differ 3 to 2 of 11; `gon` production 10 to 9 (`&cp`); `generic-gna`
+  4 to 2. Across 61 runs (the nine modules, every example and fixture, and `testdata/`) the only changes
+  are 18 GW006 removed (the module and the single-file runs of one example overlap), none added, and
+  no diagnostic other than GW006 changed. The instrument was not rerun.
 
 Unchanged limits: `.gna` of external packages that users write, channel sends,
 `range` and embedded structs are not modelled; users outside the three repositories
@@ -208,11 +223,12 @@ only for the three repositories and commits named above, and it does not cover e
 form of contract or value flow.
 
 **Baseline count.** On `gon`'s `main`, without any migration, the rules of §6.4,
-§6.6 and §6.8 (with the slice-expression rule C15) produce **11 GW006**, all in
-production sources: the ten flows into `!T` slots measured before the binding rule
-(nine derived from guards and external constructors, and `&cp`), and one
-assignment, `x = c.pkg.files`, to a bound local. Without C15 the baseline is 12
-(`x = queries[:0]` too). `gon-examples` and `gon-vscode` produced none that were
+§6.6 and §6.8 (with the slice-expression rule C15) produce **10 GW006**, all in
+production sources: the nine flows into `!T` slots measured before the binding rule
+(derived from guards and external constructors), and one assignment,
+`x = c.pkg.files`, to a bound local. Without C15 the baseline is 11
+(`x = queries[:0]` too). *Before the amendment of 2026-11-22 these were 11 and 12:
+the tenth Part A flow, `&cp`, warned until any `&operand` became a recognised source.* `gon-examples` and `gon-vscode` produced none that were
 genuine in the scan that did not read `.gna`; with `.gna` modelled they produce 10 and
 4 flows under Part A (2 and 2 under Part A and Part B; see "Re-measurement with `.gna`"). These are diagnostic counts; the migration counts of §10.7 are
 separate.
@@ -268,18 +284,31 @@ nilability check for `(!T)(x)` does not exist yet and is reasoned, not measured.
 - Additional `.gna` for the standard library (for example `go/token`).
 - `!` in a type argument or constraint (stays GN003).
 - Generic type declarations and generic methods in the initial scope.
-- A recognition rule for `&x` as part of this feature (the `&x` note in §4).
+- A recognition rule for anything that is not an `&operand` (the `&x` note in §4).
 - A `--strict` mode (§10.5).
 
 ### Note on `&x`
 
-`&x` yields a non-nil pointer or panics, so it could be a structural non-nil
-source. It is **out of scope** here. If it is proposed separately, it must be
-limited to forms proven safe (`&identifier`, `&literal`); the data covers only
-`&identifier` of a local (one production site, four fixtures). `&cp` is
-therefore counted apart from the nine guard- and constructor-derived sites and is
-converted explicitly in the migration (§10.7), so that the dogfood gate needs no
-`&x` rule.
+`&x` yields a non-nil pointer or panics. **Decided (owner, 2026-11-22): any
+`&operand` is a recognised non-nil source of Part A**, like `&literal`, which already
+was. The address of an addressable operand (a variable, a field, an element, `*p`) or of
+a composite literal is never nil, and evaluating it either gives that address or panics
+(`&p.f` with `p` nil, `&a[i]` out of range), exactly as Go does; `&f()` is not valid Go
+at all (checked: "cannot take address of f()"). This is a structural rule on the form of
+the expression, not an inference from a guard, and the static type of `&x` is `*T`, so
+the identity rule of §6.4 applies as for any source: `&n` into a `!P` slot of a named
+pointer type still warns. The first version of the decision was limited to
+`&identifier` and `&literal`; the owner widened it the same day, because the reason (a
+panic is Go's own behaviour) holds for every `&operand` and the rule is then simpler.
+
+*Original reasoning, kept for the record.* The note was written when `&x` was out of
+scope: the data covered only `&identifier` of a local (one production site, four
+fixtures), and it was to be limited to forms proven safe; `&cp` was counted apart from the nine guard- and constructor-derived
+sites and converted explicitly in the migration. The re-measurement with the real
+checker (the "Re-measurement with `.gna`" block of §2.1 and the examples of the
+downstream repositories) showed that `&x` is a quarter of the warnings in
+`gon-examples` and all of them in its first examples, which is what the decision
+answers.
 
 ## 5. Decision Matrix
 
@@ -309,7 +338,7 @@ non-interface nilable kind (pointer, slice, map, channel and function), so the
 normative text that names those kinds stands as written. **Part B is OPEN and is not
 accepted.** The acceptance of Part A is not approval to implement it, to merge it or
 to release it, and it does not schedule anything: the release shape, `--strict`,
-GW007, `&x` and the items G1–G6 of the roadmap are unchanged and remain open or on hold.
+GW007 and the items G1–G6 of the roadmap are unchanged and remain open or on hold; any `&operand` was added to Part A by the amendment of 2026-11-22.
 
 The proposal is accepted in two parts, separately. Accepting Part A does **not**
 accept Part B.
@@ -337,15 +366,17 @@ sources, until Part B is accepted. Part B builds on Part A (it adds sources to t
 same GW006 rule).
 
 **Measured effect of the split** (the second version of the temporary instrument of §2.1, run with the Part A rules,
-same commits as §2.1): in `gon`'s production sources, Part A alone gives **10 GW006**
+same commits as §2.1): in `gon`'s production sources, Part A alone gave **10 GW006**
 (25 flows; the nine guard- or constructor-derived sites and `&cp`); Part A and
-Part B give 11 (47 flows; the one extra is `x = c.pkg.files`, which is a flow only
-because Part B binds the local). Fixtures of `gon`: 9 either way. `gon-examples` and
+Part B gave 11 (47 flows; the one extra is `x = c.pkg.files`, which is a flow only
+because Part B binds the local). **After the amendment of 2026-11-22 (`&cp` is a
+recognised source): 9 for Part A alone and 10 for Part A and Part B** (the real
+checker gives 9 on Part A). Fixtures of `gon`: 9 either way. `gon-examples` and
 `gon-vscode`: no genuine GW006 either way **in the scan that did not read `.gna`** (with `.gna` modelled: Part A 10 and 4,
 Part A and Part B 2 and 2, see "Re-measurement with `.gna`"). Part A alone binds no new local
 (76 are Part B). These counts were measured with the same limits as §2.1.
 
-Items outside both parts and still OPEN: `--strict`, GW007, `&x`, the release shape,
+Items outside both parts and still OPEN: `--strict`, GW007, the other forms of `&`, the release shape,
 and G1–G6 of the roadmap.
 
 ## 6. Normative Semantics
@@ -516,8 +547,8 @@ parameter, result or field) or bound `!` by the rules that exist today (a `:=` o
 untyped `var` variable that receives a call result declared `!T`, §6.8 "Multi-value
 forms"), an immediate call whose first result is `!T`, a selector of a `!` field,
 the construction forms of the existing RFCs for a direct flow (a composite literal,
-`&literal`, `new`, `make`, a function literal), and the non-nil conversion `(!T)(x)`
-of this RFC. Parentheses never change recognition.
+`&literal`, `new`, `make`, a function literal), any `&operand` (amendment of 2026-11-22),
+and the non-nil conversion `(!T)(x)` of this RFC. Parentheses never change recognition.
 
 **Part B.** Part B adds to the Part A set: an identifier bound `!` by inference from
 a structural initialiser (§6.8), an `append` that satisfies the rule below, and a
@@ -556,7 +587,7 @@ element arguments; a call Go rejects is reported by Go, and Gon does not classif
 it. Parentheses never change recognition: a parenthesised expression has the
 recognition of the expression inside (`([]int{})`, `(a)`, `(append(a, 1))`,
 `((!*T)(p))`). A map lookup, an index, a slice expression with any other base,
-`&x`, a conversion without `!`, an `append` that does not satisfy the rule above, and any
+a conversion without `!`, an `append` that does not satisfy the rule above, and any
 other call are **not** sources.
 
 Proposed code **GW006** (to be confirmed), severity warning, message
@@ -747,7 +778,7 @@ non-nil conversion it performs no runtime check, and an ordinary conversion to
        var b !T = (!T)(x)  // silent: explicit claim, if (T)(x) is valid Go
    }
    ```
-3. **`&x`.** Out of scope (the `&x` note in §4).
+3. **`&x`.** **Decided (2026-11-22):** any `&operand` is a recognised source of Part A (the `&x` note in §4).
 4. **D6b / I6 wording** in §9.
 5. **Diagnostic and Protocol v1.** The final code, the set of slots and kinds in
    §6.6, and the consumers' view of a new warning. `--strict` (deferred since
@@ -761,18 +792,21 @@ non-nil conversion it performs no runtime check, and an ordinary conversion to
    preprocessor owns the canonical form. Today `gon fmt` has not been measured on
    a run of `!`, since the preprocessor currently fails on it.
 7. **Migration.** *Migration count*: the sites to change so that `gon check ./...`
-   on Gon has no GW006 (and the generated-source gate passes). **Part A alone: ten**
-   explicit conversions, the nine derived from guards and external constructors and
-   `&cp`, which stays unrecognised (no `&x` rule) and is converted like the others.
-   **Part A+B: eleven**, the ten and the assignment `x = c.pkg.files` to a local bound
-   by §6.8 (twelve if C15 is not adopted: `x = queries[:0]` too). *Diagnostic count*:
-   10 GW006 for Part A alone and 11 for Part A+B, measured on the same `main` (§2.1,
-   §5.1). Here the two counts coincide, one conversion per diagnostic; one site
-   (`validateGnaFile`'s parameter) moves the conversion to its caller instead of
-   removing it. The dogfood gate and `gon-vscode` must be checked against the added
-   warnings; the `testdata/` fixtures were recounted with D3a, `nil` literals and type
-   parameters separated (§2.1, "Re-measurement"): 9 GW006; no migration estimate rests
-   on them.
+   on Gon has no GW006 (and the generated-source gate passes). **Part A alone: nine**
+   explicit conversions, all derived from guards and external constructors. **Part A+B:
+   ten**, the nine and the assignment `x = c.pkg.files` to a local bound by §6.8
+   (eleven if C15 is not adopted: `x = queries[:0]` too). *Diagnostic count*: 9 GW006
+   for Part A alone and 10 for Part A+B. Here the two counts coincide, one conversion
+   per diagnostic; one site (`validateGnaFile`'s parameter) moves the conversion to its
+   caller instead of removing it. *History:* before the amendment of 2026-11-22 these
+   were ten, eleven (twelve) and 10 and 11, because `&cp` was not a recognised source
+   and was converted like the others; the figures were measured on `main` with the
+   instrument (§2.1, §5.1) and the 9 for Part A was confirmed with the real checker.
+   The dogfood gate and `gon-vscode` must be checked against the added warnings; the
+   `testdata/` fixtures were recounted with D3a, `nil` literals and type parameters
+   separated (§2.1, "Re-measurement"): 9 GW006 by the instrument (14 with the real
+   checker, which also counts map values, fixed-array elements and an instantiated
+   generic field; none is a false positive); no migration estimate rests on them.
 8. **Evidence limits** in §2.2, in particular the expression-position nilability
    check for `(!T)(x)`.
 9. **Binding by inference (Part B).** Direction taken: the closed set of §6.8, an untyped
@@ -894,14 +928,14 @@ non-nil conversion it performs no runtime check, and an ordinary conversion to
 - **Dogfood, with separate criteria for Part A and for Part A+B** (§5.1). The gate
   checks the diagnostics of `gon check ./...`, not the exit code alone, because
   warnings do not change it, and the generated-source gate must pass.
-  - *Part A:* after the **ten** Part A sites (the nine derived from guards and
-    external constructors, and `&cp`) are converted, `gon check ./...` on Gon with the
+  - *Part A:* after the **nine** Part A sites (all derived from guards and external
+    constructors; `&cp` is recognised since 2026-11-22) are converted, `gon check ./...` on Gon with the
     Part A rules reports no GW006. `x = c.pkg.files` is not a flow under Part A, so it
     is not part of this criterion. This criterion is the only dogfood condition for
     accepting Part A.
-  - *Part A+B:* after all **eleven** flagged sites (the ten and `x = c.pkg.files`) are
+  - *Part A+B:* after all **ten** flagged sites (the nine and `x = c.pkg.files`) are
     converted, `gon check ./...` with the combined rules and C15 reports no GW006
-    (twelve sites if C15 is not adopted). This criterion belongs to Part B and must
+    (eleven sites if C15 is not adopted). This criterion belongs to Part B and must
     not be a precondition for accepting Part A.
 
 ## 13. Alternatives Considered

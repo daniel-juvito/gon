@@ -118,8 +118,8 @@ func tupleMentionsTypeParam(t *types.Tuple) bool {
 // section 6.6): an identifier declared `!T` or bound by the rules that exist
 // today, a call whose first result is `!T`, a selector of a `!` field, the
 // construction forms of a direct flow (a composite literal, `&literal`, `new`,
-// `make`, a function literal) and the non-nil conversion (!T)(x). Parentheses
-// never change recognition. There is no `append`, no slice expression, no
+// `make`, a function literal), any `&operand` and the non-nil conversion (!T)(x).
+// Parentheses never change recognition. There is no `append`, no slice expression, no
 // binding by inference and no propagation across types: those are Part B.
 func (c *Checker) isRecognisedSource(expr ast.Expr) bool {
 	e := unparenExpr(expr)
@@ -127,11 +127,11 @@ func (c *Checker) isRecognisedSource(expr ast.Expr) bool {
 	case *ast.CompositeLit, *ast.FuncLit:
 		return true
 	case *ast.UnaryExpr:
-		if x.Op == token.AND {
-			_, isLit := unparenExpr(x.X).(*ast.CompositeLit)
-			return isLit
-		}
-		return false
+		// Any &operand: the address of an addressable operand, or of a composite
+		// literal, is never nil; evaluating it either gives that address or panics
+		// (&p.f with p nil, &a[i] out of range), exactly as Go does (RFC section 4,
+		// decided 2026-11-22). The static type is *T, so the identity rule applies.
+		return x.Op == token.AND
 	case *ast.CallExpr:
 		if c.isConstructionBuiltin(x) {
 			return true
