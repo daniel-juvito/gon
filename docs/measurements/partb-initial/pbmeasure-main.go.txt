@@ -1,0 +1,1004 @@
+// Scratch measurement tool v3 (.gna contracts modelled, plan section 5).
+// Scratch measurement tool v2 (M0 instrument correction). Read-only; not part of the repository.
+//
+// Differences from g7measure: positional multi-value forms (x, err := f(); var a, b = f();
+// a, b = f(); return f(); g(f())), explicit new-vs-existing identifiers in := (Defs vs Uses),
+// two rule sets (mode 0 = Gon v1.20.0 rules, mode 1 = RFC rules), predicted GW001 / GN001 / GW006,
+// and a decision log (G8_VERBOSE=1) used by the control fixtures.
+package main
+
+import (
+	"fmt"
+	"go/ast"
+	"go/token"
+	"go/types"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+
+	"github.com/daniel-juvito/gon/internal/gna"
+	"github.com/daniel-juvito/gon/internal/preproc"
+	"golang.org/x/tools/go/packages"
+)
+
+type sig struct{ params, results []bool }
+
+var (
+	fset    = token.NewFileSet()
+	offsets = map[string]map[int]bool{}
+	funcs   = map[*types.Func]*sig{}
+	slotNN  = map[types.Object]bool{}
+	bound   = [2]map[types.Object]bool{{}, {}}
+	realOf  = map[string]string{}
+	synth   int
+	verbose = os.Getenv("G8_VERBOSE") != ""
+	M       = func() int { if os.Getenv("G8_MODE") == "0" { return 0 }; return 1 }()
+)
+
+var (
+	reg      = gna.NewRegistry()
+	gnaUsed  = map[string]int{} // key -> times a call site met this .gna contract
+	gnaFlows int
+)
+
+// sigOf returns the .gon signature of fo, or the .gna signature of an external
+// function or method (RFC section 2.1 and plan section 5).
+func sigOf(fo *types.Func) *sig {
+	if s := funcs[fo]; s != nil {
+		return s
+	}
+	if fo == nil || fo.Pkg() == nil {
+		return nil
+	}
+	sg, _ := fo.Type().(*types.Signature)
+	var gs *gna.Signature
+	key := fo.Pkg().Path() + "." + fo.Name()
+	if sg != nil && sg.Recv() != nil {
+		rt := sg.Recv().Type()
+		if p, ok := rt.(*types.Pointer); ok {
+			rt = p.Elem()
+		}
+		if n, ok := rt.(*types.Named); ok {
+			gs, _ = reg.LookupMethod(fo.Pkg().Path(), n.Obj().Name(), fo.Name())
+			key = fo.Pkg().Path() + "." + n.Obj().Name() + "." + fo.Name()
+		}
+	} else {
+		gs, _ = reg.LookupFunc(fo.Pkg().Path(), fo.Name())
+	}
+	if gs == nil {
+		return nil
+	}
+	s := &sig{params: gs.Params, results: gs.Results}
+	funcs[fo] = s
+	gnaUsed[key]++
+	return s
+}
+
+// fieldGna reports whether field o of the struct type t carries a .gna claim.
+func fieldGna(t types.Type, o types.Object) bool {
+	if t == nil || o == nil {
+		return false
+	}
+	if p, ok := t.(*types.Pointer); ok {
+		t = p.Elem()
+	}
+	n, ok := t.(*types.Named)
+	if !ok || n.Obj().Pkg() == nil {
+		return false
+	}
+	f, ok := reg.Package(n.Obj().Pkg().Path())
+	if !ok || f == nil {
+		return false
+	}
+	ta := f.Types[n.Obj().Name()]
+	return ta != nil && ta.Fields[o.Name()]
+}
+
+func nn(path string, e ast.Expr) bool {
+	return e != nil && offsets[path][fset.Position(e.Pos()).Offset]
+}
+
+func kind(t types.Type) string {
+	if t == nil {
+		return ""
+	}
+	if _, ok := t.(*types.TypeParam); ok {
+		return "typeparam"
+	}
+	switch t.Underlying().(type) {
+	case *types.Pointer:
+		return "pointer"
+	case *types.Slice:
+		return "slice"
+	case *types.Map:
+		return "map"
+	case *types.Chan:
+		return "chan"
+	case *types.Signature:
+		return "func"
+	case *types.Interface:
+		return "interface"
+	}
+	return ""
+}
+
+func flags(path string, fl *ast.FieldList, info *types.Info, mark bool) []bool {
+	var out []bool
+	if fl == nil {
+		return nil
+	}
+	for _, f := range fl.List {
+		flag := nn(path, f.Type)
+		n := len(f.Names)
+		if n == 0 {
+			n = 1
+		}
+		for i := 0; i < n; i++ {
+			out = append(out, flag)
+			if mark && flag && i < len(f.Names) {
+				if o := info.Defs[f.Names[i]]; o != nil {
+					slotNN[o] = true
+				}
+			}
+		}
+	}
+	return out
+}
+
+func collect(path string, f *ast.File, info *types.Info) {
+	ast.Inspect(f, func(n ast.Node) bool {
+		switch x := n.(type) {
+		case *ast.FuncDecl:
+			if fo, ok := info.Defs[x.Name].(*types.Func); ok {
+				funcs[fo] = &sig{params: flags(path, x.Type.Params, info, true), results: flags(path, x.Type.Results, info, true)}
+			}
+		case *ast.FuncLit:
+			flags(path, x.Type.Params, info, true)
+			flags(path, x.Type.Results, info, true)
+		case *ast.ValueSpec:
+			if nn(path, x.Type) {
+				for _, id := range x.Names {
+					if o := info.Defs[id]; o != nil {
+						slotNN[o] = true
+					}
+				}
+			}
+		case *ast.StructType:
+			flags(path, x.Fields, info, true)
+		case *ast.InterfaceType:
+			for _, m := range x.Methods.List {
+				if ft, ok := m.Type.(*ast.FuncType); ok && len(m.Names) == 1 {
+					if fo, ok := info.Defs[m.Names[0]].(*types.Func); ok {
+						funcs[fo] = &sig{params: flags(path, ft.Params, info, false), results: flags(path, ft.Results, info, false)}
+					}
+				}
+			}
+		}
+		return true
+	})
+}
+
+func unparen(e ast.Expr) ast.Expr {
+	for {
+		p, ok := e.(*ast.ParenExpr)
+		if !ok {
+			return e
+		}
+		e = p.X
+	}
+}
+
+func calleeOf(call *ast.CallExpr, info *types.Info) *types.Func {
+	fun := unparen(call.Fun)
+	// explicit instantiation f[T](...) / pkg.f[T, U](...)
+	switch ix := fun.(type) {
+	case *ast.IndexExpr:
+		fun = unparen(ix.X)
+	case *ast.IndexListExpr:
+		fun = unparen(ix.X)
+	}
+	switch f := fun.(type) {
+	case *ast.Ident:
+		fo, _ := info.Uses[f].(*types.Func)
+		return fo
+	case *ast.SelectorExpr:
+		fo, _ := info.Uses[f.Sel].(*types.Func)
+		return fo
+	}
+	return nil
+}
+
+// category of an expression; mode decides which locals count as bound.
+func classify(e ast.Expr, info *types.Info, mode int) string {
+	e = unparen(e)
+	switch x := e.(type) {
+	case *ast.Ident:
+		if x.Name == "nil" {
+			if _, ok := info.Uses[x].(*types.Nil); ok {
+				return "nil-literal"
+			}
+		}
+		o := info.Uses[x]
+		if o == nil {
+			o = info.Defs[x]
+		}
+		if slotNN[o] {
+			return "ident-!"
+		}
+		if bound[mode][o] {
+			return "ident-bound"
+		}
+		return "ident-plain"
+	case *ast.CompositeLit:
+		return "composite-literal"
+	case *ast.FuncLit:
+		return "func-literal"
+	case *ast.UnaryExpr:
+		if x.Op == token.AND {
+			if _, ok := unparen(x.X).(*ast.CompositeLit); ok {
+				return "address-of-literal"
+			}
+			return "address-of-literal" // any &operand is a source (owner decision 2026-11-22)
+		}
+		return "unary"
+	case *ast.CallExpr:
+		return classifyCall(x, info, mode, 0)
+	case *ast.SelectorExpr:
+		if sel := info.Selections[x]; sel != nil {
+			if slotNN[sel.Obj()] || fieldGna(sel.Recv(), sel.Obj()) {
+				return "field-!"
+			}
+			return "field-plain"
+		}
+		if slotNN[info.Uses[x.Sel]] {
+			return "pkgvar-!"
+		}
+		return "pkgvar-plain"
+	case *ast.IndexExpr:
+		return "index"
+	case *ast.SliceExpr:
+		if _, isArr := info.TypeOf(x.X).Underlying().(*types.Array); isArr {
+			return "slice-of-array"
+		}
+		if _, isPtr := info.TypeOf(x.X).Underlying().(*types.Pointer); isPtr {
+			return "slice-of-array"
+		}
+		c := classify(x.X, info, mode)
+		if recFlow(c, mode) {
+			return "slice-expr(base non-nil)"
+		}
+		return "slice-expr(base " + c + ")"
+	case *ast.TypeAssertExpr:
+		return "type-assert"
+	case *ast.StarExpr:
+		return "deref"
+	case *ast.BinaryExpr:
+		return "binary"
+	}
+	return fmt.Sprintf("%T", e)
+}
+
+// classifyCall: pos is the result position (0 for single-value use).
+func classifyCall(x *ast.CallExpr, info *types.Info, mode, pos int) string {
+	if tv, ok := info.Types[x.Fun]; ok && tv.IsType() {
+		if pe, ok := x.Fun.(*ast.ParenExpr); ok && nn(fset.Position(x.Pos()).Filename, pe.X) {
+			return "conversion-!"
+		}
+		return "conversion"
+	}
+	var fid *ast.Ident
+	funx := unparen(x.Fun)
+	switch ix := funx.(type) {
+	case *ast.IndexExpr:
+		funx = unparen(ix.X)
+	case *ast.IndexListExpr:
+		funx = unparen(ix.X)
+	}
+	switch f := funx.(type) {
+	case *ast.Ident:
+		fid = f
+	case *ast.SelectorExpr:
+		fid = f.Sel
+	}
+	if fid != nil {
+		switch o := info.Uses[fid].(type) {
+		case *types.Builtin:
+			switch o.Name() {
+			case "make", "new":
+				return "make/new"
+			case "append":
+				if len(x.Args) == 0 {
+					return "append"
+				}
+				base := classify(x.Args[0], info, mode)
+				bn := recFlow(base, mode)
+				switch {
+				case len(x.Args) >= 2 && !x.Ellipsis.IsValid():
+					return "append(explicit elements)"
+				case len(x.Args) == 2 && x.Ellipsis.IsValid():
+					if bn {
+						return "append(spread, base non-nil)"
+					}
+					return "append(spread, base " + base + ")"
+				default:
+					if bn {
+						return "append(no element, base non-nil)"
+					}
+					return "append(no element, base " + base + ")"
+				}
+			}
+			return "builtin-" + o.Name()
+		case *types.Func:
+			s := sigOf(o)
+			if s == nil {
+				return "call-external-plain"
+			}
+			if pos < len(s.results) && s.results[pos] {
+				return "call-!T-result"
+			}
+			return "call-plain-result"
+		}
+	}
+	return "call-other"
+}
+
+func recFlow(c string, mode int) bool {
+	switch c {
+	case "ident-!", "ident-bound", "call-!T-result", "field-!", "pkgvar-!",
+		"composite-literal", "address-of-literal", "make/new", "func-literal", "conversion-!":
+		return true
+	}
+	if mode == 1 {
+		switch c {
+		case "append(explicit elements)", "append(spread, base non-nil)", "append(no element, base non-nil)", "slice-expr(base non-nil)":
+			return true
+		}
+	}
+	return false
+}
+
+func recBind(c string, mode int) bool {
+	if mode == 0 {
+		switch c {
+		case "ident-!", "ident-bound", "call-!T-result", "field-!", "pkgvar-!":
+			return true
+		}
+		return false
+	}
+	return recFlow(c, 1)
+}
+
+type flow struct {
+	file, kind, dest, cat, text string
+	line                        int
+	identical                   bool
+}
+type def struct {
+	file, form, cat, name string
+	line                  int
+	today, rfc            bool
+}
+type use struct {
+	file, what, cat string
+	line            int
+	today, rfc      bool
+}
+
+var (
+	flows   []flow
+	defs    []def
+	uses    []use
+	existDef []use // existing identifiers appearing in := / var-less short declarations
+	typedPlainRec int
+)
+
+func textOf(path string, e ast.Expr) string {
+	return ""
+}
+
+func addFlow(path string, e ast.Expr, cat string, dest types.Type, kd string, info *types.Info) {
+	k := kind(dest)
+	if k == "" {
+		return
+	}
+	src := info.TypeOf(e)
+	ident := src != nil && dest != nil && types.Identical(src, dest)
+	flows = append(flows, flow{file: path, kind: kd, dest: k, cat: cat, line: fset.Position(e.Pos()).Line, identical: ident})
+}
+
+func slotKind(l ast.Expr, info *types.Info, mode int) (types.Object, bool) {
+	switch x := unparen(l).(type) {
+	case *ast.Ident:
+		o := info.Uses[x]
+		if o == nil {
+			o = info.Defs[x]
+		}
+		if o == nil {
+			return nil, false
+		}
+		return o, slotNN[o] || bound[mode][o]
+	case *ast.SelectorExpr:
+		var o types.Object
+		if s := info.Selections[x]; s != nil {
+			o = s.Obj()
+		} else {
+			o = info.Uses[x.Sel]
+		}
+		if s := info.Selections[x]; s != nil && fieldGna(s.Recv(), o) {
+			return o, true
+		}
+		return o, o != nil && slotNN[o]
+	}
+	return nil, false
+}
+
+func check(path string, f *ast.File, info *types.Info) {
+	var nodes []ast.Node
+	ast.Inspect(f, func(n ast.Node) bool {
+		if n == nil {
+			nodes = nodes[:len(nodes)-1]
+			return true
+		}
+		nodes = append(nodes, n)
+		switch x := n.(type) {
+		case *ast.ValueSpec:
+			handleValueSpec(path, x, info)
+		case *ast.AssignStmt:
+			handleAssign(path, x, info)
+		case *ast.BinaryExpr:
+			if x.Op == token.EQL || x.Op == token.NEQ {
+				for _, pr := range [][2]ast.Expr{{x.X, x.Y}, {x.Y, x.X}} {
+					if classify(pr[1], info, 0) != "nil-literal" {
+						continue
+					}
+					id, ok := unparen(pr[0]).(*ast.Ident)
+					var o types.Object
+					gnaField := false
+					if ok {
+						o = info.Uses[id]
+					} else if se, ok := unparen(pr[0]).(*ast.SelectorExpr); ok {
+						if s := info.Selections[se]; s != nil {
+							o = s.Obj()
+							gnaField = fieldGna(s.Recv(), o)
+						}
+					}
+					if o == nil {
+						continue
+					}
+					todayNN := slotNN[o] || bound[0][o] || gnaField
+					rfcNN := slotNN[o] || bound[M][o] || gnaField
+					if todayNN || rfcNN {
+						uses = append(uses, use{path, "nil-compare", "nil", fset.Position(x.Pos()).Line, todayNN, rfcNN})
+					}
+				}
+			}
+		case *ast.CallExpr:
+			handleCall(path, x, info)
+		case *ast.ReturnStmt:
+			handleReturn(path, x, nodes, info)
+		case *ast.CompositeLit:
+			handleComposite(path, x, info)
+		}
+		return true
+	})
+}
+
+func handleValueSpec(path string, x *ast.ValueSpec, info *types.Info) {
+	typed := x.Type != nil
+	declNN := typed && nn(path, x.Type)
+	if len(x.Values) == 0 {
+		return
+	}
+	rhsOf := func(i int) (string, ast.Expr, bool) { // category per name
+		if len(x.Values) == len(x.Names) {
+			return classify(x.Values[i], info, M), x.Values[i], true
+		}
+		if len(x.Values) == 1 {
+			if call, ok := unparen(x.Values[0]).(*ast.CallExpr); ok {
+				return classifyCall(call, info, M, i), x.Values[0], true
+			}
+		}
+		return "", nil, false
+	}
+	for i, id := range x.Names {
+		o := info.Defs[id]
+		if o == nil || kind(o.Type()) == "" {
+			continue
+		}
+		if id.Name == "_" && !declNN {
+			continue
+		}
+		cat1, e, ok := rhsOf(i)
+		if !ok {
+			continue
+		}
+		cat0 := cat1
+		if len(x.Values) == len(x.Names) {
+			cat0 = classify(x.Values[i], info, 0)
+		} else if call, ok := unparen(x.Values[0]).(*ast.CallExpr); ok {
+			cat0 = classifyCall(call, info, 0, i)
+		}
+		form := "var-untyped"
+		if len(x.Values) != len(x.Names) {
+			form = "var-untyped-multi"
+		}
+		switch {
+		case declNN:
+			addFlow(path, e, cat1, o.Type(), "var-init", info)
+		case typed:
+			if recFlow(cat1, M) {
+				typedPlainRec++
+			}
+		default:
+			t0, t1 := recBind(cat0, 0), recBind(cat1, M)
+			if t0 {
+				bound[0][o] = true
+			}
+			if t1 {
+				bound[M][o] = true
+			}
+			defs = append(defs, def{path, form, cat1, id.Name, fset.Position(id.Pos()).Line, t0, t1})
+			logf("%s:%d %-14s %-3s => bound(rfc)=%v today=%v [%s]", short(path), fset.Position(id.Pos()).Line, form, id.Name, t1, t0, cat1)
+		}
+	}
+}
+
+func handleAssign(path string, x *ast.AssignStmt, info *types.Info) {
+	if x.Tok != token.DEFINE && x.Tok != token.ASSIGN {
+		return
+	}
+	type item struct {
+		lhs      ast.Expr
+		cat0, c1 string
+		rhs      ast.Expr
+	}
+	var items []item
+	switch {
+	case len(x.Lhs) == len(x.Rhs):
+		for i, l := range x.Lhs {
+			items = append(items, item{l, classify(x.Rhs[i], info, 0), classify(x.Rhs[i], info, M), x.Rhs[i]})
+		}
+	case len(x.Rhs) == 1:
+		if call, ok := unparen(x.Rhs[0]).(*ast.CallExpr); ok {
+			for i, l := range x.Lhs {
+				items = append(items, item{l, classifyCall(call, info, 0, i), classifyCall(call, info, M, i), x.Rhs[0]})
+			}
+		}
+	}
+	multi := len(x.Lhs) != len(x.Rhs)
+	for _, it := range items {
+		id, isId := unparen(it.lhs).(*ast.Ident)
+		if isId && id.Name == "_" {
+			continue
+		}
+		if x.Tok == token.DEFINE && isId {
+			if o := info.Defs[id]; o != nil { // a NEW identifier
+				if kind(o.Type()) == "" {
+					continue
+				}
+				t0, t1 := recBind(it.cat0, 0), recBind(it.c1, M)
+				if t0 {
+					bound[0][o] = true
+				}
+				if t1 {
+					bound[M][o] = true
+				}
+				form := ":="
+				if multi {
+					form = ":=-multi"
+				}
+				defs = append(defs, def{path, form, it.c1, id.Name, fset.Position(id.Pos()).Line, t0, t1})
+				logf("%s:%d %-14s %-3s => bound(rfc)=%v today=%v [%s]", short(path), fset.Position(id.Pos()).Line, form, id.Name, t1, t0, it.c1)
+				continue
+			}
+			// existing identifier: assigned, not declared
+			o := info.Uses[id]
+			if o != nil && kind(o.Type()) != "" {
+				_, isSlot := slotKind(id, info, M)
+				what := "existing-plain"
+				if slotNN[o] {
+					what = "existing-declared-!"
+				} else if bound[M][o] {
+					what = "existing-bound"
+				}
+				existDef = append(existDef, use{path, what, it.c1, fset.Position(x.Pos()).Line, false, false})
+				logf("%s:%d existing-in-:= %-3s (%s) rhs[%s]", short(path), fset.Position(x.Pos()).Line, id.Name, what, it.c1)
+				if isSlot {
+					addFlow(path, it.rhs, it.c1, o.Type(), "assign", info)
+				}
+			}
+			continue
+		}
+		// plain assignment (or := to a non-identifier, which Go rejects)
+		o, isSlot := slotKind(it.lhs, info, M)
+		if o == nil || !isSlot {
+			continue
+		}
+		if it.c1 == "nil-literal" {
+			todaySlot := slotNN[o] || bound[0][o]
+			uses = append(uses, use{path, "nil-assign", "nil", fset.Position(x.Pos()).Line, todaySlot, true})
+			continue
+		}
+		addFlow(path, it.rhs, it.c1, o.Type(), "assign", info)
+	}
+}
+
+func handleCall(path string, x *ast.CallExpr, info *types.Info) {
+	if tv, ok := info.Types[x.Fun]; ok && tv.IsType() {
+		return
+	}
+	fo := calleeOf(x, info)
+	if fo == nil || sigOf(fo) == nil {
+		return
+	}
+	s := sigOf(fo)
+	sg := fo.Type().(*types.Signature)
+	// f(g()) with g returning a tuple
+	if len(x.Args) == 1 {
+		if inner, ok := unparen(x.Args[0]).(*ast.CallExpr); ok {
+			if tup, ok := info.TypeOf(inner).(*types.Tuple); ok && tup.Len() > 1 {
+				for i := 0; i < tup.Len() && i < len(s.params); i++ {
+					if s.params[i] {
+						addFlow(path, x.Args[0], classifyCall(inner, info, M, i), sg.Params().At(i).Type(), "param", info)
+					}
+				}
+				return
+			}
+		}
+	}
+	for i, a := range x.Args {
+		if i >= len(s.params) || sg.Variadic() && i >= sg.Params().Len()-1 {
+			break
+		}
+		if s.params[i] {
+			addFlow(path, a, classify(a, info, M), sg.Params().At(i).Type(), "param", info)
+		}
+	}
+}
+
+func handleReturn(path string, x *ast.ReturnStmt, nodes []ast.Node, info *types.Info) {
+	var sg *types.Signature
+	var fl []bool
+	for i := len(nodes) - 1; i >= 0; i-- {
+		switch f := nodes[i].(type) {
+		case *ast.FuncDecl:
+			if fo, ok := info.Defs[f.Name].(*types.Func); ok {
+				sg = fo.Type().(*types.Signature)
+				if funcs[fo] != nil {
+					fl = funcs[fo].results
+				}
+			}
+		case *ast.FuncLit:
+			if s, ok := info.TypeOf(f).(*types.Signature); ok {
+				sg = s
+				fl = flags(path, f.Type.Results, info, false)
+			}
+		}
+		if sg != nil {
+			break
+		}
+	}
+	if sg == nil {
+		return
+	}
+	if len(x.Results) == len(fl) {
+		for i, r := range x.Results {
+			if fl[i] && i < sg.Results().Len() {
+				addFlow(path, r, classify(r, info, M), sg.Results().At(i).Type(), "return", info)
+			}
+		}
+		return
+	}
+	if len(x.Results) == 1 {
+		if inner, ok := unparen(x.Results[0]).(*ast.CallExpr); ok {
+			if tup, ok := info.TypeOf(inner).(*types.Tuple); ok && tup.Len() == len(fl) {
+				for i := 0; i < tup.Len(); i++ {
+					if fl[i] {
+						addFlow(path, x.Results[0], classifyCall(inner, info, M, i), sg.Results().At(i).Type(), "return", info)
+					}
+				}
+			}
+		}
+	}
+}
+
+func handleComposite(path string, x *ast.CompositeLit, info *types.Info) {
+	t := info.TypeOf(x)
+	if t == nil {
+		return
+	}
+	if at, ok := x.Type.(*ast.ArrayType); ok && nn(path, at.Elt) {
+		if sl, ok := t.Underlying().(*types.Slice); ok {
+			for _, el := range x.Elts {
+				if kv, ok := el.(*ast.KeyValueExpr); ok {
+					el = kv.Value
+				}
+				addFlow(path, el, classify(el, info, M), sl.Elem(), "element-init", info)
+			}
+		}
+	}
+	if st, ok := t.Underlying().(*types.Struct); ok {
+		for i, el := range x.Elts {
+			if kv, ok := el.(*ast.KeyValueExpr); ok {
+				if id, ok := kv.Key.(*ast.Ident); ok {
+					if o := info.Uses[id]; o != nil && (slotNN[o] || fieldGna(t, o)) {
+						addFlow(path, kv.Value, classify(kv.Value, info, M), o.Type(), "field-init", info)
+					}
+				}
+			} else if i < st.NumFields() && (slotNN[st.Field(i)] || fieldGna(t, st.Field(i))) {
+				addFlow(path, el, classify(el, info, M), st.Field(i).Type(), "field-init", info)
+			}
+		}
+	}
+}
+
+func short(p string) string {
+	if r, ok := realOf[p]; ok {
+		p = r
+	}
+	return filepath.Base(filepath.Dir(p)) + "/" + filepath.Base(p)
+}
+
+func logf(f string, a ...any) {
+	if verbose {
+		fmt.Printf("  | "+f+"\n", a...)
+	}
+}
+
+func main() {
+	root, _ := filepath.Abs(os.Args[1])
+	label := os.Args[2]
+	overlay := map[string][]byte{}
+	dirs := map[string]bool{}
+	srcErr := filepath.Walk(root, func(p string, fi os.FileInfo, err error) error {
+		if err != nil {
+			return err // an entry that cannot be read must not be skipped
+		}
+		if fi.IsDir() && (fi.Name() == "node_modules" || fi.Name() == ".git") {
+			return filepath.SkipDir
+		}
+		if !fi.IsDir() && strings.HasSuffix(p, ".gon") {
+			src, err := os.ReadFile(p)
+			if err != nil {
+				return err // a .gon source that cannot be read would give partial counts
+			}
+			r := preproc.Process(p, src)
+			op := strings.TrimSuffix(p, ".gon") + ".go"
+			realDir := filepath.Dir(p)
+			if strings.HasPrefix(p, filepath.Join(root, "testdata")+"/") {
+				synth++
+				realDir = filepath.Join(root, "__g8__", fmt.Sprint(synth))
+				op = filepath.Join(realDir, filepath.Base(op))
+			}
+			realOf[op] = p
+			overlay[op] = r.Clean
+			offsets[op] = r.NonNilOffsets
+			dirs[realDir] = true
+		}
+		return nil
+	})
+	if srcErr != nil {
+		fmt.Fprintln(os.Stderr, "sources:", srcErr)
+		os.Exit(1)
+	}
+	if os.Getenv("G9_NOGNA") != "" {
+		reg = gna.NewRegistry()
+	} else if err := reg.LoadDir(filepath.Join(root, "annotations")); err != nil {
+		fmt.Fprintln(os.Stderr, "gna:", err)
+		os.Exit(1) // a partial registry would give partial counts
+	}
+	_, statErr := os.Stat(filepath.Join(root, "annotations"))
+	if os.Getenv("G9_NOGNA") == "" && statErr != nil && !os.IsNotExist(statErr) {
+		fmt.Fprintln(os.Stderr, "gna:", statErr) // not "absent": unreadable or broken
+		os.Exit(1)
+	}
+	if statErr == nil && os.Getenv("G9_NOGNA") == "" {
+		walkErr := filepath.Walk(filepath.Join(root, "annotations"), func(p string, fi os.FileInfo, err error) error {
+			if err != nil {
+				return err // a directory that cannot be read must not be skipped
+			}
+			if fi.IsDir() {
+				if err := reg.LoadDir(p); err != nil {
+					return fmt.Errorf("%s: %w", p, err)
+				}
+			}
+			return nil
+		})
+		if walkErr != nil {
+			fmt.Fprintln(os.Stderr, "gna:", walkErr)
+			os.Exit(1) // a partial registry would give partial counts
+		}
+	}
+	var qs []string
+	for d := range dirs {
+		qs = append(qs, d)
+	}
+	sort.Strings(qs)
+	cfg := &packages.Config{
+		Mode: packages.NeedName | packages.NeedTypes | packages.NeedTypesInfo | packages.NeedSyntax |
+			packages.NeedImports | packages.NeedDeps | packages.NeedFiles,
+		Fset: fset, Dir: root, Overlay: overlay,
+	}
+	pkgs, err := packages.Load(cfg, qs...)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "load:", err)
+		os.Exit(1)
+	}
+	var all []*packages.Package
+	packages.Visit(pkgs, nil, func(p *packages.Package) { all = append(all, p) })
+	nerr := 0
+	for _, p := range all {
+		nerr += len(p.Errors)
+	}
+	// stable order of files: by path
+	type pf struct {
+		name string
+		f    *ast.File
+		info *types.Info
+	}
+	var files []pf
+	for _, p := range all {
+		for _, f := range p.Syntax {
+			name := filepath.Clean(fset.Position(f.Pos()).Filename)
+			if _, ok := overlay[name]; ok && p.TypesInfo != nil {
+				files = append(files, pf{name, f, p.TypesInfo})
+			}
+		}
+	}
+	sort.Slice(files, func(i, j int) bool { return files[i].name < files[j].name })
+	for _, x := range files {
+		collect(x.name, x.f, x.info)
+	}
+	for _, x := range files {
+		check(x.name, x.f, x.info)
+	}
+	scope := func(path string) string {
+		p := realOf[path]
+		if strings.Contains(p, "/testdata/") || strings.Contains(p, "/fixtures/") {
+			return "fixtures"
+		}
+		return "production"
+	}
+	fmt.Printf("# %s (%d .gon; loader errors: %d)\n", label, len(overlay), nerr)
+
+	// ---- definitions
+	cnt := map[string]int{}
+	for _, d := range defs {
+		st := "not bound"
+		switch {
+		case d.today && d.rfc:
+			st = "bound today"
+		case d.rfc:
+			st = "NEWLY bound"
+		}
+		cnt[scope(d.file)+" | "+d.form+" | "+st]++
+	}
+	var ks []string
+	for k := range cnt {
+		ks = append(ks, k)
+	}
+	sort.Strings(ks)
+	tot := map[string]int{}
+	for _, d := range defs {
+		st := "not bound"
+		switch {
+		case d.today && d.rfc:
+			st = "bound today"
+		case d.rfc:
+			st = "NEWLY bound"
+		}
+		tot[scope(d.file)+" | "+st]++
+		tot[scope(d.file)+" | total"]++
+	}
+	fmt.Println("## definitions of nilable variables by := / untyped var (new identifiers only)")
+	var tk []string
+	for k := range tot {
+		tk = append(tk, k)
+	}
+	sort.Strings(tk)
+	for _, k := range tk {
+		fmt.Printf("  %-40s %d\n", k, tot[k])
+	}
+	for _, k := range ks {
+		fmt.Printf("    by form: %-60s %d\n", k, cnt[k])
+	}
+
+	// ---- flows
+	fmt.Println("## flows into !T / bound slots (RFC rules)")
+	type fk struct{ scope string }
+	fc := map[string]map[string]int{}
+	var gw006 []flow
+	for _, fl := range flows {
+		sc := scope(fl.file)
+		if fc[sc] == nil {
+			fc[sc] = map[string]int{}
+		}
+		fc[sc]["flows"]++
+		switch {
+		case fl.dest == "interface":
+			fc[sc]["interface (D3a/b/d, unchanged; not GW006)"]++
+		case fl.dest == "typeparam":
+			fc[sc]["type parameter (OQ-2; not counted)"]++
+		case fl.cat == "nil-literal":
+			fc[sc]["nil literal (GN001 today)"]++
+		case !recFlow(fl.cat, M):
+			fc[sc]["GW006: no recognised source"]++
+			gw006 = append(gw006, fl)
+		case !fl.identical:
+			fc[sc]["GW006: recognised source, type not identical"]++
+			gw006 = append(gw006, fl)
+		default:
+			fc[sc]["silent"]++
+		}
+	}
+	for _, sc := range []string{"production", "fixtures"} {
+		var kk []string
+		for k := range fc[sc] {
+			kk = append(kk, k)
+		}
+		sort.Strings(kk)
+		for _, k := range kk {
+			fmt.Printf("  %-11s %-52s %d\n", sc, k, fc[sc][k])
+		}
+	}
+
+	// ---- uses
+	fmt.Println("## nil comparisons and nil assignments on bound identifiers")
+	uc := map[string]int{}
+	for _, u := range uses {
+		diag := ""
+		switch u.what {
+		case "nil-compare":
+			diag = "GW001"
+		case "nil-assign":
+			diag = "GN001"
+		}
+		when := "NEW (RFC only)"
+		if u.today {
+			when = "exists today"
+		}
+		uc[scope(u.file)+" | "+u.what+" => "+diag+" | "+when]++
+	}
+	var uk []string
+	for k := range uc {
+		uk = append(uk, k)
+	}
+	sort.Strings(uk)
+	for _, k := range uk {
+		fmt.Printf("  %-80s %d\n", k, uc[k])
+	}
+
+	// ---- existing identifiers in :=
+	fmt.Println("## existing identifiers (nilable kinds) assigned by a short declaration")
+	ec := map[string]int{}
+	for _, u := range existDef {
+		ec[scope(u.file)+" | "+u.what]++
+	}
+	var ek []string
+	for k := range ec {
+		ek = append(ek, k)
+	}
+	sort.Strings(ek)
+	for _, k := range ek {
+		fmt.Printf("  %-60s %d\n", k, ec[k])
+	}
+	fmt.Printf("## typed plain var (var x T = recognised source): %d\n", typedPlainRec)
+
+	fmt.Println("## GW006 sites")
+	for _, fl := range gw006 {
+		fmt.Printf("  %s:%d [%s -> %s] %s%s\n", func() string {
+			r, _ := filepath.Rel(root, realOf[fl.file])
+			return r
+		}(), fl.line, fl.kind, fl.dest, fl.cat, map[bool]string{true: "", false: " (type not identical)"}[fl.identical || !recFlow(fl.cat, M)])
+	}
+	fmt.Println("## .gna contracts met by a call site (key: times)")
+	var gk []string
+	for k := range gnaUsed {
+		gk = append(gk, k)
+	}
+	sort.Strings(gk)
+	for _, k := range gk {
+		fmt.Printf("  %-70s %d\n", k, gnaUsed[k])
+	}
+}

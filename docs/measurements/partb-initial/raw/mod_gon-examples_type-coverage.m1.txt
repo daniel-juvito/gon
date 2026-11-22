@@ -1,0 +1,21 @@
+# gon-examples_type-coverage (1 .gon; loader errors: 0)
+## definitions of nilable variables by := / untyped var (new identifiers only)
+  production | NEWLY bound                 2
+  production | bound today                 1
+  production | not bound                   1
+  production | total                       4
+    by form: production | := | NEWLY bound                                2
+    by form: production | := | bound today                                1
+    by form: production | := | not bound                                  1
+## flows into !T / bound slots (RFC rules)
+  production  flows                                                5
+  production  nil literal (GN001 today)                            1
+  production  silent                                               4
+## nil comparisons and nil assignments on bound identifiers
+  production | nil-assign => GN001 | exists today                                  1
+  production | nil-compare => GW001 | NEW (RFC only)                               1
+  production | nil-compare => GW001 | exists today                                 2
+## existing identifiers (nilable kinds) assigned by a short declaration
+## typed plain var (var x T = recognised source): 1
+## GW006 sites
+## .gna contracts met by a call site (key: times)
