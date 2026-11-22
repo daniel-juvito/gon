@@ -790,10 +790,10 @@
   "rfc": "§6.6",
   "kind": "check",
   "status": "enabled",
-  "site": "internal/checker: isRecognisedSource (&identifier)",
+  "site": "internal/checker: isRecognisedSource (any &operand)",
   "diagnostics": [
    "GW006"
   ],
-  "note": "&identifier of a variable is a recognised source, also in parentheses, and silent in a variable, an argument and an element; a named pointer type, &x.f, &a[i] and &p.f are not (the type is not identical, or the operand is not an identifier)"
+  "note": "any &operand is a recognised source: an identifier, a field, an element, in parentheses, in a variable, an argument and an element; only a slot of a named pointer type warns, because *int is not identical to P"
  }
 ]

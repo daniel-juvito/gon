@@ -1,7 +1,7 @@
 # RFC: Explicit Non-Nil Conversion `(!T)(x)`
 
 **Status:** **Part A: ACCEPTED** (formal design decision, 2026-11-21), including the extension of the OQ-1 decision to channel and function. **Part B: OPEN, not accepted.** The acceptance is a design decision only: it is not approval to implement or to merge, and nothing is scheduled (§5.1). **Implementation (2026-11-21):** Part A is implemented on `main` and not released (syntax, the checks of a conversion, GW006, the conformance harness `testdata/conformance`); the release shape, the migration of Gon's own sources and Part B remain open.  
-**Amendment (2026-11-22, decision of the owner):** `&identifier` is a recognised non-nil source of Part A, on the same footing as `&literal` (§4 note, §6.6, §10.3). Other forms of `&` (`&p.f`, `&a[i]`, `&*p`) stay unrecognised and undecided.
+**Amendment (2026-11-22, decision of the owner):** any `&operand` is a recognised non-nil source of Part A (§4 note, §6.6, §10.3): the address of an addressable operand or of a composite literal is never nil, and evaluating it either gives that address or panics, as in Go.
 **Target:** Unassigned (the owner decides the release number, date and shape)  
 **Related:** `docs/roadmap-v1.3-plus.md` (I1–I7), `docs/rfc-interface-semantics.md` (D3, D6),
 `docs/rfc-generic-semantics.md`, `docs/rfc-element-contract-construction.md` (E7),
@@ -190,7 +190,7 @@ semantic decision.
 - **Result.** Flows into a `.gna` slot (counted as flows, not as lines): Part A alone, **10** GW006 in `gon-examples`
   (6 in `ecosystem-contracts`, on 4 lines, since lines 28 and 31 hold two flows each; 4 in `generic-gna`); Part A and
   Part B, **2**, both `cache.Must(&x)` and `cache.Must[int](&x)` in `generic-gna`, which is `&x`
-  (decided on 2026-11-22: `&identifier` is recognised, so these two and the corresponding two of
+  (decided on 2026-11-22: any `&operand` is recognised, so these two and the corresponding two of
   Part A no longer warn; see the note below and the "Note on `&x`" of §4).
   `gon-vscode/fixtures/genericgna` is a copy of `generic-gna` and repeats the same flows (4 and 2), so across both
   repositories the totals are 14 and 4 if the copy is counted and 10 and 2 if it is counted once. The 8 other
@@ -204,9 +204,10 @@ semantic decision.
 - **Limits.** Only the three repositories at the named commits; `receivers:` claims, embedded structs and aliases
   are not modelled, and the result does not validate GW006.
 - **Measured with the real checker, before and after the amendment of 2026-11-22** (a `gon` built from
-  `main` at `ae2ca4d` and one with `&identifier` recognised; `gon check --json`, every file of
+  `main` at `ae2ca4d` and one with `&operand` recognised (measured first with `&identifier` only, with the same
+  result); `gon check --json`, every file of
   `gon-examples` in single-file mode, which includes the fourteen demos that the instrument could not load):
-  GW006 in `gon-examples` 35 to 26 (the nine `&identifier` flows); the examples that differ from their
+  GW006 in `gon-examples` 35 to 26 (the nine `&x` flows); the examples that differ from their
   `expected.txt` 11 to 7 of 20 (`hello`, `cli`, `return-value` and `construction` are clean again);
   the fixtures of `gon-vscode` that differ 3 to 2 of 11; `gon` production 10 to 9 (`&cp`); `generic-gna`
   4 to 2. Across 61 runs (the nine modules, every example and fixture, and `testdata/`) the only changes
@@ -280,27 +281,29 @@ nilability check for `(!T)(x)` does not exist yet and is reasoned, not measured.
 - Additional `.gna` for the standard library (for example `go/token`).
 - `!` in a type argument or constraint (stays GN003).
 - Generic type declarations and generic methods in the initial scope.
-- A recognition rule for forms of `&` other than `&identifier` and `&literal` (the `&x` note in §4).
+- A recognition rule for anything that is not an `&operand` (the `&x` note in §4).
 - A `--strict` mode (§10.5).
 
 ### Note on `&x`
 
-`&x` yields a non-nil pointer or panics. **Decided (owner, 2026-11-22): `&identifier`
-is a recognised non-nil source of Part A**, like `&literal`, which already was. The
-address of a variable is never nil and taking it cannot panic (checked on Go: a local, a
-package variable and a zero-size variable all give a non-nil pointer). This is a
-structural rule on the form of the expression, not an inference from a guard, and the
-static type of `&x` is `*T`, so the identity rule of §6.4 applies as for any source. Other
-forms of `&` (`&p.f`, `&a[i]`, `&*p`) can panic but never return nil; they are **not**
-recognised by this decision and stay open (a future rule would have to be proposed
-separately).
+`&x` yields a non-nil pointer or panics. **Decided (owner, 2026-11-22): any
+`&operand` is a recognised non-nil source of Part A**, like `&literal`, which already
+was. The address of an addressable operand (a variable, a field, an element, `*p`) or of
+a composite literal is never nil, and evaluating it either gives that address or panics
+(`&p.f` with `p` nil, `&a[i]` out of range), exactly as Go does; `&f()` is not valid Go
+at all (checked: "cannot take address of f()"). This is a structural rule on the form of
+the expression, not an inference from a guard, and the static type of `&x` is `*T`, so
+the identity rule of §6.4 applies as for any source: `&n` into a `!P` slot of a named
+pointer type still warns. The first version of the decision was limited to
+`&identifier` and `&literal`; the owner widened it the same day, because the reason (a
+panic is Go's own behaviour) holds for every `&operand` and the rule is then simpler.
 
 *Original reasoning, kept for the record.* The note was written when `&x` was out of
 scope: the data covered only `&identifier` of a local (one production site, four
-fixtures), and `&cp` was counted apart from the nine guard- and constructor-derived
+fixtures), and it was to be limited to forms proven safe; `&cp` was counted apart from the nine guard- and constructor-derived
 sites and converted explicitly in the migration. The re-measurement with the real
 checker (the "Re-measurement with `.gna`" block of §2.1 and the examples of the
-downstream repositories) showed that `&identifier` is a quarter of the warnings in
+downstream repositories) showed that `&x` is a quarter of the warnings in
 `gon-examples` and all of them in its first examples, which is what the decision
 answers.
 
@@ -332,7 +335,7 @@ non-interface nilable kind (pointer, slice, map, channel and function), so the
 normative text that names those kinds stands as written. **Part B is OPEN and is not
 accepted.** The acceptance of Part A is not approval to implement it, to merge it or
 to release it, and it does not schedule anything: the release shape, `--strict`,
-GW007 and the items G1–G6 of the roadmap are unchanged and remain open or on hold; `&identifier` was added to Part A by the amendment of 2026-11-22.
+GW007 and the items G1–G6 of the roadmap are unchanged and remain open or on hold; any `&operand` was added to Part A by the amendment of 2026-11-22.
 
 The proposal is accepted in two parts, separately. Accepting Part A does **not**
 accept Part B.
@@ -539,7 +542,7 @@ parameter, result or field) or bound `!` by the rules that exist today (a `:=` o
 untyped `var` variable that receives a call result declared `!T`, §6.8 "Multi-value
 forms"), an immediate call whose first result is `!T`, a selector of a `!` field,
 the construction forms of the existing RFCs for a direct flow (a composite literal,
-`&literal`, `new`, `make`, a function literal), `&identifier` (amendment of 2026-11-22),
+`&literal`, `new`, `make`, a function literal), any `&operand` (amendment of 2026-11-22),
 and the non-nil conversion `(!T)(x)` of this RFC. Parentheses never change recognition.
 
 **Part B.** Part B adds to the Part A set: an identifier bound `!` by inference from
@@ -579,8 +582,7 @@ element arguments; a call Go rejects is reported by Go, and Gon does not classif
 it. Parentheses never change recognition: a parenthesised expression has the
 recognition of the expression inside (`([]int{})`, `(a)`, `(append(a, 1))`,
 `((!*T)(p))`). A map lookup, an index, a slice expression with any other base,
-`&p.f`, `&a[i]` and `&*p` (an address that is not `&identifier` or `&literal`), a
-conversion without `!`, an `append` that does not satisfy the rule above, and any
+a conversion without `!`, an `append` that does not satisfy the rule above, and any
 other call are **not** sources.
 
 Proposed code **GW006** (to be confirmed), severity warning, message
@@ -771,7 +773,7 @@ non-nil conversion it performs no runtime check, and an ordinary conversion to
        var b !T = (!T)(x)  // silent: explicit claim, if (T)(x) is valid Go
    }
    ```
-3. **`&x`.** **Decided (2026-11-22):** `&identifier` is a recognised source of Part A (the `&x` note in §4); other forms of `&` are not decided.
+3. **`&x`.** **Decided (2026-11-22):** any `&operand` is a recognised source of Part A (the `&x` note in §4).
 4. **D6b / I6 wording** in §9.
 5. **Diagnostic and Protocol v1.** The final code, the set of slots and kinds in
    §6.6, and the consumers' view of a new warning. `--strict` (deferred since

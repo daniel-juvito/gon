@@ -615,6 +615,3 @@ func f(v T, w W, arr [2]T, pw *W) {
 }
 -- GW-A-01/want --
 22 GW006
-23 GW006
-24 GW006
-25 GW006
