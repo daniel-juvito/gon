@@ -72,9 +72,10 @@ importer now reads a main-module package's contracts from its `.gon` sources,
 so `gna.DefaultChain`'s `!*Chain` reaches `cmd/gon` and `internal/lsp`. The
 gate was pinned to **v1.14.0** for that (2026-11-17), which is what let the
 annotations of the two remaining exported candidates go ahead; both are done
-(below). The pin is now **v1.21.0**, the latest release (bumped 2026-11-22; v1.21 adds
-GW006 and the explicit conversion `(!T)(x)`, and Gon's own sources use it at nine
-sites; the gate also runs `gon check ./...` and requires exactly `ok`;
+(below). The pin is now **v1.22.0**, the latest release (bumped 2026-11-22; v1.21 added
+the explicit conversion `(!T)(x)`, and Gon's own sources use it at nine sites;
+v1.22 makes the ordinary flow into a `!T` slot GN001, an error, with no new site
+in Gon's own sources; the gate also runs `gon check ./...` and requires exactly `ok`;
 with it, `gon check ./...` on this repository is `ok` and every `.go` still
 matches its `.gon`).
 

@@ -93,7 +93,7 @@ jobs:
   gon-sources:
     runs-on: ubuntu-latest
     env:
-      GON_VERSION: v1.21.0
+      GON_VERSION: v1.22.0
     steps:
       - uses: actions/checkout@v4
 
