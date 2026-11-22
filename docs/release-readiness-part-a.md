@@ -24,7 +24,7 @@ from `main@84fb89f` unless it is marked *reported* or *not verified*.
 | D1, D2, D4, D5 | done as decided (section 7) | |
 | D3 | **approved by the owner as written** in the CHANGELOG `[1.21.0]` (the compatibility paragraph, not the shorter draft of section 9); no further documentation change | owner's decision, 2026-11-22 |
 | After the tag, `gon` | PR #78: pin v1.21.0, nine `(!T)(x)` sites, `gon check ./...` must print `ok`; CI of `main` `success` job by job | read from GitHub |
-| After the tag, `gon-examples` | PR #20: pin, `expected.txt` for the 7 examples (15 GW006), the two comments; CI of `main` `success` | run level only |
+| After the tag, `gon-examples` | PR #20: pin, `expected.txt` for the 7 examples (14 GW006: 1+2+6+1+1+1+2; an earlier version of this line said 15, a sum error), the two comments; CI of `main` `success` | run level only |
 | After the tag, `gon-vscode` | PR #18: pin, `expected-fixtures.txt` for `genericgna` (2 GW006), CHANGELOG 0.1.17; CI of `main` `success` | reported by the owner, not read by me |
 
 Still open, outside this review: Part B of the RFC, GW007 and `--strict` (undecided).
