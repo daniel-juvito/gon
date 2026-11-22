@@ -743,7 +743,7 @@ valid when `(I)(x)` is valid Go, is the claim form for an interface; like every
 non-nil conversion it performs no runtime check, and an ordinary conversion to
 `I` still produces an ordinary `I`.*
 
-### A2: an ordinary flow into a `!T` slot is an error (accepted, 2026-11-22; not implemented)
+### A2: an ordinary flow into a `!T` slot is an error (accepted, 2026-11-22; implemented on `main`, not released)
 
 **Status: ACCEPTED as a design decision (2026-11-22, the owner) and IMPLEMENTED on `main` (checker: PR #85; documents: the change after it). Not released.** It records the direction of the owner
 (2026-11-22: "nilable to non-nil must be explicit; that is v1"). It amends C7 and OQ-1 of this RFC, which were accepted with Part A
@@ -824,7 +824,7 @@ runners; no figure for users outside them; the effect on a Part B world was not 
    is accepted today. The warning does not prove that a value satisfies the contract.
    `--strict` (deferred since v1.5, not designed here) is mentioned only as a possible
    future way to make the severities uniform; this RFC neither promises nor relies on
-   it. *Amendment A2 (§9, accepted 2026-11-22, not implemented) makes the severities uniform in the
+   it. *Amendment A2 (§9, accepted 2026-11-22, implemented on `main`, not released) makes the severities uniform in the
    default mode instead: the owner's direction is that an ordinary value of a nilable kind
    must be converted explicitly to enter a `!T` slot.*
 2. **Type parameters (decided: D3b is unchanged).** For a type-parameter target
@@ -904,7 +904,7 @@ runners; no figure for users outside them; the effect on a Part B world was not 
   entries in `diagnostics`. The schema version is unchanged (I7). Consumers that
   treat any diagnostic as a failure, or compare the count of diagnostics, see a
   difference.
-- **`gon check` output (GW006; since A2, GN001 errors).** New warnings on existing sources that flow a
+- **`gon check` output (GW006 in v1.21.0; since A2, GN001 errors).** Diagnostics on existing sources that flow a
   value that is not a recognised non-nil source into a `!T` slot of a non-interface
   kind, including a recognised source of a different, Go-assignable type (§6.4;
   today silent). Measured on `main` of the three repositories: 11 in `gon`'s
