@@ -316,7 +316,7 @@ func (c *Checker) validateAnnotations() {
 		if err != nil || file == nil {
 			continue
 		}
-		c.validateGnaFile(path, file, tpkg)
+		c.validateGnaFile(path, (!*gna.File)(file), tpkg) // file != nil: guarded above
 	}
 }
 
@@ -338,7 +338,7 @@ func (c *Checker) contractDropped(pkgPath, symbol string) bool {
 	return m[symbol]
 }
 
-func (c *Checker) validateGnaFile(pkgPath string, file *gna.File, tpkg *types.Package) {
+func (c *Checker) validateGnaFile(pkgPath string, file !*gna.File, tpkg *types.Package) {
 	pos := c.importPos[pkgPath]
 	scope := tpkg.Scope()
 

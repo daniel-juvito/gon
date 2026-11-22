@@ -132,7 +132,8 @@ func (c *Checker) typeCheckPackages() bool {
 	if file == nil {
 		file = pkg.Syntax[0]
 	}
-	c.file = file
+	// file is non-nil: found in pkg.Syntax, or pkg.Syntax[0] (len(pkg.Syntax) > 0 above).
+	c.file = (!*ast.File)(file)
 	c.info = pkg.TypesInfo
 	c.collectImportPkgs(pkg.Types)
 	return true
@@ -169,8 +170,9 @@ func (c *Checker) typeCheckFallback() {
 		fset := token.NewFileSet()
 		f, err := parser.ParseFile(fset, c.filename, c.cleanSrc, parser.AllErrors)
 		if err == nil {
-			c.fset = fset
-			c.file = f
+			// fset is fresh and f is the file ParseFile returned without an error.
+			c.fset = (!*token.FileSet)(fset)
+			c.file = (!*ast.File)(f)
 		}
 	}
 	pkgPath := "main"
