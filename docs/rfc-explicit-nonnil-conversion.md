@@ -230,7 +230,7 @@ production sources: the nine flows into `!T` slots measured before the binding r
 (`x = queries[:0]` too). *Before the amendment of 2026-11-22 these were 11 and 12:
 the tenth Part A flow, `&cp`, warned until any `&operand` became a recognised source.* `gon-examples` and `gon-vscode` produced none that were
 genuine in the scan that did not read `.gna`; with `.gna` modelled they produce 10 and
-4 flows under Part A (2 and 2 under Part A and Part B; see "Re-measurement with `.gna`"; *after the amendment of 2026-11-22 these are 8 and 2 under Part A and 0 and 0 under Part A and Part B (the Part B figure from the scratch instrument, `docs/measurements/partb-initial`): the two `cache.Must(&x)` flows of `generic-gna`, and of its copy in `gon-vscode`, no longer warn; see "Re-measurement with `.gna`"*). These are diagnostic counts; the migration counts of §10.7 are
+4 flows under Part A (2 and 2 under Part A and Part B; see "Re-measurement with `.gna`"; *after the amendment of 2026-11-22 these are 8 and 2 under Part A and 0 and 0 under Part A and Part B (the Part B figure from the scratch instrument, `docs/measurements/partb-initial`): the two flows `cache.Must(&x)` and `cache.Must[int](&x)` of `generic-gna`, and the same two flows in its copy in `gon-vscode`, no longer warn; see "Re-measurement with `.gna`"*). These are diagnostic counts; the migration counts of §10.7 are
 separate.
 
 **Syntax.** `(!T)(x)` is not recognised today: for `(!*int)(a)`, `(![]int)(a)`,
@@ -373,7 +373,7 @@ because Part B binds the local). **After the amendment of 2026-11-22 (`&cp` is a
 recognised source): 9 for Part A alone and 10 for Part A and Part B** (the real
 checker gives 9 on Part A). Fixtures of `gon`: 9 either way. `gon-examples` and
 `gon-vscode`: no genuine GW006 either way **in the scan that did not read `.gna`** (with `.gna` modelled: Part A 10 and 4,
-Part A and Part B 2 and 2, see "Re-measurement with `.gna`"; *after the amendment of 2026-11-22 these are 8 and 2 under Part A and 0 and 0 under Part A and Part B (the Part B figure from the scratch instrument, `docs/measurements/partb-initial`): the two `cache.Must(&x)` flows of `generic-gna`, and of its copy in `gon-vscode`, no longer warn; see "Re-measurement with `.gna`"*). Part A alone binds no new local
+Part A and Part B 2 and 2, see "Re-measurement with `.gna`"; *after the amendment of 2026-11-22 these are 8 and 2 under Part A and 0 and 0 under Part A and Part B (the Part B figure from the scratch instrument, `docs/measurements/partb-initial`): the two flows `cache.Must(&x)` and `cache.Must[int](&x)` of `generic-gna`, and the same two flows in its copy in `gon-vscode`, no longer warn; see "Re-measurement with `.gna`"*). Part A alone binds no new local
 (76 are Part B). These counts were measured with the same limits as §2.1.
 
 Items outside both parts and still OPEN: `--strict`, GW007, the other forms of `&`, the release shape,
@@ -839,7 +839,7 @@ non-nil conversion it performs no runtime check, and an ordinary conversion to
   today silent). Measured on `main` of the three repositories: 11 in `gon`'s
   production sources; in `gon-examples` and `gon-vscode`, 10 and 4 flows under
   Part A (2 and 2 under Part A and Part B), all into `.gna` slots (see "Re-measurement
-  with `.gna`" in §2.1); *after the amendment of 2026-11-22 these are 8 and 2 under Part A and 0 and 0 under Part A and Part B (the Part B figure from the scratch instrument, `docs/measurements/partb-initial`): the two `cache.Must(&x)` flows of `generic-gna`, and of its copy in `gon-vscode`, no longer warn; see "Re-measurement with `.gna`"*. The different-type case was not measured separately. Users
+  with `.gna`" in §2.1); *after the amendment of 2026-11-22 these are 8 and 2 under Part A and 0 and 0 under Part A and Part B (the Part B figure from the scratch instrument, `docs/measurements/partb-initial`): the two flows `cache.Must(&x)` and `cache.Must[int](&x)` of `generic-gna`, and the same two flows in its copy in `gon-vscode`, no longer warn; see "Re-measurement with `.gna`"*. The different-type case was not measured separately. Users
   outside the three repositories are not measured.
 - **Binding by inference (§6.8, Part B) changes the contract of identifiers**, so its
   effects are different in kind from GW006 and are listed separately:
