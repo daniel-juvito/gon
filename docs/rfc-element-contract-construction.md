@@ -33,7 +33,11 @@ subcases** required to make them useful:
 Element contracts are **construction-time obligations**, not lifetime
 storage invariants of the container. After a `[]!*T` value exists, later
 mutation (`s[i] = nil`, `append`, map assignment) is out of scope for this
-RFC; that remains ordinary Go and is not tracked (I1).
+RFC; that remains ordinary Go and is not tracked (I1). The same holds through an
+alias: `!T` flows into `T` silently, so `var u []*T = s; u[0] = nil` is accepted and
+changes the element of `s` (checked on v1.22.0). Closing it would need the container
+types to be invariant in their element contract; that is not part of this RFC (see
+`docs/backlog.md`).
 
 **Normative principle:**
 
@@ -458,6 +462,8 @@ var y []!I = []!I{someInterface}    // OK — ordinary / non-nil interface value
 s := []!*T{&T{}}
 s[0] = nil                       // no diagnostic (lifetime not tracked)
 s = append(s, nil)               // no diagnostic
+var u []*T = s                   // no diagnostic: !T flows into T (a subtype), and []!*T and []*T are one Go type
+u[0] = nil                       // no diagnostic: a write through the alias; s[0] is now nil
 for _, p := range s {            // p is ordinary *T
     _ = p
 }
