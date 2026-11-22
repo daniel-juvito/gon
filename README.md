@@ -305,7 +305,7 @@ Full format: [docs/gna-spec-v1.md](docs/gna-spec-v1.md)
 
 | Code  | Severity | Meaning |
 |-------|----------|---------|
-| GN001 | error    | literal `nil` assigned / passed / returned where `!T` is required; `nil` assigned into a `!T` field (local or external, v1.5); an ordinary interface value where `!I` is required (incl. an external `!I` field, v1.5); `!T` as a type-assertion target — interface (v1.4) or any kind (v1.6); `nil` as an element / map value under an element contract (v1.7); `nil` into a `!` field / argument through a generic instantiation (v1.8), including an explicit instantiation of an external generic (v1.9) |
+| GN001 | error    | literal `nil` assigned / passed / returned where `!T` is required; `nil` assigned into a `!T` field (local or external, v1.5); an ordinary interface value where `!I` is required (incl. an external `!I` field, v1.5); `!T` as a type-assertion target — interface (v1.4) or any kind (v1.6); `nil` as an element / map value under an element contract (v1.7); `nil` into a `!` field / argument through a generic instantiation (v1.8), including an explicit instantiation of an external generic (v1.9); **on `main`, not yet released:** a value of a pointer, slice, map, channel or function kind that is not a recognised non-nil source (or is one of a different type) flowing into a `!T` slot, which was the warning GW006 in v1.21 — write `(!T)(x)` to claim it |
 | GN002 | error    | construction leaves a required non-nil field at zero (including nested / embedded / array; includes `new(T)`; external `pkg.T` incl. one-hop embedded promotion, v1.5); bare `var x !S` of a nilable reference kind with no initializer (v1.6); fixed-array literal leaves a `!` nilable element index at zero (v1.7); construction of an instantiated generic struct leaves a `!` field at zero (v1.8), local or external via `.gna` `types:` (v1.9); `var v !P` with no initializer for a nilable type parameter `P` (v1.8) |
 | GN003 | error    | malformed `.gna`, or (v1.5) a `params`/`results` arity mismatch vs `go/types` — the entry is dropped; `!` on a non-nilable type (v1.6); element `!` on a channel element, map key, or non-nilable element kind (v1.7); `!X` on a type parameter not restricted to nilable kinds, and `!` inside a type argument or constraint (v1.8); a `.gna` `!` flag over a non-nilable kind or type parameter — only that flag is dropped (v1.9) |
 | GW001 | warning  | comparison of a non-nil name or `!T` field selector (local or external, v1.5) with `nil` (always true/false) |
@@ -313,7 +313,7 @@ Full format: [docs/gna-spec-v1.md](docs/gna-spec-v1.md)
 | GW003 | warning  | redundant type assertion on a declared `!T` identifier (v1.3) |
 | GW004 | warning  | `.gna` names a `functions:` / `methods:` / `types:` symbol the package does not provide (v1.5) |
 | GW005 | warning  | a `.gna` exists for an imported package of the main module that has `.gon` sources: the `.gna` is ignored, the `.gon` sources are authoritative (v1.14); once per import |
-| GW006 | warning  | (v1.21) a value that is not a recognised non-nil source, or is one of a different (not identical) type, flows into a `!T` slot of a pointer, slice, map, channel or function kind; silenced by the explicit conversion `(!T)(x)`. An ordinary interface value into `!I` stays GN001 |
+| GW006 | warning  | (v1.21 only) a value that is not a recognised non-nil source, or is one of a different (not identical) type, flows into a `!T` slot of a pointer, slice, map, channel or function kind. **On `main` (not yet released) the same flow is GN001, an error, and GW006 is no longer emitted**; the explicit conversion `(!T)(x)` is the only way through. An ordinary interface value into `!I` was GN001 already |
 
 ### Explicit non-nil conversion (v1.21)
 
@@ -325,7 +325,7 @@ grouping parenthesis, so `adder(!flag)(3)` keeps its meaning as a call.
 ```go
 func lookup(m map[string]*Node, k string) !*Node {
 	n := m[k]            // an ordinary *Node
-	return (!*Node)(n)   // the claim; without it: GW006
+	return (!*Node)(n)   // the claim; without it: GW006 (v1.21), GN001 on `main`
 }
 ```
 

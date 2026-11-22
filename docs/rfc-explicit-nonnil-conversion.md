@@ -2,7 +2,7 @@
 
 **Status:** **Part A: ACCEPTED** (formal design decision, 2026-11-21), including the extension of the OQ-1 decision to channel and function. **Part B: OPEN, not accepted.** The acceptance is a design decision only: it is not approval to implement or to merge, and nothing is scheduled (§5.1). **Implementation:** Part A is implemented and **released in v1.21.0 (2026-11-22)** (syntax, the checks of a conversion, GW006, the conformance harness `testdata/conformance`); the migration of Gon's own sources and Part B remain open.  
 **Amendment (2026-11-22, decision of the owner):** any `&operand` is a recognised non-nil source of Part A (§4 note, §6.6, §10.3): the address of an addressable operand or of a composite literal is never nil, and evaluating it either gives that address or panics, as in Go.
-**Amendment A2 (2026-11-22): ACCEPTED as a design decision by the owner, NOT implemented:** an ordinary `T → !T` flow into a non-interface slot becomes an error (GN001) instead of the warning GW006; `(!T)(x)` is then the only way through (§9, A2). Like Part A, the acceptance is not approval to implement, to merge or to release. Until A2 is implemented, the checker and the normative text below stand as written (GW006 is a warning in v1.21.0).
+**Amendment A2 (2026-11-22): ACCEPTED by the owner and IMPLEMENTED on `main`, not yet released:** an ordinary `T → !T` flow into a non-interface slot is an error (GN001) instead of the warning GW006; `(!T)(x)` is the only way through (§9, A2). The checker changed in PR #85; this text and the other documents changed after it. **Reading note:** where the text below says that the flow is the warning GW006 (§1, §6.4, §6.6, §10.1, §11 and the measurement sections), it describes v1.21.0 and the measurements made on it; since A2 the same flow is GN001, an error, and GW006 is no longer emitted. The release number and date remain the owner's.
 **Target:** Unassigned (the owner decides the release number, date and shape)  
 **Related:** `docs/roadmap-v1.3-plus.md` (I1–I7), `docs/rfc-interface-semantics.md` (D3, D6),
 `docs/rfc-generic-semantics.md`, `docs/rfc-element-contract-construction.md` (E7),
@@ -27,7 +27,8 @@ This RFC proposes:
    is valid Go, it performs **no runtime check**, and it is a recognised non-nil
    source.
 2. **A warning** (new code, exit 0) for an ordinary `T → !T` flow into a `!T`
-   slot of a non-interface kind, silenced by the conversion.
+   slot of a non-interface kind, silenced by the conversion. *(v1.21.0. Since
+   amendment A2 (§9) the flow is an error, GN001, and there is no warning.)*
 3. **Idempotence of `!` in type positions**: `!!T` is `!T`, and `gon fmt`
    writes the canonical form.
 
@@ -321,7 +322,7 @@ answers.
 | C4 | The target must be a nilable kind (else GN003) | Agreed direction |
 | C5 | `(!T)(nil)` is GN001 | Agreed direction |
 | C6 | `(!T)(x)` is a recognised non-nil source | Agreed direction |
-| C7 | Ordinary `T → !T`, non-interface kinds (pointer, slice, map, channel, function): warning | Decided and accepted with Part A (§5.1, §10.1, §10.2); chosen for compatibility, not because the kinds differ in contract semantics. **Reversed by A2 (§9, accepted 2026-11-22, not implemented): an error (GN001), not a warning** |
+| C7 | Ordinary `T → !T`, non-interface kinds (pointer, slice, map, channel, function): warning | Decided and accepted with Part A (§5.1, §10.1, §10.2); chosen for compatibility, not because the kinds differ in contract semantics. **Reversed by A2 (§9, accepted and implemented on `main` 2026-11-22, not yet released): an error (GN001), not a warning** |
 | C8 | `(!T)(x)` with `x` already `!T`: identity, no diagnostic | Agreed direction |
 | C9 | `!!T` in type positions, including the target of a non-nil conversion, is `!T`; `gon fmt` canonicalises | Agreed direction |
 | C10 | `!!x` in expression positions is Go, untouched | Agreed direction |
@@ -497,6 +498,8 @@ of static type `S` is deterministic:
 | not a recognised source, ordinary interface value | any | interface | GN001 (D3b, unchanged) |
 | not a recognised source, type parameter | any | any | per §10.2 |
 
+*Since amendment A2 (§9) every row above marked GW006 is GN001, an error; nothing else in the table changes.*
+
 Consequences, stated so that tests can fix the expected diagnostic:
 
 - `(!U)(x)` is silent only if the conversion `(U)(x)` is itself valid Go: an
@@ -535,6 +538,8 @@ identical to the slot's type is also a warning for these kinds; the full outcome
 table is in §6.4. Interface kinds are not GW006 cases: an ordinary interface value
 flowing into `!I` stays GN001 under D3b/D3d, and a concrete operand stays silent under
 D3a.
+
+*(Since amendment A2 (§9) the "warning" of this section is an error, GN001, with the message `cannot use value of type S as !U; use (!U)(x) to make an explicit claim`. The rest of the section is unchanged.)*
 
 Slots (proposed): a variable initialiser with a `!T` type, an assignment to a
 `!T` variable, parameter, result or field, an argument to a `!T` parameter, a
@@ -738,12 +743,11 @@ valid when `(I)(x)` is valid Go, is the claim form for an interface; like every
 non-nil conversion it performs no runtime check, and an ordinary conversion to
 `I` still produces an ordinary `I`.*
 
-### A2: an ordinary flow into a `!T` slot is an error (accepted, 2026-11-22; not implemented)
+### A2: an ordinary flow into a `!T` slot is an error (accepted, 2026-11-22; implemented on `main`, not released)
 
-**Status: ACCEPTED as a design decision (2026-11-22, the owner). Not scheduled, not implemented.** It records the direction of the owner
+**Status: ACCEPTED as a design decision (2026-11-22, the owner) and IMPLEMENTED on `main` (checker: PR #85; documents: the change after it). Not released.** It records the direction of the owner
 (2026-11-22: "nilable to non-nil must be explicit; that is v1"). It amends C7 and OQ-1 of this RFC, which were accepted with Part A
-and shipped in v1.21.0. The acceptance is a design decision only: nothing in the checker changes until an implementation is separately
-authorised, and the release number and date remain the owner's.
+and shipped in v1.21.0. The release number and date remain the owner's (the next minor release, shipped alone, R1).
 
 **Proposal.** For every slot of §6.6 whose type is a `!T` of a non-interface nilable kind (pointer, slice, map,
 channel, function), an expression that is not a recognised non-nil source of the identical type `T` is an
@@ -820,7 +824,7 @@ runners; no figure for users outside them; the effect on a Part B world was not 
    is accepted today. The warning does not prove that a value satisfies the contract.
    `--strict` (deferred since v1.5, not designed here) is mentioned only as a possible
    future way to make the severities uniform; this RFC neither promises nor relies on
-   it. *Amendment A2 (§9, accepted 2026-11-22, not implemented) makes the severities uniform in the
+   it. *Amendment A2 (§9, accepted 2026-11-22, implemented on `main`, not released) makes the severities uniform in the
    default mode instead: the owner's direction is that an ordinary value of a nilable kind
    must be converted explicitly to enter a `!T` slot.*
 2. **Type parameters (decided: D3b is unchanged).** For a type-parameter target
@@ -900,7 +904,7 @@ runners; no figure for users outside them; the effect on a Part B world was not 
   entries in `diagnostics`. The schema version is unchanged (I7). Consumers that
   treat any diagnostic as a failure, or compare the count of diagnostics, see a
   difference.
-- **`gon check` output (GW006).** New warnings on existing sources that flow a
+- **`gon check` output (GW006 in v1.21.0; since A2, GN001 errors).** Diagnostics on existing sources that flow a
   value that is not a recognised non-nil source into a `!T` slot of a non-interface
   kind, including a recognised source of a different, Go-assignable type (§6.4;
   today silent). Measured on `main` of the three repositories: 11 in `gon`'s

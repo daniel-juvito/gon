@@ -100,13 +100,14 @@ It is never optional, even when the process later exits with code 3.
 Exit 3 is a process/checker failure, not a Diagnostic. See Exit Codes.
 
 The set of codes grows without a `schemaVersion` change (see Compatibility).
-**GW006** (a warning, v1.21) reports a value that flows into a `!T` slot of
-a non-interface nilable kind (pointer, slice, map, channel, function) without being
-a recognised non-nil source of the identical type. Like every warning it has the
-`gon-check` source, a range at the value, and no `relatedLocations`; it never
-changes the exit status by itself. Its message is
-`non-nil contract: value of type S does not satisfy !U; use (!U)(x) to make an explicit claim`.
-Consumers must not depend on the wording of `message`, only on `code` and `severity`.
+A value that flows into a `!T` slot of a non-interface nilable kind (pointer, slice,
+map, channel, function) without being a recognised non-nil source of the identical
+type is **GN001, an error** (on `main`, not yet released; amendment A2 of
+`rfc-explicit-nonnil-conversion.md`). It has the `gon-check` source, a range at the
+value, and no `relatedLocations`, and it makes the exit status 1. Its message is
+`cannot use value of type S as !U; use (!U)(x) to make an explicit claim`. In v1.21.0
+the same flow was the warning **GW006** (exit status unchanged); GW006 is no longer
+emitted. Consumers must not depend on the wording of `message`, only on `code` and `severity`.
 
 ## 4. Position & Range Semantics
 
@@ -495,8 +496,8 @@ round-trip tested (construct → `json.Marshal` → `json.Unmarshal` → assert
 - GN001 JSON
 - GN002 JSON
 - GW001 JSON
-- GW006 JSON: warning only (exit 0), and mixed with an error (exit 1); exercised by
-  `cmd/gon/gw006_test.go`
+- ordinary flow into a `!T` slot: GN001 JSON error (exit 1), alone and mixed with a nil
+  literal; exercised by `cmd/gon/ordinary_flow_test.go` (GW006 JSON, exit 0, until v1.21.0)
 - (and other stable codes as they appear)
 
 ---
