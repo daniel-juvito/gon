@@ -605,7 +605,7 @@
   "diagnostics": [
    "GN001"
   ],
-  "note": "map lookup, index and a plain call warn; &x is a recognised source since the owner decision of 2026-11-22 (see GW-A-01)"
+  "note": "map lookup, index and a plain call are GN001; &x is a recognised source since the owner decision of 2026-11-22 (see GW-A-01)"
  },
  {
   "id": "GW-B-01",
@@ -741,7 +741,7 @@
   "diagnostics": [
    "GN001"
   ],
-  "note": "an instantiated generic field and a result of type *V warn; a slot that is a type parameter does not (OQ-2)"
+  "note": "an instantiated generic field and a result of type *V are GN001; a slot that is a type parameter does not (OQ-2)"
  },
  {
   "id": "GW-C-01",
@@ -805,7 +805,7 @@
   "diagnostics": [
    "GN001"
   ],
-  "note": "every addressable operand of &: a parameter, a named result, a package variable, a field, a nested field, a field through a pointer, an array, pointer-to-array, slice and field element, a promoted and an embedded field, a dereference, parentheses, a composite literal and a field of a call result; a plain pointer value (*pp) and a call still warn"
+  "note": "every addressable operand of &: a parameter, a named result, a package variable, a field, a nested field, a field through a pointer, an array, pointer-to-array, slice and field element, a promoted and an embedded field, a dereference, parentheses, a composite literal and a field of a call result; a plain pointer value (*pp) and a call are still GN001"
  },
  {
   "id": "GW-A-03",
