@@ -1,0 +1,17 @@
+# gon-examples_field-contracts (1 .gon; loader errors: 0)
+## definitions of nilable variables by := / untyped var (new identifiers only)
+  production | not bound                   1
+  production | total                       1
+    by form: production | := | not bound                                  1
+## flows into !T / bound slots (RFC rules)
+  production  GW006: no recognised source                          2
+  production  flows                                                2
+## nil comparisons and nil assignments on bound identifiers
+  production | nil-assign => GN001 | exists today                                  1
+  production | nil-compare => GW001 | exists today                                 1
+## existing identifiers (nilable kinds) assigned by a short declaration
+## typed plain var (var x T = recognised source): 0
+## GW006 sites
+  fields.gon:35 [field-init -> pointer] ident-plain
+  fields.gon:42 [field-init -> pointer] ident-plain
+## .gna contracts met by a call site (key: times)

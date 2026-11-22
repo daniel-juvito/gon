@@ -1,0 +1,11 @@
+# gon-examples_flow-ok (1 .gon; loader errors: 0)
+## definitions of nilable variables by := / untyped var (new identifiers only)
+## flows into !T / bound slots (RFC rules)
+  production  GW006: no recognised source                          1
+  production  flows                                                1
+## nil comparisons and nil assignments on bound identifiers
+## existing identifiers (nilable kinds) assigned by a short declaration
+## typed plain var (var x T = recognised source): 0
+## GW006 sites
+  flow.gon:10 [var-init -> pointer] call-plain-result
+## .gna contracts met by a call site (key: times)

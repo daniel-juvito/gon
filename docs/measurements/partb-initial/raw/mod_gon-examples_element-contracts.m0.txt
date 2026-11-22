@@ -1,0 +1,17 @@
+# gon-examples_element-contracts (1 .gon; loader errors: 0)
+## definitions of nilable variables by := / untyped var (new identifiers only)
+  production | not bound                   1
+  production | total                       1
+    by form: production | := | not bound                                  1
+## flows into !T / bound slots (RFC rules)
+  production  GW006: no recognised source                          1
+  production  flows                                                14
+  production  interface (D3a/b/d, unchanged; not GW006)            1
+  production  nil literal (GN001 today)                            3
+  production  silent                                               9
+## nil comparisons and nil assignments on bound identifiers
+## existing identifiers (nilable kinds) assigned by a short declaration
+## typed plain var (var x T = recognised source): 0
+## GW006 sites
+  element-contracts.gon:25 [element-init -> pointer] call-plain-result
+## .gna contracts met by a call site (key: times)

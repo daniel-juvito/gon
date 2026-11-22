@@ -1,0 +1,13 @@
+# gon-examples_cli (1 .gon; loader errors: 0)
+## definitions of nilable variables by := / untyped var (new identifiers only)
+  production | bound today                 1
+  production | total                       1
+    by form: production | := | bound today                                1
+## flows into !T / bound slots (RFC rules)
+  production  flows                                                3
+  production  silent                                               3
+## nil comparisons and nil assignments on bound identifiers
+## existing identifiers (nilable kinds) assigned by a short declaration
+## typed plain var (var x T = recognised source): 0
+## GW006 sites
+## .gna contracts met by a call site (key: times)

@@ -1,0 +1,54 @@
+# gon (55 .gon; loader errors: 0)
+## definitions of nilable variables by := / untyped var (new identifiers only)
+  fixtures | bound today                   1
+  fixtures | not bound                     6
+  fixtures | total                         7
+  production | bound today                 12
+  production | not bound                   429
+  production | total                       441
+    by form: fixtures | := | bound today                                  1
+    by form: fixtures | := | not bound                                    5
+    by form: fixtures | var-untyped | not bound                           1
+    by form: production | := | bound today                                12
+    by form: production | := | not bound                                  241
+    by form: production | :=-multi | not bound                            188
+## flows into !T / bound slots (RFC rules)
+  production  flows                                                26
+  production  silent                                               26
+  fixtures    GW006: no recognised source                          6
+  fixtures    flows                                                31
+  fixtures    interface (D3a/b/d, unchanged; not GW006)            6
+  fixtures    nil literal (GN001 today)                            12
+  fixtures    silent                                               6
+  fixtures    type parameter (OQ-2; not counted)                   1
+## nil comparisons and nil assignments on bound identifiers
+  fixtures | nil-compare => GW001 | exists today                                   1
+## existing identifiers (nilable kinds) assigned by a short declaration
+  production | existing-plain                                  18
+## typed plain var (var x T = recognised source): 0
+## GW006 sites
+  testdata/valid/element_contracts.gon:11 [element-init -> pointer] call-plain-result
+  testdata/valid/element_contracts.gon:11 [element-init -> pointer] call-plain-result
+  testdata/valid/element_contracts.gon:15 [element-init -> pointer] call-plain-result
+  testdata/valid/generics.gon:16 [return -> pointer] ident-plain
+  testdata/valid/regression.gon:8 [var-init -> pointer] call-plain-result
+  testdata/valid/regression.gon:10 [var-init -> pointer] ident-plain
+## .gna contracts met by a call site (key: times)
+  io.NopCloser                                                           1
+  io.ReadFull                                                            1
+  os.Exit                                                                1
+  os.File.Close                                                          1
+  os.File.Name                                                           1
+  os.File.Write                                                          1
+  os.Getenv                                                              1
+  os.Getwd                                                               1
+  os.IsExist                                                             1
+  os.IsNotExist                                                          1
+  os.Open                                                                1
+  os.OpenFile                                                            1
+  os.ReadDir                                                             1
+  os.ReadFile                                                            1
+  os.Remove                                                              1
+  os.Rename                                                              1
+  os.Stat                                                                1
+  os.WriteFile                                                           1

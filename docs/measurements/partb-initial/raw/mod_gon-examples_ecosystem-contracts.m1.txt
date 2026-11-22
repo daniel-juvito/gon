@@ -1,0 +1,21 @@
+# gon-examples_ecosystem-contracts (1 .gon; loader errors: 0)
+## definitions of nilable variables by := / untyped var (new identifiers only)
+  production | NEWLY bound                 3
+  production | bound today                 2
+  production | total                       5
+    by form: production | := | NEWLY bound                                3
+    by form: production | := | bound today                                2
+## flows into !T / bound slots (RFC rules)
+  production  flows                                                11
+  production  interface (D3a/b/d, unchanged; not GW006)            4
+  production  nil literal (GN001 today)                            1
+  production  silent                                               6
+## nil comparisons and nil assignments on bound identifiers
+  production | nil-assign => GN001 | NEW (RFC only)                                1
+  production | nil-compare => GW001 | exists today                                 3
+## existing identifiers (nilable kinds) assigned by a short declaration
+## typed plain var (var x T = recognised source): 0
+## GW006 sites
+## .gna contracts met by a call site (key: times)
+  gonexample.local/ecosystem/store.Connect                               1
+  gonexample.local/ecosystem/store.Open                                  1
