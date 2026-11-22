@@ -7,8 +7,10 @@ import (
 	"go/types"
 )
 
-// GW006: an ordinary flow into a `!T` slot of a non-interface nilable kind
-// (RFC explicit non-nil conversion, sections 6.4 and 6.6).
+// An ordinary flow into a `!T` slot of a non-interface nilable kind is GN001 (RFC
+// explicit non-nil conversion, sections 6.4 and 6.6 and the amendment A2, decided
+// 2026-11-22: the explicit conversion is the only way through). Until v1.21 the same
+// flow was the warning GW006.
 //
 // flowOutcome is the single decision, over the whole matrix of section 6.4; the
 // slot sites (variable initialiser, assignment, argument, result, field and
@@ -17,7 +19,7 @@ import (
 // of the slot do not change the outcome.
 
 // flowOutcome reports whether expr flowing into a slot declared `!U`, where
-// slot is the Go type U, is an ordinary flow: a GW006 warning, together with the
+// slot is the Go type U, is an ordinary flow: a GN001 error, together with the
 // static type S of the value (for the message). It is silent when there is no
 // type information, for the nil literal (GN001 elsewhere), for a slot that is
 // an interface (D3a, D3b and D3d apply) or a type parameter (OQ-2: D3b is
@@ -151,14 +153,14 @@ func (c *Checker) isConstructionBuiltin(call *ast.CallExpr) bool {
 	return ok && (b.Name() == "new" || b.Name() == "make")
 }
 
-// reportOrdinaryFlow emits GW006 at expr when flowOutcome says so.
+// reportOrdinaryFlow emits GN001 at expr when flowOutcome says so.
 func (c *Checker) reportOrdinaryFlow(expr ast.Expr, slot types.Type) {
 	warn, src := c.flowOutcome(expr, slot)
 	if !warn {
 		return
 	}
-	c.addWarning(expr.Pos(), "GW006", fmt.Sprintf(
-		"non-nil contract: value of type %s does not satisfy !%s; use (!%s)(x) to make an explicit claim",
+	c.addError(expr.Pos(), "GN001", fmt.Sprintf(
+		"cannot use value of type %s as !%s; use (!%s)(x) to make an explicit claim",
 		c.typeString(src), c.typeString(slot), c.typeString(slot)))
 }
 
@@ -233,7 +235,7 @@ func (c *Checker) litFieldType(lit *ast.CompositeLit, name string, index int) ty
 // declaredParamIsTypeParam reports whether the parameter at paramIndex of the
 // function or method called through fun is declared with a type parameter as its
 // type (`func Ptr[P ~*T](p !P)`). go/types records the instantiated parameter
-// type at the call (`*T`), but the slot is a type parameter, which GW006 leaves
+// type at the call (`*T`), but the slot is a type parameter, which this rule leaves
 // to D3b (RFC section 10.2, OQ-2).
 func (c *Checker) declaredParamIsTypeParam(fun ast.Expr, paramIndex int) bool {
 	if c.info == nil || fun == nil || paramIndex < 0 {
@@ -299,8 +301,8 @@ func (c *Checker) reportTupleFlows(call *ast.CallExpr, slots []types.Type) {
 		src := tup.At(i).Type()
 		recognised := i < len(results) && results[i]
 		if c.flowDecision(src, recognised, slots[i]) {
-			c.addWarning(call.Pos(), "GW006", fmt.Sprintf(
-				"non-nil contract: value of type %s does not satisfy !%s; use (!%s)(x) to make an explicit claim",
+			c.addError(call.Pos(), "GN001", fmt.Sprintf(
+				"cannot use value of type %s as !%s; use (!%s)(x) to make an explicit claim",
 				c.typeString(src), c.typeString(slots[i]), c.typeString(slots[i])))
 		}
 	}

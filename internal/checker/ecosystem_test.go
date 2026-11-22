@@ -78,7 +78,7 @@ import (
 	"bytes"
 	"github.com/daniel-juvito/gon/internal/extlib"
 )
-func f(h *extlib.Handle) {
+func f(h !*extlib.Handle) {
 	_ = extlib.Conn{DB: h, Log: h, W: &bytes.Buffer{}}
 }
 `
@@ -212,7 +212,7 @@ import (
 	"bytes"
 	"github.com/daniel-juvito/gon/internal/extlib"
 )
-func f(h *extlib.Handle) {
+func f(h !*extlib.Handle) {
 	_ = extlib.Conn{DB: h, Log: h, W: (*bytes.Buffer)(nil)}
 }
 `

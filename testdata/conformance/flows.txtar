@@ -225,11 +225,11 @@ func f(q *T, s []int, m map[string]int, c chan int, g func()) {
 	_, _, _, _, _ = a, b, d, e, h
 }
 -- GW-K-01/want --
-6 GW006
-7 GW006
-8 GW006
-9 GW006
-10 GW006
+6 GN001
+7 GN001
+8 GN001
+9 GN001
+10 GN001
 -- GW-S-01/src --
 package p
 
@@ -263,14 +263,14 @@ func f(q *T, p !*T) {
 	_ = []!*T{q}
 }
 -- GW-S-01/want --
-16 GW006
-20 GW006
-24 GW006
-25 GW006
-27 GW006
-28 GW006
-29 GW006
-30 GW006
+16 GN001
+20 GN001
+24 GN001
+25 GN001
+27 GN001
+28 GN001
+29 GN001
+30 GN001
 -- GW-T-01/src --
 package p
 
@@ -281,7 +281,7 @@ func f(m !map[string]int) {
 	_ = a
 }
 -- GW-T-01/want --
-6 GW006
+6 GN001
 -- GW-N-01/src --
 package p
 
@@ -297,9 +297,9 @@ func f(m map[string]*T, s []*T, v T) {
 	_, _, _, _ = a, b, c, d
 }
 -- GW-N-01/want --
-8 GW006
-9 GW006
-10 GW006
+8 GN001
+9 GN001
+10 GN001
 -- GW-B-01/src --
 package p
 
@@ -317,11 +317,11 @@ func f(s []int, q *T) {
 	_, _, _, _, _ = t1, t2, t3, p1, p2
 }
 -- GW-B-01/want --
-7 GW006
-8 GW006
-9 GW006
-11 GW006
-13 GW006
+7 GN001
+8 GN001
+9 GN001
+11 GN001
+13 GN001
 -- CHK-BANG-01/src --
 package p
 
@@ -447,10 +447,10 @@ func f() {
 	_ = []!*T{&T{}, new(T)}
 }
 -- GW-E-01/want --
-8 GW006
-9 GW006
-10 GW006
-11 GW006
+8 GN001
+9 GN001
+10 GN001
+11 GN001
 -- GW-G-01/src --
 package p
 
@@ -472,8 +472,8 @@ func f() {
 	_ = Ptr(mk())
 }
 -- GW-G-01/want --
-13 GW006
-16 GW006
+13 GN001
+16 GN001
 -- GW-C-01/src --
 package p
 
@@ -518,8 +518,8 @@ func f(q *T) {
 	_, _, _, _ = a, b, c, d
 }
 -- GW-P-01/want --
-8 GW006
-11 GW006
+8 GN001
+11 GN001
 -- GW-M-01/src --
 package p
 
@@ -554,18 +554,18 @@ func f() {
 	_, _, _, _ = a, b, c, d
 }
 -- GW-M-01/want --
-14 GW006
-14 GW006
-22 GW006
-22 GW006
-23 GW006
-27 GW006
-27 GW006
-28 GW006
-28 GW006
-29 GW006
-29 GW006
-30 GW006
+14 GN001
+14 GN001
+22 GN001
+22 GN001
+23 GN001
+27 GN001
+27 GN001
+28 GN001
+28 GN001
+29 GN001
+29 GN001
+30 GN001
 -- GW-M-02/src --
 package p
 
@@ -584,7 +584,7 @@ func f() {
 	(*Receiver).M(mkn())
 }
 -- GW-M-02/want --
-14 GW006
+14 GN001
 -- GW-A-01/src --
 package p
 
@@ -614,7 +614,7 @@ func f(v T, w W, arr [2]T, pw *W) {
 	_, _, _, _, _, _, _, _, _ = a, b, c, d, e, h, i, j, k
 }
 -- GW-A-01/want --
-22 GW006
+22 GN001
 -- GW-A-02/src --
 package p
 
@@ -670,9 +670,9 @@ func f(s S, ps *S, a [3]int, pa *[3]int, sl []int, e E, n int, pp **int, ch chan
 
 func n2(pp **int) *int { return *pp }
 -- GW-A-02/want --
-47 GW006
-48 GW006
-49 GW006
+47 GN001
+48 GN001
+49 GN001
 -- GW-A-03/src --
 package p
 
@@ -718,7 +718,7 @@ func f(b !*int, t T, n int, arr [2]int, s struct{ k int }) {
 
 func n3() *int { return new(int) }
 -- GW-A-03/want --
-40 GW006
+40 GN001
 -- GW-A-04/src --
 package p
 
@@ -750,7 +750,7 @@ func f(n int, s S) {
 	var _ !*int = (!*int)(&n)
 }
 -- GW-A-04/want --
-22 GW006
-23 GW006
-24 GW006
-27 GW006
+22 GN001
+23 GN001
+24 GN001
+27 GN001

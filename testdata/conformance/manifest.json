@@ -442,7 +442,7 @@
   "diagnostics": [
    "GN001"
   ],
-  "note": "interface rules unchanged; not GW006"
+  "note": "interface rules unchanged (D3a, D3b, D3d); not the rule of the non-interface kinds"
  },
  {
   "id": "FL-IF-02",
@@ -525,7 +525,7 @@
   "status": "enabled",
   "site": "internal/checker: isRecognisedSource",
   "diagnostics": [],
-  "note": "a conversion is a source, for five kinds; holds since the syntax is recognised (PR 1) and stays silent until GW006 exists: it guards against a false GW006 on a conversion"
+  "note": "a conversion is a source, for five kinds; holds since the syntax is recognised (PR 1): it guards against a false diagnostic on a conversion"
  },
  {
   "id": "CV-ID-01",
@@ -534,7 +534,7 @@
   "status": "enabled",
   "site": "internal/checker: flowOutcome",
   "diagnostics": [],
-  "note": "(!Reg)(m) states the contract on Reg; holds since the syntax is recognised (PR 1) and stays silent until GW006 exists: it guards against a false GW006 on a conversion"
+  "note": "(!Reg)(m) states the contract on Reg; holds since the syntax is recognised (PR 1): it guards against a false diagnostic on a conversion"
  },
  {
   "id": "CV-ID-02",
@@ -543,7 +543,7 @@
   "status": "enabled",
   "site": "internal/checker: flowOutcome",
   "diagnostics": [],
-  "note": "a conversion of a !T into a !T is the identity; holds since the syntax is recognised (PR 1) and stays silent until GW006 exists: it guards against a false GW006 on a conversion"
+  "note": "a conversion of a !T into a !T is the identity; holds since the syntax is recognised (PR 1): it guards against a false diagnostic on a conversion"
  },
  {
   "id": "CV-IF-01",
@@ -570,7 +570,7 @@
   "status": "enabled",
   "site": "internal/checker: flowOutcome (variable initialiser)",
   "diagnostics": [
-   "GW006"
+   "GN001"
   ],
   "note": "five kinds"
  },
@@ -581,7 +581,7 @@
   "status": "enabled",
   "site": "internal/checker: flowOutcome (assignment, argument, return, field, element)",
   "diagnostics": [
-   "GW006"
+   "GN001"
   ],
   "note": "every slot"
  },
@@ -592,7 +592,7 @@
   "status": "enabled",
   "site": "internal/checker: flowOutcome (types.Identical)",
   "diagnostics": [
-   "GW006"
+   "GN001"
   ],
   "note": "a recognised source of another type"
  },
@@ -603,7 +603,7 @@
   "status": "enabled",
   "site": "internal/checker: isRecognisedSource",
   "diagnostics": [
-   "GW006"
+   "GN001"
   ],
   "note": "map lookup, index and a plain call warn; &x is a recognised source since the owner decision of 2026-11-22 (see GW-A-01)"
  },
@@ -614,7 +614,7 @@
   "status": "enabled",
   "site": "internal/checker: isRecognisedSource (Part B must not leak)",
   "diagnostics": [
-   "GW006"
+   "GN001"
   ],
   "note": "append, slice expression, inferred local, a conversion that binds no local"
  },
@@ -728,7 +728,7 @@
   "status": "enabled",
   "site": "internal/checker: checkElementContracts (flowOutcome)",
   "diagnostics": [
-   "GW006"
+   "GN001"
   ],
   "note": "slice, map value, fixed array and [...] elements; a literal and new are sources"
  },
@@ -739,7 +739,7 @@
   "status": "enabled",
   "site": "internal/checker: flowOutcome (type parameters)",
   "diagnostics": [
-   "GW006"
+   "GN001"
   ],
   "note": "an instantiated generic field and a result of type *V warn; a slot that is a type parameter does not (OQ-2)"
  },
@@ -759,7 +759,7 @@
   "status": "enabled",
   "site": "internal/checker: isRecognisedSource (parentheses)",
   "diagnostics": [
-   "GW006"
+   "GN001"
   ],
   "note": "parentheses never change recognition"
  },
@@ -770,7 +770,7 @@
   "status": "enabled",
   "site": "internal/checker: reportTupleFlows (flowDecision per result position)",
   "diagnostics": [
-   "GW006"
+   "GN001"
   ],
   "note": "a multi-value call into several slots: return f(), a, b = f(), var a, b !T = f(), g(f()); a result that is !T is a source"
  },
@@ -781,7 +781,7 @@
   "status": "enabled",
   "site": "internal/checker: checkCallExpr (tuple, method expression)",
   "diagnostics": [
-   "GW006"
+   "GN001"
   ],
   "note": "in (*R).M(f()) result 0 is the receiver and result 1 is the first parameter; a result that is !T is a source"
  },
@@ -792,9 +792,9 @@
   "status": "enabled",
   "site": "internal/checker: isRecognisedSource (any &operand)",
   "diagnostics": [
-   "GW006"
+   "GN001"
   ],
-  "note": "any &operand is a recognised source: an identifier, a field, an element, in parentheses, in a variable, an argument and an element; only a slot of a named pointer type warns, because *int is not identical to P"
+  "note": "any &operand is a recognised source: an identifier, a field, an element, in parentheses, in a variable, an argument and an element; only a slot of a named pointer type is GN001, because *int is not identical to P"
  },
  {
   "id": "GW-A-02",
@@ -803,7 +803,7 @@
   "status": "enabled",
   "site": "internal/checker: isRecognisedSource (every operand of &)",
   "diagnostics": [
-   "GW006"
+   "GN001"
   ],
   "note": "every addressable operand of &: a parameter, a named result, a package variable, a field, a nested field, a field through a pointer, an array, pointer-to-array, slice and field element, a promoted and an embedded field, a dereference, parentheses, a composite literal and a field of a call result; a plain pointer value (*pp) and a call still warn"
  },
@@ -814,9 +814,9 @@
   "status": "enabled",
   "site": "internal/checker: isRecognisedSource (& at every slot)",
   "diagnostics": [
-   "GW006"
+   "GN001"
   ],
-  "note": "&operand is silent in an assignment, an argument, a method argument, a result, a function literal result, a keyed and an unkeyed field, a slice, array and map element and a multiple var declaration; the plain call on the last line still warns"
+  "note": "&operand is silent in an assignment, an argument, a method argument, a result, a function literal result, a keyed and an unkeyed field, a slice, array and map element and a multiple var declaration; the plain call on the last line is still GN001"
  },
  {
   "id": "GW-A-04",
@@ -825,8 +825,8 @@
   "status": "enabled",
   "site": "internal/checker: flowDecision (identity with &)",
   "diagnostics": [
-   "GW006"
+   "GN001"
   ],
-  "note": "the static type of &x is *T: a named pointer type slot warns, a conversion without ! is not a source, (!P)(&x) is, and a generic *X result is satisfied by &v"
+  "note": "the static type of &x is *T: a named pointer type slot is GN001, a conversion without ! is not a source, (!P)(&x) is, and a generic *X result is satisfied by &v"
  }
 ]

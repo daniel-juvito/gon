@@ -102,7 +102,7 @@ func TestGGna_ExternalGenericStructNilField(t *testing.T) {
 }
 
 func TestGGna_ExternalGenericStructOK(t *testing.T) {
-	d := gg(t, `func f(p *int) { _ = extlib.Box[int]{V: p} }`)
+	d := gg(t, `func f(p !*int) { _ = extlib.Box[int]{V: p} }`)
 	ggWant(t, d, "GN001", 0)
 	ggWant(t, d, "GN002", 0)
 }
@@ -203,7 +203,7 @@ func TestGGna_PerPositionDrop(t *testing.T) {
 	ggMsg(t, d, "GN001", "argument 2")
 
 	// A nil in the dropped position is no longer a contract violation.
-	d = ggWith(t, yaml, `func f(p *int) { _ = extlib.Mix(nil, p) }`)
+	d = ggWith(t, yaml, `func f(p !*int) { _ = extlib.Mix(nil, p) }`)
 	ggWant(t, d, "GN001", 0)
 }
 

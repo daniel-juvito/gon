@@ -18,7 +18,7 @@ import "testing"
 const elemPreamble = `package main
 type T struct{}
 type I interface{ M() }
-func mk() *T { return &T{} }
+func mk() !*T { return &T{} }
 func maybe() *T { return nil }
 `
 
@@ -50,12 +50,17 @@ func TestEC_EmptySliceOK(t *testing.T) {
 	}
 }
 
-func TestEC_OrdinaryCallElementAccepted(t *testing.T) {
-	// E4: only the literal nil is rejected; an ordinary expression that may
-	// return nil is accepted (conservative, Type Coverage C4).
+func TestEC_OrdinaryCallElementIsGN001(t *testing.T) {
+	// Amendment A2 (2026-11-22): an ordinary expression that may return nil is no
+	// longer accepted into an element `!`; it is GN001, and (!*T)(x) is the claim.
+	// (Until v1.21 this was the warning GW006; before it, silent.)
 	d := elemCheck(t, `func f() { _ = []!*T{maybe()} }`)
-	if countCode(d, "GN001") != 0 {
-		t.Fatalf("ordinary call element must be accepted: %v", d)
+	if countCode(d, "GN001") != 1 {
+		t.Fatalf("ordinary call element must be GN001: %v", d)
+	}
+	d = elemCheck(t, `func f() { _ = []!*T{(!*T)(maybe())} }`)
+	if len(d) != 0 {
+		t.Fatalf("an explicit conversion must be accepted: %v", d)
 	}
 }
 
