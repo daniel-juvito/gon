@@ -1,8 +1,8 @@
 # Changelog
 
-## [Unreleased]
+## [1.22.0] — 2026-11-22
 
-**Possibly breaking, by design (R1), to ship alone.** Amendment A2 of
+**Possibly breaking, by design (R1), shipped solo.** Amendment A2 of
 `docs/rfc-explicit-nonnil-conversion.md` (accepted 2026-11-22): an ordinary value of a
 nilable kind that flows into a `!T` slot is an **error**, not a warning.
 

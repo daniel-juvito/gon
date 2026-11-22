@@ -102,7 +102,7 @@ Exit 3 is a process/checker failure, not a Diagnostic. See Exit Codes.
 The set of codes grows without a `schemaVersion` change (see Compatibility).
 A value that flows into a `!T` slot of a non-interface nilable kind (pointer, slice,
 map, channel, function) without being a recognised non-nil source of the identical
-type is **GN001, an error** (on `main`, not yet released; amendment A2 of
+type is **GN001, an error** (since v1.22.0; amendment A2 of
 `rfc-explicit-nonnil-conversion.md`). It has the `gon-check` source, a range at the
 value, and no `relatedLocations`, and it makes the exit status 1. Its message is
 `cannot use value of type S as !U; use (!U)(x) to make an explicit claim`. In v1.21.0

@@ -19,7 +19,7 @@ A note kept at the owner's request, not a decision or a schedule. The owner's wo
   GN001 (D3b). It reverses the severity decision of Part A (RFC OQ-1, section 6.6, "GW006 is a warning"), which shipped in v1.21.0,
   so it is an amendment of an accepted RFC, a breaking change (R1) and its own release; it also closes the `(*int)(nil)` gap below.
   Needed, and done: an RFC amendment, a measurement (0 sites in gon production, 14 GW006 in gon-examples, 2 in gon-vscode fixtures, on
-  v1.21.0) and the migration plan for the examples (their pin follows the release). **Status (2026-11-22): accepted as amendment A2, code GN001, implemented on `main` (checker PR #85, documents after it), not released; the pin and the examples of the other two repositories follow the release.**
+  v1.21.0) and the migration plan for the examples (their pin follows the release). **Status (2026-11-22): accepted as amendment A2, code GN001, implemented (checker PR #85, documents after it) and released in v1.22.0; the pin and the examples of the other two repositories follow the release.**
 
 - **Part B** of the explicit-conversion RFC: audits are in `docs/measurements/partb-initial/` (#81) and the follow-up in
   `docs/measurements/partb-followup/`. Open design points found there: `x = nil` on an inferred local becomes
