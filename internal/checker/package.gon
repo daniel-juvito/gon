@@ -269,8 +269,8 @@ func CheckPackage(dir string, files []PackageFile, resolver gna.Resolver) (*Pack
 		shared.offsets[op] = f.NonNilOffsets
 
 		c := &Checker{
-			fset:          fset,
-			file:          syn,
+			fset:          (!*token.FileSet)(fset),
+			file:          (!*ast.File)(syn), // every checked file is in byPath: `missing` is empty here
 			filename:      f.Path,
 			cleanSrc:      f.Clean,
 			nonNilOffsets: f.NonNilOffsets,

@@ -78,8 +78,8 @@ func New(filename string, cleanSrc []byte, nonNilOffsets map[int]bool) (*Checker
 		return nil, fmt.Errorf("parse error: %w", err)
 	}
 	return &Checker{
-		fset:          fset,
-		file:          file,
+		fset:          (*token.FileSet)(fset),
+		file:          (*ast.File)(file), // non-nil: ParseFile returned no error
 		filename:      filename,
 		cleanSrc:      cleanSrc,
 		nonNilOffsets: nonNilOffsets,

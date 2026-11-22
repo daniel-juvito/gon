@@ -316,7 +316,7 @@ func (c *Checker) validateAnnotations() {
 		if err != nil || file == nil {
 			continue
 		}
-		c.validateGnaFile(path, file, tpkg)
+		c.validateGnaFile(path, (*gna.File)(file), tpkg) // file != nil: guarded above
 	}
 }
 

@@ -48,5 +48,5 @@ func (t *ContractTrace) withPath(seg string) *ContractTrace {
 	}
 	c := t.Clone()
 	c.Path = append(c.Path, seg)
-	return c
+	return (*ContractTrace)(c) // t != nil above, so Clone returned a copy
 }

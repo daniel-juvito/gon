@@ -93,7 +93,7 @@ jobs:
   gon-sources:
     runs-on: ubuntu-latest
     env:
-      GON_VERSION: v1.20.0
+      GON_VERSION: v1.21.0
     steps:
       - uses: actions/checkout@v4
 
@@ -112,4 +112,15 @@ jobs:
 
       - name: .go files match their .gon sources
         run: scripts/check-gon-sources.sh
+
+      - name: Gon's own sources satisfy their contracts
+        # A warning does not fail `gon check` (exit 0), so the output is read:
+        # any diagnostic, GW006 included, is a failure of this gate.
+        run: |
+          out=$(gon check ./... 2>&1) || { echo "$out"; exit 1; }
+          echo "$out"
+          if [ "$out" != "ok" ]; then
+            echo "gon check ./... must print exactly ok"
+            exit 1
+          fi
 
