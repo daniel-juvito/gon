@@ -137,7 +137,7 @@ is not a Gon mechanism for obtaining a `!I` value.
 
 The `!` modifier does not turn a Go interface conversion into a non-nil assertion or runtime check.
 
-*Amended by `rfc-explicit-nonnil-conversion.md` §9 (Part A, unreleased):* `!I(x)` (without
+*Amended by `rfc-explicit-nonnil-conversion.md` §9 (Part A, v1.21):* `!I(x)` (without
 parentheses) remains not a conversion form. The explicit conversion `(!I)(x)`, valid when
 `(I)(x)` is valid Go, is the claim form for an interface; like every non-nil conversion it
 performs no runtime check, and an ordinary conversion to `I` still produces an ordinary `I`.

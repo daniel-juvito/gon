@@ -1,6 +1,6 @@
 # RFC: Explicit Non-Nil Conversion `(!T)(x)`
 
-**Status:** **Part A: ACCEPTED** (formal design decision, 2026-11-21), including the extension of the OQ-1 decision to channel and function. **Part B: OPEN, not accepted.** The acceptance is a design decision only: it is not approval to implement or to merge, and nothing is scheduled (§5.1). **Implementation (2026-11-21):** Part A is implemented on `main` and not released (syntax, the checks of a conversion, GW006, the conformance harness `testdata/conformance`); the release shape, the migration of Gon's own sources and Part B remain open.  
+**Status:** **Part A: ACCEPTED** (formal design decision, 2026-11-21), including the extension of the OQ-1 decision to channel and function. **Part B: OPEN, not accepted.** The acceptance is a design decision only: it is not approval to implement or to merge, and nothing is scheduled (§5.1). **Implementation:** Part A is implemented and **released in v1.21.0 (2026-11-22)** (syntax, the checks of a conversion, GW006, the conformance harness `testdata/conformance`); the migration of Gon's own sources and Part B remain open.  
 **Amendment (2026-11-22, decision of the owner):** any `&operand` is a recognised non-nil source of Part A (§4 note, §6.6, §10.3): the address of an addressable operand or of a composite literal is never nil, and evaluating it either gives that address or panics, as in Go.
 **Target:** Unassigned (the owner decides the release number, date and shape)  
 **Related:** `docs/roadmap-v1.3-plus.md` (I1–I7), `docs/rfc-interface-semantics.md` (D3, D6),

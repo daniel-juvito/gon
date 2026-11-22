@@ -43,6 +43,7 @@ One line per minor version, newest first; patch releases are folded into the lin
 
 | Version | What it added or changed |
 |---------|--------------------------|
+| [v1.21](CHANGELOG.md#1210--2026-11-22) | The explicit non-nil conversion `(!T)(x)` (an author's claim, no run-time check) and the new warning **GW006**: a value that Gon cannot see to be non-nil flowing into a `!T` slot of a pointer, slice, map, channel or function kind now warns (exit code unchanged), and `&operand`, `&T{}`, `new`, `make`, literals, a `!T` result and `(!T)(x)` are recognised. `!!T` is `!T`. `var x ! *T` is now enforced (it was silently ignored): **possibly breaking**, for a CI that fails on warnings and for code that relied on that. |
 | [v1.20](CHANGELOG.md#1200--2026-11-21) | File mode and `gon build <dir>`: a malformed `//go:build` in a file operand is now **exit 1** (it was exit 0), and `gon build <dir>` with no module for the operand is **exit 2** before anything is written (it was exit 1 after writing the `.go` files). |
 | [v1.19](CHANGELOG.md#1190--2026-11-19) | Package mode: a malformed `//go:build` line is a source error of its package (the file is not checked, the others are, **exit 1**; it was exit 2), and names the go tool ignores are not part of the package. |
 | [v1.18](CHANGELOG.md#1180--2026-11-19) | Package mode outside a module: a directory with several `.gon` files is checked as one package (it was **exit 2**), and build constraints apply as inside a module. |
@@ -68,7 +69,7 @@ One line per minor version, newest first; patch releases are folded into the lin
 ## Install
 
 ```bash
-go install github.com/daniel-juvito/gon/cmd/gon@v1.20.0
+go install github.com/daniel-juvito/gon/cmd/gon@v1.21.0
 ```
 
 Or from source:
@@ -312,9 +313,9 @@ Full format: [docs/gna-spec-v1.md](docs/gna-spec-v1.md)
 | GW003 | warning  | redundant type assertion on a declared `!T` identifier (v1.3) |
 | GW004 | warning  | `.gna` names a `functions:` / `methods:` / `types:` symbol the package does not provide (v1.5) |
 | GW005 | warning  | a `.gna` exists for an imported package of the main module that has `.gon` sources: the `.gna` is ignored, the `.gon` sources are authoritative (v1.14); once per import |
-| GW006 | warning  | *(on `main`, not yet released)* a value that is not a recognised non-nil source, or is one of a different (not identical) type, flows into a `!T` slot of a pointer, slice, map, channel or function kind; silenced by the explicit conversion `(!T)(x)`. An ordinary interface value into `!I` stays GN001 |
+| GW006 | warning  | (v1.21) a value that is not a recognised non-nil source, or is one of a different (not identical) type, flows into a `!T` slot of a pointer, slice, map, channel or function kind; silenced by the explicit conversion `(!T)(x)`. An ordinary interface value into `!I` stays GN001 |
 
-### Explicit non-nil conversion (on `main`, not yet released)
+### Explicit non-nil conversion (v1.21)
 
 `(!T)(x)` is the author's claim that `x`, converted to `T`, is non-nil. It is valid
 exactly when the Go conversion `(T)(x)` is valid, it performs **no run-time check**,

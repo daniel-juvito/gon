@@ -100,7 +100,7 @@ It is never optional, even when the process later exits with code 3.
 Exit 3 is a process/checker failure, not a Diagnostic. See Exit Codes.
 
 The set of codes grows without a `schemaVersion` change (see Compatibility).
-**GW006** (a warning, not yet released) reports a value that flows into a `!T` slot of
+**GW006** (a warning, v1.21) reports a value that flows into a `!T` slot of
 a non-interface nilable kind (pointer, slice, map, channel, function) without being
 a recognised non-nil source of the identical type. Like every warning it has the
 `gon-check` source, a range at the value, and no `relatedLocations`; it never
