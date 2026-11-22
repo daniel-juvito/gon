@@ -1,4 +1,4 @@
-// Independent syntactic cross-check of Part B bindings (scratch): for each `:=` / `var x = e` whose RHS has a structural
+// Independent syntactic cross-check of Part B bindings (scratch): for each short declaration `:=` (a `var x = e` is not counted) whose RHS has a structural
 // non-nil form of a nilable kind (by syntax only, no types), report the later uses of x in the same function:
 // nil comparisons, assignments (nil / other), by name. Types are not used: a literal of a non-nilable kind is excluded
 // by syntax (struct/array literal, &lit counts as pointer).

@@ -1,7 +1,7 @@
 # Part B, follow-up audit (scratch, UNAUDITED)
 
-Basis: `gon` main 5d82caa, gon-examples ed6f6f1, gon-vscode bb8689c, real gon v1.21.0. Nothing in a repository was
-changed. Three parts, as chosen: per-site classification, review of RFC section 6.8, measurement outside the three
+Basis: `gon` main 5d82caa, gon-examples ed6f6f1, gon-vscode bb8689c, real gon v1.21.0. No source of the three measured
+repositories was modified by the audit (this report and its tools were added to `gon` afterwards, as documents only). Three parts, as chosen: per-site classification, review of RFC section 6.8, measurement outside the three
 repositories. Tools (scratch): `pbm` (the instrument of #81), `indep-main.go.txt` (a second, independent, syntax-only counter, no
 types), `loop-main.go.txt` (traversal loops), real `gon check` for the controls. Their sources and the raw outputs are in this directory.
 
@@ -9,8 +9,9 @@ types), `loop-main.go.txt` (traversal loops), real `gon check` for the controls.
 
 Independent check of the 91 new bindings. `indep_bin` reads the generated `.go` of every `.gon` source and counts, by syntax only,
 every `x := e` whose `e` has a recognised structural form of a nilable kind. It found **91**, with the same split as the
-instrument: `make`/`new` 51, `&literal` 24, slice/map literal 9, function literal 6, `append` with explicit elements 1.
-Two tools that do not share code agree on the number and on the forms.
+instrument: `make`/`new` 51, `&operand` 24 (22 of a composite literal, 2 of another operand: the two that the old rule did not count, see the +2 of #81), slice/map literal 9, function literal 6, `append` with explicit elements 1.
+Two tools that do not share code agree on the number and on the forms. The counter is syntax-only and counts any unary `&`; the split
+22 and 2 above comes from a separate count of the operand of each `&` (not part of the counter's source), and the 2 equal the +2 of the reconciliation in #81.
 
 Uses of these 91 variables later in the same function (by name, so an upper bound):
 
