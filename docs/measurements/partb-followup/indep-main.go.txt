@@ -1,0 +1,185 @@
+// Independent syntactic cross-check of Part B bindings (scratch): for each short declaration `:=` (a `var x = e` is not counted) whose RHS has a structural
+// non-nil form of a nilable kind (by syntax only, no types), report the later uses of x in the same function:
+// nil comparisons, assignments (nil / other), by name. Types are not used: a literal of a non-nilable kind is excluded
+// by syntax (struct/array literal, &lit counts as pointer).
+package main
+
+import (
+	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+)
+
+func unparen(e ast.Expr) ast.Expr {
+	for {
+		p, ok := e.(*ast.ParenExpr)
+		if !ok {
+			return e
+		}
+		e = p.X
+	}
+}
+
+// form returns a structural form name if e is syntactically a recognised non-nil source of a nilable kind.
+func form(e ast.Expr) string {
+	e = unparen(e)
+	switch x := e.(type) {
+	case *ast.CompositeLit:
+		switch t := x.Type.(type) {
+		case *ast.ArrayType:
+			if t.Len == nil {
+				return "composite-slice"
+			}
+		case *ast.MapType:
+			return "composite-map"
+		}
+		return "" // named type or struct/array: kind unknown without types
+	case *ast.UnaryExpr:
+		if x.Op == token.AND {
+			return "address-of"
+		}
+	case *ast.FuncLit:
+		return "func-literal"
+	case *ast.CallExpr:
+		if id, ok := x.Fun.(*ast.Ident); ok {
+			switch id.Name {
+			case "make":
+				if len(x.Args) > 0 {
+					switch x.Args[0].(type) {
+					case *ast.ArrayType, *ast.MapType, *ast.ChanType:
+						return "make"
+					}
+				}
+			case "new":
+				return "new"
+			case "append":
+				if len(x.Args) > 1 && x.Ellipsis == token.NoPos {
+					return "append(explicit)"
+				}
+			}
+		}
+	}
+	return ""
+}
+
+type use struct{ kind, pos string }
+
+func main() {
+	root := os.Args[1]
+	fset := token.NewFileSet()
+	forms := map[string]int{}
+	var uses []use
+	total := 0
+	filepath.Walk(root, func(p string, fi os.FileInfo, err error) error {
+		if err != nil || fi.IsDir() || !strings.HasSuffix(p, ".go") || strings.HasSuffix(p, "_test.go") ||
+			strings.Contains(p, "/testdata/") || strings.Contains(p, "/.git/") {
+			return nil
+		}
+		if os.Getenv("ALL") == "" {
+			if _, e := os.Stat(strings.TrimSuffix(p, ".go") + ".gon"); e != nil {
+				return nil // only generated files of .gon sources
+			}
+		} else if strings.Contains(p, "/vendor/") || strings.Contains(p, "/testdata/") {
+			return nil
+		}
+		f, err := parser.ParseFile(fset, p, nil, 0)
+		if err != nil {
+			return nil
+		}
+		ast.Inspect(f, func(n ast.Node) bool {
+			var body *ast.BlockStmt
+			switch fn := n.(type) {
+			case *ast.FuncDecl:
+				body = fn.Body
+			case *ast.FuncLit:
+				body = fn.Body
+			}
+			if body == nil {
+				return true
+			}
+			// bindings declared directly in this function body (nested funclits are visited separately)
+			ast.Inspect(body, func(m ast.Node) bool {
+				if fl, ok := m.(*ast.FuncLit); ok && fl.Body != body {
+					return false
+				}
+				as, ok := m.(*ast.AssignStmt)
+				if !ok || as.Tok != token.DEFINE || len(as.Lhs) != len(as.Rhs) {
+					return true
+				}
+				for i, l := range as.Lhs {
+					id, ok := l.(*ast.Ident)
+					if !ok || id.Name == "_" {
+						continue
+					}
+					fm := form(as.Rhs[i])
+					if fm == "" {
+						continue
+					}
+					total++
+					forms[fm]++
+					// later uses by name in the same function body, outside nested shadowing (approximate: by name)
+					ast.Inspect(body, func(u ast.Node) bool {
+						switch s := u.(type) {
+						case *ast.BinaryExpr:
+							if s.Op == token.EQL || s.Op == token.NEQ {
+								a, b := unparen(s.X), unparen(s.Y)
+								for _, pr := range [][2]ast.Expr{{a, b}, {b, a}} { // x == nil and nil == x
+									if x, ok := pr[0].(*ast.Ident); ok && x.Name == id.Name {
+										if y, ok := pr[1].(*ast.Ident); ok && y.Name == "nil" {
+											uses = append(uses, use{"nil-compare", fset.Position(s.Pos()).String() + " var " + id.Name})
+										}
+									}
+								}
+							}
+						case *ast.AssignStmt:
+							if s.Tok == token.ASSIGN {
+								for j, lh := range s.Lhs {
+									if x, ok := lh.(*ast.Ident); ok && x.Name == id.Name && len(s.Lhs) == len(s.Rhs) {
+										k := "assign-other"
+										if r, ok := unparen(s.Rhs[j]).(*ast.Ident); ok && r.Name == "nil" {
+											k = "assign-nil"
+										} else if form(s.Rhs[j]) != "" {
+											k = "assign-source"
+										}
+										uses = append(uses, use{k, fset.Position(s.Pos()).String() + " var " + id.Name + " = " + fmt.Sprint(types(s.Rhs[j]))})
+									}
+								}
+							}
+						}
+						return true
+					})
+				}
+				return true
+			})
+			return true
+		})
+		return nil
+	})
+	fmt.Println("syntactic bindings of recognised forms:", total)
+	var ks []string
+	for k := range forms {
+		ks = append(ks, k)
+	}
+	sort.Strings(ks)
+	for _, k := range ks {
+		fmt.Printf("  %-20s %d\n", k, forms[k])
+	}
+	sort.Slice(uses, func(i, j int) bool { return uses[i].kind+uses[i].pos < uses[j].kind+uses[j].pos })
+	cnt := map[string]int{}
+	for _, u := range uses {
+		cnt[u.kind]++
+	}
+	fmt.Println("later uses by name in the same function:", cnt)
+	if os.Getenv("LIST") != "" {
+		for _, u := range uses {
+			fmt.Println(" ", u.kind, u.pos)
+		}
+	}
+}
+
+func types(e ast.Expr) string { return fmt.Sprintf("%T", unparen(e)) }

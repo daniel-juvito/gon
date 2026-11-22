@@ -1,0 +1,33 @@
+syntactic bindings of recognised forms: 91
+  address-of           24
+  append(explicit)     1
+  composite-slice      9
+  func-literal         6
+  make                 51
+later uses by name in the same function: map[assign-other:6 assign-source:20]
+  assign-other cmd/gon/main.go:192:4 var goArgs = *ast.CallExpr
+  assign-other internal/checker/method_contracts.go:54:3 var files = *ast.SelectorExpr
+  assign-other internal/checker/package.go:162:3 var queries = *ast.SliceExpr
+  assign-other internal/checker/package.go:166:3 var queries = *ast.CallExpr
+  assign-other internal/fmt/fmt.go:248:3 var out = *ast.CallExpr
+  assign-other internal/fmt/fmt.go:252:2 var out = *ast.CallExpr
+  assign-source cmd/gon/main.go:193:4 var goArgs = *ast.CallExpr
+  assign-source cmd/gon/transpile_dir.go:348:5 var out = *ast.CallExpr
+  assign-source cmd/gon/transpile_dir.go:356:6 var out = *ast.CallExpr
+  assign-source internal/checker/construction.go:372:5 var path = *ast.CompositeLit
+  assign-source internal/checker/construction.go:372:5 var path = *ast.CompositeLit
+  assign-source internal/checker/construction.go:402:5 var path = *ast.CompositeLit
+  assign-source internal/checker/construction.go:402:5 var path = *ast.CompositeLit
+  assign-source internal/checker/ecosystem.go:17:3 var ks = *ast.CallExpr
+  assign-source internal/checker/fields.go:298:6 var names = *ast.CallExpr
+  assign-source internal/checker/package.go:164:4 var queries = *ast.CallExpr
+  assign-source internal/checker/package.go:230:4 var checked = *ast.CallExpr
+  assign-source internal/checker/package.go:296:3 var checkers = *ast.CallExpr
+  assign-source internal/fmt/fmt.go:127:4 var openList = *ast.CallExpr
+  assign-source internal/fmt/fmt.go:128:4 var closeList = *ast.CallExpr
+  assign-source internal/fmt/fmt.go:182:5 var insertAt = *ast.CallExpr
+  assign-source internal/fmt/fmt.go:249:3 var out = *ast.CallExpr
+  assign-source internal/gna/source.go:214:6 var out = *ast.CallExpr
+  assign-source internal/lsp/server.go:201:3 var out = *ast.CallExpr
+  assign-source internal/preproc/preproc.go:194:3 var cleanToOrig = *ast.CallExpr
+  assign-source internal/preproc/preproc.go:195:3 var clean = *ast.CallExpr

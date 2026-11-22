@@ -1,0 +1,28 @@
+syntactic bindings of recognised forms: 43
+  address-of           6
+  composite-map        6
+  composite-slice      7
+  func-literal         8
+  make                 7
+  new                  9
+later uses by name in the same function: map[assign-other:3 assign-source:17]
+  assign-other github.com/spf13/cobra@v1.8.1/command.go:712:5 var ret = *ast.CallExpr
+  assign-other github.com/spf13/cobra@v1.8.1/command.go:713:5 var ret = *ast.CallExpr
+  assign-other github.com/spf13/cobra@v1.8.1/command.go:948:4 var parents = *ast.CallExpr
+  assign-source github.com/spf13/cobra@v1.8.1/args.go:57:4 var validArgs = *ast.CallExpr
+  assign-source github.com/spf13/cobra@v1.8.1/command.go:1162:4 var missingFlagNames = *ast.CallExpr
+  assign-source github.com/spf13/cobra@v1.8.1/command.go:1375:3 var commands = *ast.CallExpr
+  assign-source github.com/spf13/cobra@v1.8.1/command.go:676:4 var commands = *ast.CallExpr
+  assign-source github.com/spf13/cobra@v1.8.1/command.go:777:4 var matches = *ast.CallExpr
+  assign-source github.com/spf13/cobra@v1.8.1/command.go:802:4 var flags = *ast.CallExpr
+  assign-source github.com/spf13/cobra@v1.8.1/command.go:807:4 var flags = *ast.CallExpr
+  assign-source github.com/spf13/cobra@v1.8.1/command.go:812:4 var flags = *ast.CallExpr
+  assign-source github.com/spf13/cobra@v1.8.1/command.go:816:4 var flags = *ast.CallExpr
+  assign-source github.com/spf13/cobra@v1.8.1/command.go:842:5 var suggestions = *ast.CallExpr
+  assign-source github.com/spf13/cobra@v1.8.1/command.go:846:6 var suggestions = *ast.CallExpr
+  assign-source github.com/spf13/cobra@v1.8.1/command.go:951:4 var parents = *ast.CallExpr
+  assign-source github.com/spf13/cobra@v1.8.1/doc/man_docs.go:224:4 var seealsos = *ast.CallExpr
+  assign-source github.com/spf13/cobra@v1.8.1/doc/man_docs.go:238:4 var seealsos = *ast.CallExpr
+  assign-source github.com/spf13/cobra@v1.8.1/doc/yaml_docs.go:124:4 var result = *ast.CallExpr
+  assign-source github.com/spf13/cobra@v1.8.1/doc/yaml_docs.go:132:4 var result = *ast.CallExpr
+  assign-source github.com/spf13/cobra@v1.8.1/flag_groups.go:152:5 var unset = *ast.CallExpr

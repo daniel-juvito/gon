@@ -1,0 +1,15 @@
+syntactic bindings of recognised forms: 19
+  address-of           6
+  make                 11
+  new                  2
+later uses by name in the same function: map[assign-other:1 assign-source:9]
+  assign-other github.com/gin-gonic/gin@v1.10.0/path.go:48:4 var buf = *ast.SliceExpr
+  assign-source github.com/gin-gonic/gin@v1.10.0/context.go:155:3 var hn = *ast.CallExpr
+  assign-source github.com/gin-gonic/gin@v1.10.0/gin.go:427:3 var cidr = *ast.CallExpr
+  assign-source github.com/gin-gonic/gin@v1.10.0/gin.go:658:5 var allowed = *ast.CallExpr
+  assign-source github.com/gin-gonic/gin@v1.10.0/path.go:46:4 var buf = *ast.CallExpr
+  assign-source github.com/gin-gonic/gin@v1.10.0/tree.go:386:3 var child = *ast.UnaryExpr
+  assign-source github.com/gin-gonic/gin@v1.10.0/tree.go:386:3 var child = *ast.UnaryExpr
+  assign-source github.com/gin-gonic/gin@v1.10.0/tree.go:386:3 var child = *ast.UnaryExpr
+  assign-source github.com/gin-gonic/gin@v1.10.0/tree.go:683:3 var buf = *ast.CallExpr
+  assign-source github.com/gin-gonic/gin@v1.10.0/utils.go:111:4 var out = *ast.CallExpr

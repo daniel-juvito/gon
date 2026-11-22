@@ -1,0 +1,9 @@
+syntactic bindings of recognised forms: 10
+  composite-slice      3
+  make                 5
+  new                  2
+later uses by name in the same function: map[assign-source:4]
+  assign-source github.com/stretchr/testify@v1.9.0/assert/assertions.go:248:5 var callers = *ast.CallExpr
+  assign-source github.com/stretchr/testify@v1.9.0/assert/assertions.go:355:3 var content = *ast.CallExpr
+  assign-source github.com/stretchr/testify@v1.9.0/assert/assertions.go:360:3 var content = *ast.CallExpr
+  assign-source github.com/stretchr/testify@v1.9.0/suite/suite.go:205:3 var tests = *ast.CallExpr
