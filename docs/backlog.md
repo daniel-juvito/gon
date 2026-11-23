@@ -11,6 +11,10 @@ A note kept at the owner's request, not a decision or a schedule. The owner's wo
   (README); whether and how it comes is open.
 - Part B items that the owner may decide to move here instead of v1 (see below).
 
+- **Contracts on mutable containers and inner pointer levels** (discussed 2026-11-22, not decided). Today an element contract (`[]!*T`, `map[K]!*V`) is a
+  construction-time obligation, and `!T` flows into `T` silently, so a write through an alias (`var u []*T = s; u[0] = nil`) breaks it unnoticed (checked on
+  v1.22.0). Closing it needs the container types to be invariant in their contract, and a contract tree that follows the type tree (`!*!*int`, an inner
+  `!` after `*`, which the parser rejects today). A larger change, R1. Not started.
 - **Nilability overlay, invariance, and the backdoor register** (discussed 2026-11-22/23, not decided): the goal "support nilability without introducing a backdoor", the register of
   paths found by testing on v1.22.0, the two-layer design (`!T1 <: T2` iff `T1 = T2`, an inner contract is invariant, only the outermost `!` can be dropped) and its surface are in
   `docs/nilability-backdoors.md`. Whether it ships as v1.x minors or as v2 is the owner's decision.

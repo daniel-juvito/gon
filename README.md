@@ -362,7 +362,13 @@ writes `!T`); `!!x` in an expression is still the Go double negation. See
 - Element contracts: `[]!*T` / `[N]!*T` / `map[K]!*V` / `[]!I` checked at the
   composite-literal construction site — explicit-nil element (GN001) and
   fixed-array element zero-fill (GN002); construction-time only, not a
-  lifetime invariant (v1.7)
+  lifetime invariant (v1.7). **Known limit:** a contract on a mutable container is not
+  carried by its aliases, because `!T` flows into `T` without a diagnostic (a non-nil
+  value is a subtype of a nilable one). After `a := []!*T{p}; var b []*T = a`, the
+  statements `b[0] = nil` and `a[0] = nil` are accepted, and `a[0]` is then nil. The same
+  holds for a map (`map[K]!*V`). Gon checks the
+  construction, not every later write; making these containers invariant is a larger
+  change, listed in `docs/backlog.md`
 
 **Out of scope**
 
