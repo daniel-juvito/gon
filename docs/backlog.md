@@ -11,6 +11,11 @@ A note kept at the owner's request, not a decision or a schedule. The owner's wo
   (README); whether and how it comes is open.
 - Part B items that the owner may decide to move here instead of v1 (see below).
 
+- **Contracts on mutable containers and inner pointer levels** (discussed 2026-11-22, not decided). Today an element contract (`[]!*T`, `map[K]!*V`) is a
+  construction-time obligation, and `!T` flows into `T` silently, so a write through an alias (`var u []*T = s; u[0] = nil`) breaks it unnoticed (checked on
+  v1.22.0). Closing it needs the container types to be invariant in their contract, and a contract tree that follows the type tree (`!*!*int`, an inner
+  `!` after `*`, which the parser rejects today). A larger change, R1. Not started.
+
 ## v1 open items (focus now)
 
 - **Nilable to non-nil must be explicit: an error, in v1** (owner, 2026-11-22; corrects the earlier note that put this in v2).
