@@ -72,7 +72,7 @@ func (c *Checker) reportMissingNonNilFields(pos token.Pos, typExpr ast.Expr, pro
 	switch t := genericOrigin(typExpr).(type) {
 	case *ast.Ident:
 		// A named array type of this package (`type Slots [4]!*T`).
-		if named, isArray := c.namedTypeExpr(t.Name).(*ast.ArrayType); isArray {
+		if named := c.arrayTypeOf(t); named != nil {
 			c.reportMissingNonNilFields(pos, named, nil, pathPrefix)
 			return
 		}

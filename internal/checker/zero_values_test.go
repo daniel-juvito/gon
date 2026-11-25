@@ -148,3 +148,76 @@ func TestZV_C1_MethodNamedBangResult(t *testing.T) {
 	d := zvCheck(t, `type R struct{}; func (R) m() (x !*T) { x = nil; return nn() }`)
 	zvWant(t, d, "GN001", 1)
 }
+
+// Chains of defined types and aliases are followed to the array or slice at the end
+// of them, however long they are.
+func TestZV_A_NamedArrayChains(t *testing.T) {
+	const decls = `type A [4]!*T
+type B A
+type C B
+type D = C
+type Holder2 struct{ S D }
+`
+	for name, body := range map[string]string{
+		"defined once":   `func f() { var b B; _ = b }`,
+		"defined twice":  `func f() { var c C; _ = c }`,
+		"alias":          `func f() { var d D; _ = d }`,
+		"new":            `func f() { _ = new(C) }`,
+		"new of alias":   `func f() { _ = new(D) }`,
+		"struct field":   `func f() { var h Holder2; _ = h }`,
+		"struct literal": `func f() { _ = Holder2{} }`,
+		"struct new":     `func f() { _ = new(Holder2) }`,
+		"package level":  `var g C`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			zvWant(t, checkTyped(t, "package main\n\ntype T struct{}\n"+decls+body), "GN002", 1)
+		})
+	}
+}
+
+func TestZV_B_LongSliceChain(t *testing.T) {
+	var b strings.Builder
+	b.WriteString("package main\n\ntype T struct{}\ntype S0 []!*T\n")
+	for i := 1; i <= 30; i++ {
+		b.WriteString("type S" + itoa(i) + " S" + itoa(i-1) + "\n")
+	}
+	b.WriteString("func f(n int) { _ = make(S30, n); _ = make(S30, 0, n) }\n")
+	zvWant(t, checkTyped(t, b.String()), "GN002", 1)
+}
+
+func itoa(i int) string {
+	if i == 0 {
+		return "0"
+	}
+	var d []byte
+	for ; i > 0; i /= 10 {
+		d = append([]byte{byte('0' + i%10)}, d...)
+	}
+	return string(d)
+}
+
+// Without type information a function called make cannot be told from the builtin,
+// so rule B is silent instead of risking a wrong GN002.
+func TestZV_B_NoTypeInformationIsSilent(t *testing.T) {
+	d := checkSource(t, `package main
+
+type T struct{}
+
+func make(n int) []int { return nil }
+
+func f() { _ = make(3); _ = make([]!*T, 3) }
+`)
+	zvWant(t, d, "GN002", 0)
+}
+
+func TestZV_A_KeyedFullLiteralIsSilent(t *testing.T) {
+	zvWant(t, zvCheck(t, `func f() { _ = [3]!*T{2: nn(), 0: nn(), 1: nn()} }`), "GN002", 0)
+}
+
+func TestZV_C1_MultipleNamedResultsAndShadowing(t *testing.T) {
+	d := zvCheck(t, `func f() (a, b !*T) { a = nil; b = ord(); return nn(), nn() }`)
+	zvWant(t, d, "GN001", 2)
+	// An inner variable of the same name is its own variable.
+	d = zvCheck(t, `func f() (x !*T) { { x := ord(); x = nil; _ = x }; return nn() }`)
+	zvWant(t, d, "GN001", 0)
+}

@@ -53,14 +53,21 @@ func typeExprIn(file *ast.File, name string) ast.Expr {
 
 // arrayTypeOf resolves a type expression to an array or slice type literal: the
 // literal itself, or the declaration of a named type of this package whose
-// underlying declaration is one (`type Slots [4]!*T`, `type Ptrs []!*T`). It is
-// nil for anything else.
+// underlying type is one, however long the chain of defined types and aliases
+// (`type Slots [4]!*T; type More Slots; type Alias = More`). It is nil for anything
+// else. There is no depth limit: a name already visited ends the walk, so a
+// declaration that is not valid Go cannot loop.
 func (c *Checker) arrayTypeOf(e ast.Expr) *ast.ArrayType {
-	for depth := 0; depth < 8 && e != nil; depth++ {
+	seen := make(map[string]bool)
+	for e != nil {
 		switch t := unparenExpr(genericOrigin(e)).(type) {
 		case *ast.ArrayType:
 			return t
 		case *ast.Ident:
+			if seen[t.Name] {
+				return nil
+			}
+			seen[t.Name] = true
 			e = c.namedTypeExpr(t.Name)
 		default:
 			return nil
@@ -127,10 +134,13 @@ func (c *Checker) checkMakeConstruction(call *ast.CallExpr) {
 	if !ok || fun.Name != "make" {
 		return
 	}
-	if c.info != nil {
-		if _, isBuiltin := c.info.Uses[fun].(*types.Builtin); !isBuiltin {
-			return
-		}
+	// Without type information a function of this package called `make` cannot be told
+	// from the builtin, so the rule is silent rather than risk a wrong GN002.
+	if c.info == nil {
+		return
+	}
+	if _, isBuiltin := c.info.Uses[fun].(*types.Builtin); !isBuiltin {
+		return
 	}
 	at := c.arrayTypeOf(call.Args[0])
 	if at == nil || at.Len != nil {

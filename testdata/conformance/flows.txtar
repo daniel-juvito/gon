@@ -822,3 +822,33 @@ func f6() !*T { return nn() }
 8 GN001
 9 GN001
 10 GW001
+-- ZV-A-02/src --
+package p
+
+type T struct{}
+type A [4]!*T
+type B A
+type C B
+type D = C
+type Holder struct{ S D }
+type S0 []!*T
+type S1 S0
+type S2 = S1
+
+func f(n int) {
+	var b B
+	var c C
+	var d D
+	_ = new(C)
+	var h Holder
+	_ = make(S2, n)
+	_ = make(S2, 0, n)
+	_, _, _, _ = b, c, d, h
+}
+-- ZV-A-02/want --
+14 GN002
+15 GN002
+16 GN002
+17 GN002
+18 GN002
+19 GN002

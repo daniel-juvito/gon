@@ -862,5 +862,16 @@
    "GW001"
   ],
   "note": "a named !T result is a ! variable in the body of a declaration, as it already was in a function literal"
+ },
+ {
+  "id": "ZV-A-02",
+  "rfc": "cheap backdoors, rules A and B",
+  "kind": "check",
+  "status": "enabled",
+  "site": "internal/checker: arrayTypeOf",
+  "diagnostics": [
+   "GN002"
+  ],
+  "note": "chains of defined types and aliases are followed to the array or slice at the end, in a variable, new, a struct field and make"
  }
 ]
