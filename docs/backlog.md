@@ -19,6 +19,9 @@ A note kept at the owner's request, not a decision or a schedule. The owner's wo
   paths found by testing on v1.22.0, the two-layer design (`!T1 <: T2` iff `T1 = T2`, an inner contract is invariant, only the outermost `!` can be dropped) and its surface are in
   `docs/nilability-backdoors.md`. Whether it ships as v1.x minors or as v2 is the owner's decision.
 
+- **Four local backdoors (zero-valued arrays, `make`, named `!T` results)** (measured 2026-11-23/25, proposed as `docs/rfc-cheap-backdoors.md`, PROPOSED, not accepted): rules A, B, C1 and C2, with the
+  evidence on v1.22.0 and on Go code, and four questions for the owner. Not started.
+
 ## v1 open items (focus now)
 
 - **Nilable to non-nil must be explicit: an error, in v1** (owner, 2026-11-22; corrects the earlier note that put this in v2).

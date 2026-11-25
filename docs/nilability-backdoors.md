@@ -52,6 +52,10 @@ by the checker.** A path that is neither is a backdoor. `(!T)(x)` is a door, not
 Data races and goroutines, `reflect`, `unsafe`, cgo, `json.Unmarshal` into a `!` field, a write through an address that escaped to another function (`json.Unmarshal(data, &x)`),
 panic and `recover`, a callback that modifies a pointer or a container, shared global state. These are limits of the host language, to be stated, not tested with `gon check`.
 
+**Proposed fix for part of 2.2** (zero-valued arrays, `make`, named results): `docs/rfc-cheap-backdoors.md` (PROPOSED). Two results of the measurement that this register did not yet have: a named
+`!T` result is **not tracked as a `!` variable in the body at all** (`x = nil` and `x = ord()` are silent, not only a bare `return`), and `new([N]!*T`, a named array type and a struct field of an
+array of `!` are silent at their zero value.
+
 ## 3. The principle behind 2.2
 
 A non-nil contract is safe for a value that is only read: `!T` may flow into `T` (a subtype). It is not safe for a **place that can be written through an alias** (a slice, a map, the
