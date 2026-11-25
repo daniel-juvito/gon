@@ -27,6 +27,9 @@ type Checker struct {
 	// false is also stored so a nullable shadowing declaration hides an outer !T.
 	scopes             []map[string]bool
 	currentFuncReturns []bool
+	// currentFuncNamedBang is the name of the first named result of the function being
+	// walked that is declared `!T`, or "" (rule C2: a bare return is GN002).
+	currentFuncNamedBang string
 	// currentFuncResultTypes holds Go types of the current function's results
 	// (parallel to currentFuncReturns). Used by interface contracts for D3d
 	// same-type identity checks on !I returns.
@@ -349,6 +352,8 @@ func (c *Checker) checkPackageLevelComposites() {
 func (c *Checker) checkFuncDecl(d *ast.FuncDecl) {
 	prev := c.currentFuncReturns
 	prevTypes := c.currentFuncResultTypes
+	prevNamedBang := c.currentFuncNamedBang
+	c.currentFuncNamedBang = c.firstNamedBangResult(d.Type.Results)
 	// The body's own `return` contract comes from THIS declaration, never from
 	// a name-keyed table shared with other functions and methods.
 	c.currentFuncReturns = nonNilFlags(c, d.Type.Results)
@@ -404,6 +409,7 @@ func (c *Checker) checkFuncDecl(d *ast.FuncDecl) {
 	c.popScope()
 	c.currentFuncReturns = prev
 	c.currentFuncResultTypes = prevTypes
+	c.currentFuncNamedBang = prevNamedBang
 }
 
 // checkFuncLit checks a function literal as the function it is: its parameters
@@ -417,6 +423,8 @@ func (c *Checker) checkFuncDecl(d *ast.FuncDecl) {
 func (c *Checker) checkFuncLit(lit *ast.FuncLit) {
 	prev := c.currentFuncReturns
 	prevTypes := c.currentFuncResultTypes
+	prevNamedBang := c.currentFuncNamedBang
+	c.currentFuncNamedBang = c.firstNamedBangResult(lit.Type.Results)
 	c.currentFuncReturns = nonNilFlags(c, lit.Type.Results)
 	c.currentFuncResultTypes = nil
 	if c.info != nil {
@@ -455,6 +463,7 @@ func (c *Checker) checkFuncLit(lit *ast.FuncLit) {
 	c.popScope()
 	c.currentFuncReturns = prev
 	c.currentFuncResultTypes = prevTypes
+	c.currentFuncNamedBang = prevNamedBang
 }
 
 func (c *Checker) checkBlockScope(block *ast.BlockStmt) {
@@ -704,6 +713,12 @@ func (c *Checker) defineFromCallResults(assign *ast.AssignStmt) {
 }
 
 func (c *Checker) checkReturnStmt(ret *ast.ReturnStmt) {
+	// Rule C2: a bare return hands back a named `!T` result as it is, possibly still nil.
+	if len(ret.Results) == 0 && c.currentFuncNamedBang != "" {
+		c.addError(ret.Pos(), "GN002", fmt.Sprintf(
+			"bare return in a function with the named non-nil result %s: it may still be at its zero value, nil; return the results explicitly",
+			c.currentFuncNamedBang))
+	}
 	// `return f()`: the results of one call flow into the results of this function.
 	if len(ret.Results) == 1 && len(c.currentFuncReturns) > 1 {
 		if call, ok := unparenExpr(ret.Results[0]).(*ast.CallExpr); ok {
