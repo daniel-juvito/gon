@@ -1,6 +1,6 @@
 # RFC: Closing four local backdoors (zero-valued arrays, `make`, named `!T` results)
 
-**Status: PROPOSED, 2026-11-25. Not accepted, not scheduled, not implemented.** It writes down, for review, four rules that the owner and the audits
+**Status: ACCEPTED as a design decision (2026-11-25, the owner). Not scheduled, not implemented.** The four rules and the owner's answers to the questions of §9 are recorded below. The acceptance is a design decision only: it is not approval to implement, to merge or to release, and the release number and date remain the owner's. Nothing in the checker changes until an implementation is separately authorised.
 agreed are worth proposing; nothing in the checker changes until the rules are accepted and an implementation is separately authorised.
 **Amends:** `docs/rfc-element-contract-construction.md` (E5, "Fixed-array zero-fill"; the construction-time principle of §1) and
 `docs/rfc-return-value-contracts.md` (§5.4, "Named results: names are documentation only"). **Related:** `docs/nilability-backdoors.md` (the register),
@@ -75,7 +75,7 @@ unchanged. A function whose results are named but none is `!T` is unchanged.
 **Why it is the only form that rejects code common in Go.** Named results and bare returns are ordinary Go; this rule applies to them only when the author wrote `!` on a named result, so the rule
 is on a position the author marked. Without flow analysis the checker cannot tell whether the result was assigned on every path (`x = nn()` on one branch only), so it asks for `return x`.
 
-**Alternative (open, see §8):** allow a bare `return` when the result is assigned somewhere in the function (flow-insensitive). It is more permissive and less safe: `if c { x = nn() }; return` stays accepted.
+**Alternative (not chosen, §9):** allow a bare `return` when the result is assigned somewhere in the function (flow-insensitive). It is more permissive and less safe: `if c { x = nn() }; return` stays accepted.
 
 **Measured on v1.22.0:** a bare `return` is silent in `func f() (x !*T) { return }`, with `x` assigned or not, assigned `nil`, assigned an ordinary value, assigned on one path only, assigned in a `defer`,
 and with two results.
@@ -106,12 +106,15 @@ named types not counted; no figure for Gon users who annotate these positions. T
 - Mutation tests that only count mutations that compile (drop the constant-0 exception, treat a named result as an ordinary variable, forget the nested array walk of a struct).
 - A differential run over the three repositories: 0 new diagnostics expected.
 
-## 9. Questions for the owner (open)
+## 9. Decisions of the owner (2026-11-25)
 
-1. C2: the strict rule above (bare `return` is rejected whenever a result is `!T`), or the permissive alternative (accepted when the result is assigned somewhere in the function)?
-2. Release shape: A, B, C1 and C2 together as one R1 release, or A, B, C1 first and C2 later?
-3. The diagnostic for C2: GN002 (a required non-nil position is left at its zero value), or GN001?
-4. Whether the documentation of the known limit (reslicing over the capacity of a slice of `!` elements) goes in the same change.
+1. **C2 is strict.** A bare `return` is rejected whenever the function has a named result declared `!T`; `return e` is unchanged. The permissive alternative (accepted when the result is assigned
+   somewhere in the function) is not chosen: it would leave `if c { x = nn() }; return` accepted, which is a path already shown to be open.
+2. **Release shape: A, B and C1 first, C2 later.** The first release carries A (zero-valued arrays), B (`make`) and C1 (a named `!T` result is a `!` variable in the body); C2 follows in its own
+   release, because it is the one rule that rejects a form common in Go and has its own test matrix. Each is R1 and ships alone; the numbers and dates are decided when they are made.
+3. **The diagnostic of C2 is GN002** (a required non-nil position, the named result, is left at its zero value by a bare `return`).
+4. **The known limit of reslicing is documented together with rule B** (a slice of `!` elements created with a capacity can expose nil elements when it is resliced over its length; the
+   rule looks at the length only).
 
 ## 10. Alternatives
 
