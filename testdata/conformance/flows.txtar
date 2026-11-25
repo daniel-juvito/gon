@@ -852,3 +852,25 @@ func f(n int) {
 17 GN002
 18 GN002
 19 GN002
+-- ZV-C-02/src --
+package p
+
+type T struct{}
+
+func ord() *T { return nil }
+func nn() !*T { return &T{} }
+
+func g1() (x !*T) { return }
+func g2() (x !*T) { x = nn(); return }
+func g3(c bool) (x !*T) { if c { return }; return nn() }
+func g4() (a *T, x !*T) { a = ord(); x = nn(); return }
+func g5() (x !*T) { return nn() }
+func g6() (x *T) { x = ord(); return }
+func g7() { return }
+func g8() !*T { return nn() }
+func g9() (x !*T) { f := func() { return }; _ = f; return nn() }
+-- ZV-C-02/want --
+8 GN002
+9 GN002
+10 GN002
+11 GN002

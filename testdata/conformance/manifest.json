@@ -873,5 +873,16 @@
    "GN002"
   ],
   "note": "chains of defined types and aliases are followed to the array or slice at the end, in a variable, new, a struct field and make"
+ },
+ {
+  "id": "ZV-C-02",
+  "rfc": "cheap backdoors, rule C2",
+  "kind": "check",
+  "status": "enabled",
+  "site": "internal/checker: checkReturnStmt (named !T results)",
+  "diagnostics": [
+   "GN002"
+  ],
+  "note": "a bare return in a function with a named !T result is GN002, whatever was assigned; an explicit return, a named result that is not !, no results, and a bare return inside a literal that has none are silent"
  }
 ]
