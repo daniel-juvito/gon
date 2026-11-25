@@ -1,8 +1,8 @@
 # Changelog
 
-## [Unreleased]
+## [1.24.0] — 2026-11-25
 
-**Possibly breaking, by design (R1), to ship alone.** Rule C2 of `docs/rfc-cheap-backdoors.md` (accepted 2026-11-25, strict): the last of the four rules; A, B and C1 shipped in 1.23.0.
+**Possibly breaking, by design (R1), shipped solo.** Rule C2 of `docs/rfc-cheap-backdoors.md` (accepted 2026-11-25, strict): the last of the four rules; A, B and C1 shipped in 1.23.0.
 
 - **A bare `return` in a function with a named `!T` result is GN002.** In a function, method or function literal that has at least one named result declared `!T`, a `return` with no
   operands is GN002: `func f() (x !*T) { x = nn(); return }` is rejected, `return x` is accepted. A named result holds its zero value, nil, until it is first assigned, and a bare `return` hands it

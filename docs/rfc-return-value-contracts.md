@@ -128,7 +128,7 @@ f, err = config.Open(...)
 
 ### 5.4 Named results
 
-Mapping remains strictly positional. Names are documentation only for the mapping of results to contracts. *Amendment (rule C1 of `rfc-cheap-backdoors.md`, released in v1.23.0):* a result declared `!T` is also a `!` variable in the body of its function, so `x = nil` and `x = ordinary` are GN001 and `x == nil` is GW001; and a bare `return` in a function that has such a result is GN002 (rule C2, on `main`, not yet released).
+Mapping remains strictly positional. Names are documentation only for the mapping of results to contracts. *Amendment (rule C1 of `rfc-cheap-backdoors.md`, released in v1.23.0):* a result declared `!T` is also a `!` variable in the body of its function, so `x = nil` and `x = ordinary` are GN001 and `x == nil` is GW001; and a bare `return` in a function that has such a result is GN002 (rule C2, released in v1.24.0).
 
 ### 5.5 Method values and method expressions
 
