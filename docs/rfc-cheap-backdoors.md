@@ -1,6 +1,6 @@
 # RFC: Closing four local backdoors (zero-valued arrays, `make`, named `!T` results)
 
-**Status: ACCEPTED as a design decision (2026-11-25, the owner). Rules A, B and C1 are IMPLEMENTED on `main` (PR #94), not released; rule C2 is not implemented.** The four rules and the owner's answers to the questions of §9 are recorded below. The acceptance was a design decision only (it did not approve an implementation or a release): the implementation of A, B and C1 was authorised separately and merged in #94, and rule C2 and any release need their own go-ahead; the release number and date remain the owner's.
+**Status: ACCEPTED as a design decision (2026-11-25, the owner). Rules A, B and C1 are IMPLEMENTED (PR #94) and RELEASED in v1.23.0 (2026-11-25); rule C2 is not implemented.** The four rules and the owner's answers to the questions of §9 are recorded below. The acceptance was a design decision only (it did not approve an implementation or a release): the implementation of A, B and C1 was authorised separately and merged in #94, and rule C2 and any release need their own go-ahead; the release number and date remain the owner's.
 **Amends:** `docs/rfc-element-contract-construction.md` (E5, "Fixed-array zero-fill"; the construction-time principle of §1) and
 `docs/rfc-return-value-contracts.md` (§5.4, "Named results: names are documentation only"). **Related:** `docs/nilability-backdoors.md` (the register),
 `docs/backlog.md`.

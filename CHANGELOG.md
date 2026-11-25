@@ -1,8 +1,8 @@
 # Changelog
 
-## [Unreleased]
+## [1.23.0] — 2026-11-25
 
-**Possibly breaking, by design (R1), to ship alone.** Rules A, B and C1 of `docs/rfc-cheap-backdoors.md` (accepted 2026-11-25) close three paths by which a nil
+**Possibly breaking, by design (R1), shipped solo.** Rules A, B and C1 of `docs/rfc-cheap-backdoors.md` (accepted 2026-11-25) close three paths by which a nil
 entered a non-nil position with no diagnostic. Rule C2 (a bare `return`) is a later release.
 
 - **A. A zero-valued array of `!` elements is GN002.** A fixed array of a constant length above 0 whose element is `!` of a pointer, slice, map, channel, function or interface kind is

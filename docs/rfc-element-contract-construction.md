@@ -195,7 +195,7 @@ kind, coverage is defined by **index**, not by element count:
 **no shortfall**; an inferred-length array literal never produces GN002
 under this rule.
 
-*Amendment (rules A and B of `rfc-cheap-backdoors.md`, on `main`, not yet released):* the same zero-fill is GN002 where an array of `!` elements is created at its zero value (`var a [N]!*T`, `new([N]!*T)`, a named array type, a struct field of one), and where `make([]!*T, n[, cap])` creates `n` elements with `n` other than the constant 0. The length decides, not the capacity: `make([]!*T, 0, n)` is accepted, and so is the reslice `s = s[:cap(s)]` that exposes the nil elements behind the capacity (a known limit).
+*Amendment (rules A and B of `rfc-cheap-backdoors.md`, released in v1.23.0):* the same zero-fill is GN002 where an array of `!` elements is created at its zero value (`var a [N]!*T`, `new([N]!*T)`, a named array type, a struct field of one), and where `make([]!*T, n[, cap])` creates `n` elements with `n` other than the constant 0. The length decides, not the capacity: `make([]!*T, 0, n)` is accepted, and so is the reslice `s = s[:cap(s)]` that exposes the nil elements behind the capacity (a known limit).
 
 Variable-length slices and maps have no zero-fill of elements; an empty
 `[]!*T{}` or `map[K]!*T{}` is fine (the container may still be constrained
@@ -274,7 +274,7 @@ element non-nil offsets exactly as it does for ordinary `!` positions.
 **LOCKED.** Entirely non-breaking for Gon source. Matches roadmap
 classification for v1.7.
 
-*Amendments after v1.7, which are breaking and are classified in their own documents:* an ordinary value into an element `!` of a literal is GN001 since v1.22.0 (amendment A2 of `rfc-explicit-nonnil-conversion.md`, R1); a zero-valued array of `!` elements and `make([]!E, n)` with `n` other than the constant 0 are GN002 (rules A and B of `rfc-cheap-backdoors.md`, R1, on `main`, not yet released). The classification of this RFC (E10) describes v1.7 only.
+*Amendments after v1.7, which are breaking and are classified in their own documents:* an ordinary value into an element `!` of a literal is GN001 since v1.22.0 (amendment A2 of `rfc-explicit-nonnil-conversion.md`, R1); a zero-valued array of `!` elements and `make([]!E, n)` with `n` other than the constant 0 are GN002 (rules A and B of `rfc-cheap-backdoors.md`, R1, released in v1.23.0). The classification of this RFC (E10) describes v1.7 only.
 
 **Compatibility caveat:**
 

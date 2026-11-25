@@ -30,14 +30,14 @@ by the checker.** A path that is neither is a backdoor. `(!T)(x)` is a door, not
 |---|---|---|
 | a container with an element contract, through an alias | `var b []*int = a` (`a` is `[]!*int`), then `b[0] = nil` | accepted; `a[0]` is nil. The same for `map[K]!*V` |
 | a container back into an element contract | `var c []!*int = b` | accepted |
-| elements created by `make` | `make([]!*T, 3)` | **GN002 on `main` (rule B, not yet released)**; was accepted. A reslice over the capacity (`make([]!*T, 0, 3)` then `s[:3]`) stays accepted: a known limit |
-| a fixed array at its zero value | `var arr [3]!*T` | **GN002 on `main` (rule A, not yet released)**; was accepted. Also `new([N]!E)`, a named array type through any chain, a struct field of one |
+| elements created by `make` | `make([]!*T, 3)` | **GN002 since v1.23.0 (rule B)**; was accepted. A reslice over the capacity (`make([]!*T, 0, 3)` then `s[:3]`) stays accepted: a known limit |
+| a fixed array at its zero value | `var arr [3]!*T` | **GN002 since v1.23.0 (rule A)**; was accepted. Also `new([N]!E)`, a named array type through any chain, a struct field of one |
 | a write to a map element | `m["a"] = nil` (`map[string]!*T`) | accepted |
 | `append` | `append(s, nil)` on `[]!*T` | accepted |
 | an ordinary value into an element | `s[0] = ord()` | accepted |
 | a function value | `var f func() !*T = ord` (`ord` returns `*T`) | accepted |
 | an interface whose method result is `!T` | `Impl.M() *T` assigned to `I` with `M() !*T` | accepted |
-| a named result of a declaration | `func f() (x !*T) { x = nil; return nn() }` | **GN001 on `main` (rule C1, not yet released)**; was accepted. A named `!T` result is a `!` variable in the body |
+| a named result of a declaration | `func f() (x !*T) { x = nil; return nn() }` | **GN001 since v1.23.0 (rule C1)**; was accepted. A named `!T` result is a `!` variable in the body |
 | a named result with a bare `return` | `func f() (x !*T) { return }` | accepted; `x` is nil (rule C2, accepted, not implemented) |
 
 ### 2.3 By design (rejected, GN003), not a blind spot
