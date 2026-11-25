@@ -12,7 +12,14 @@ import (
 // resolves to a local struct. No general expression inference; non-struct T
 // is ignored. External / selector types are not walked via new (M4 boundary).
 func (c *Checker) checkNewConstruction(call *ast.CallExpr) {
-	if call == nil || len(call.Args) != 1 {
+	if call == nil {
+		return
+	}
+	if fun, ok := call.Fun.(*ast.Ident); ok && fun.Name == "make" {
+		c.checkMakeConstruction(call) // rule B: make([]!E, n) has two or three arguments
+		return
+	}
+	if len(call.Args) != 1 {
 		return
 	}
 	fun, ok := call.Fun.(*ast.Ident)
@@ -22,7 +29,7 @@ func (c *Checker) checkNewConstruction(call *ast.CallExpr) {
 	arg := call.Args[0]
 	// v1.9 (X2): `new(Box[T])` / `new(pkg.Box[T])` use the generic declaration.
 	switch a := genericOrigin(arg).(type) {
-	case *ast.Ident, *ast.StructType:
+	case *ast.Ident, *ast.StructType, *ast.ArrayType:
 		trace := &ContractTrace{Origin: "new(" + typeExprName(arg) + ")"}
 		c.reportMissingNonNilFieldsTraced(call.Pos(), arg, nil, "", trace)
 	case *ast.SelectorExpr:
@@ -415,6 +422,11 @@ func (c *Checker) reportMissingNonNilFieldsTraced(pos token.Pos, typExpr ast.Exp
 	}
 	switch t := genericOrigin(typExpr).(type) {
 	case *ast.Ident:
+		// A named array type of this package (`type Slots [4]!*T`).
+		if named := c.arrayTypeOf(t); named != nil {
+			c.reportMissingNonNilFieldsTraced(pos, named, nil, pathPrefix, trace)
+			return
+		}
 		fields, ok := c.structFields[t.Name]
 		if ok {
 			st := c.lookupStructAST(t.Name)
@@ -485,6 +497,7 @@ func (c *Checker) reportMissingNonNilFieldsTraced(pos token.Pos, typExpr ast.Exp
 		if t.Len == nil {
 			return
 		}
+		c.reportZeroValuedArray(pos, t, pathPrefix, trace)
 		c.reportMissingNonNilFieldsTraced(pos, t.Elt, nil, pathPrefix, trace)
 	case *ast.StarExpr, *ast.MapType, *ast.ChanType, *ast.InterfaceType, *ast.FuncType:
 		return

@@ -71,6 +71,11 @@ func (c *Checker) reportMissingNonNilFields(pos token.Pos, typExpr ast.Expr, pro
 	}
 	switch t := genericOrigin(typExpr).(type) {
 	case *ast.Ident:
+		// A named array type of this package (`type Slots [4]!*T`).
+		if named := c.arrayTypeOf(t); named != nil {
+			c.reportMissingNonNilFields(pos, named, nil, pathPrefix)
+			return
+		}
 		fields, ok := c.structFields[t.Name]
 		if ok {
 			for _, name := range c.orderedFieldNames(t.Name, fields) {
@@ -126,6 +131,7 @@ func (c *Checker) reportMissingNonNilFields(pos token.Pos, typExpr ast.Expr, pro
 		if t.Len == nil {
 			return
 		}
+		c.reportZeroValuedArray(pos, t, pathPrefix, nil)
 		c.reportMissingNonNilFields(pos, t.Elt, nil, pathPrefix)
 	case *ast.StarExpr, *ast.MapType, *ast.ChanType, *ast.InterfaceType, *ast.FuncType:
 		return

@@ -754,3 +754,101 @@ func f(n int, s S) {
 23 GN001
 24 GN001
 27 GN001
+-- ZV-A-01/src --
+package p
+
+type T struct{}
+type Slots [4]!*T
+type Holder struct{ A [2]!*T }
+
+func f() {
+	var a [3]!*T
+	_ = new([3]!*T)
+	var s Slots
+	var h Holder
+	_ = Holder{}
+	_ = new(Holder)
+	var z [0]!*T
+	var m [2]!*T = [2]!*T{&T{}, &T{}}
+	var p [3]*T
+	_, _, _, _, _, _ = a, s, h, z, m, p
+}
+-- ZV-A-01/want --
+8 GN002
+9 GN002
+10 GN002
+11 GN002
+12 GN002
+13 GN002
+-- ZV-B-01/src --
+package p
+
+type T struct{}
+type Ptrs []!*T
+const zero = 0
+
+func f(n int) {
+	_ = make([]!*T, 3)
+	_ = make([]!*T, n)
+	_ = make([]!*T, 2, 8)
+	_ = make(Ptrs, n)
+	_ = make([]!*T, 0)
+	_ = make([]!*T, 0, n)
+	_ = make([]!*T, zero)
+	_ = make([]*T, n)
+	_ = make(map[string]!*T, n)
+	_ = make(chan *T, n)
+}
+-- ZV-B-01/want --
+8 GN002
+9 GN002
+10 GN002
+11 GN002
+-- ZV-C-01/src --
+package p
+
+type T struct{}
+
+func ord() *T { return nil }
+func nn() !*T { return &T{} }
+
+func f1() (x !*T) { x = nil; return nn() }
+func f2() (x !*T) { x = ord(); return nn() }
+func f3() (x !*T) { x = nn(); if x == nil {}; return nn() }
+func f4() (x *T) { x = nil; return x }
+func f5() (x !*T, y *T) { x = nn(); y = nil; return x, y }
+func f6() !*T { return nn() }
+-- ZV-C-01/want --
+8 GN001
+9 GN001
+10 GW001
+-- ZV-A-02/src --
+package p
+
+type T struct{}
+type A [4]!*T
+type B A
+type C B
+type D = C
+type Holder struct{ S D }
+type S0 []!*T
+type S1 S0
+type S2 = S1
+
+func f(n int) {
+	var b B
+	var c C
+	var d D
+	_ = new(C)
+	var h Holder
+	_ = make(S2, n)
+	_ = make(S2, 0, n)
+	_, _, _, _ = b, c, d, h
+}
+-- ZV-A-02/want --
+14 GN002
+15 GN002
+16 GN002
+17 GN002
+18 GN002
+19 GN002
