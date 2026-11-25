@@ -13,62 +13,65 @@ import (
 // `make([]!E, n)` with `n` other than the constant 0, hold nil elements: GN002,
 // as a fixed-array literal that leaves an index uncovered already is (E5).
 
-// namedTypeExpr returns the type expression of the type declaration called name
-// in this file or in a sibling file of the package, or nil.
-func (c *Checker) namedTypeExpr(name string) ast.Expr {
-	if e := typeExprIn(c.file, name); e != nil {
-		return e
-	}
-	if c.pkg != nil {
-		for _, f := range c.pkg.files {
-			if f == c.file {
-				continue
-			}
-			if e := typeExprIn(f, name); e != nil {
-				return e
-			}
-		}
-	}
-	return nil
-}
-
-func typeExprIn(file *ast.File, name string) ast.Expr {
-	if file == nil {
+// typeSpecOf returns the declaration of the type that the identifier id names, found
+// through go/types so that scope is respected: a type declared inside a function, a local
+// type that shadows a package type, and a type of a sibling file are each the declaration
+// that Go's own resolution picks. It is nil without type information (a name cannot be
+// told from a shadowing one by its spelling) and for anything that is not a declared type.
+func (c *Checker) typeSpecOf(id *ast.Ident) *ast.TypeSpec {
+	if c.info == nil || id == nil {
 		return nil
 	}
-	for _, decl := range file.Decls {
-		gd, ok := decl.(*ast.GenDecl)
-		if !ok || gd.Tok != token.TYPE {
+	obj, ok := c.info.Uses[id].(*types.TypeName)
+	if !ok || obj == nil {
+		return nil
+	}
+	files := []*ast.File{c.file}
+	if c.pkg != nil {
+		files = append(files, c.pkg.files...)
+	}
+	var found *ast.TypeSpec
+	for _, f := range files {
+		if f == nil {
 			continue
 		}
-		for _, spec := range gd.Specs {
-			ts, ok := spec.(*ast.TypeSpec)
-			if ok && ts.Name != nil && ts.Name.Name == name {
-				return ts.Type
+		ast.Inspect(f, func(n ast.Node) bool {
+			if found != nil {
+				return false
 			}
+			if ts, ok := n.(*ast.TypeSpec); ok && ts.Name != nil && c.info.Defs[ts.Name] == obj {
+				found = ts
+				return false
+			}
+			return true
+		})
+		if found != nil {
+			return found
 		}
 	}
 	return nil
 }
 
 // arrayTypeOf resolves a type expression to an array or slice type literal: the
-// literal itself, or the declaration of a named type of this package whose
-// underlying type is one, however long the chain of defined types and aliases
-// (`type Slots [4]!*T; type More Slots; type Alias = More`). It is nil for anything
-// else. There is no depth limit: a name already visited ends the walk, so a
-// declaration that is not valid Go cannot loop.
+// literal itself, or the declaration of a named type whose underlying type is one,
+// however long the chain of defined types and aliases (`type Slots [4]!*T; type More
+// Slots; type Alias = More`), wherever the types are declared and whatever shadows
+// them. It is nil for anything else and without type information. There is no depth
+// limit: a declaration already visited ends the walk, so a declaration that is not
+// valid Go cannot loop.
 func (c *Checker) arrayTypeOf(e ast.Expr) *ast.ArrayType {
-	seen := make(map[string]bool)
+	seen := make(map[*ast.TypeSpec]bool)
 	for e != nil {
 		switch t := unparenExpr(genericOrigin(e)).(type) {
 		case *ast.ArrayType:
 			return t
 		case *ast.Ident:
-			if seen[t.Name] {
+			ts := c.typeSpecOf(t)
+			if ts == nil || seen[ts] {
 				return nil
 			}
-			seen[t.Name] = true
-			e = c.namedTypeExpr(t.Name)
+			seen[ts] = true
+			e = ts.Type
 		default:
 			return nil
 		}

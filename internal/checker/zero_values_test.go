@@ -221,3 +221,45 @@ func TestZV_C1_MultipleNamedResultsAndShadowing(t *testing.T) {
 	d = zvCheck(t, `func f() (x !*T) { { x := ord(); x = nil; _ = x }; return nn() }`)
 	zvWant(t, d, "GN001", 0)
 }
+
+// A type is the declaration that Go's own scope resolution picks: a local type that
+// shadows a package type, a type declared inside a function, and a type declared in a
+// block that shadows another of the same name.
+func TestZV_Scope_LocalTypesAndShadowing(t *testing.T) {
+	const decls = `type Slots [4]!*T
+type Ptrs []!*T
+`
+	for name, c := range map[string]struct {
+		body string
+		want int
+	}{
+		"local int shadows a package array":   {`func f() { type Slots int; var a Slots; _ = a }`, 0},
+		"local []int shadows a package slice": {`func f(n int) { type Ptrs []int; _ = make(Ptrs, n) }`, 0},
+		"local named array":                   {`func f() { type Local [4]!*T; var a Local; _ = a }`, 1},
+		"local alias of a local array":        {`func f() { type Local [4]!*T; type Alias = Local; var a Alias; _ = a }`, 1},
+		"local alias of a package array":      {`func f() { type Alias = Slots; var a Alias; _ = a }`, 1},
+		"local named slice in make":           {`func f(n int) { type L []!*T; _ = make(L, n) }`, 1},
+		"package array without shadowing":     {`func f() { var a Slots; _ = a }`, 1},
+		"inner block shadows an outer local":  {`func f() { type X [2]!*T; { type X int; var a X; _ = a } }`, 0},
+		"inner block array, outer is not":     {`func f() { type X int; { type X [2]!*T; var a X; _ = a } }`, 1},
+		"other function is not in scope":      {`func g() { type Slots int }; func f() { var a Slots; _ = a }`, 1},
+		"a type parameter is not an array":    {`func f[P any]() { var p P; _ = p }`, 0},
+	} {
+		t.Run(name, func(t *testing.T) {
+			zvWant(t, checkTyped(t, "package main\n\ntype T struct{}\n"+decls+c.body), "GN002", c.want)
+		})
+	}
+}
+
+// Without type information a name cannot be told from a shadowing one, so a named type
+// is not resolved; an array written out in the declaration still is.
+func TestZV_Scope_NoTypeInformation(t *testing.T) {
+	d := checkSource(t, `package main
+
+type T struct{}
+type Slots [4]!*T
+
+func f() { var named Slots; var literal [3]!*T; _, _ = named, literal }
+`)
+	zvWant(t, d, "GN002", 1)
+}
