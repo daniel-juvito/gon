@@ -13,8 +13,9 @@ entered a non-nil position with no diagnostic. Rule C2 (a bare `return`) is a la
   `make([]!*T, 0, n)` (preallocate, then `append`) are accepted, as is a length written as a constant (`const zero = 0`). Maps, channels, slices with no element `!`, and a function of your
   own called `make` are unchanged. **Known limit:** the rule looks at the length, so `s := make([]!*T, 0, 3); s = s[:3]` still exposes three nil elements; it is accepted.
 - **C1. A named `!T` result is a `!` variable in the body.** A function literal always treated it so; a declaration did not. In `func f() (x !*T)`, `x = nil` and `x = ordinary` are now GN001,
-  `x == nil` is GW001, and `x` is a non-nil source where it is used. A named result holds its zero value (nil) until it is first assigned, so a comparison before the first assignment can get
-  a GW001 that is false; a bare `return` (rule C2) is not checked yet.
+  `x == nil` is GW001, and `x` is a non-nil source where it is used. **Known limit:** a named result holds its zero value (nil) until it is first assigned, but the checker treats it as non-nil from the start of the body. So any
+  use before the first assignment is taken for a non-nil value: a comparison can get a GW001 that is false, and the value can be passed on (`consume(x)`) or returned as a non-nil source while it is still nil. The checker does
+  not follow the order of statements. A bare `return` (rule C2) is not checked yet.
 - **How types are resolved.** A named type is resolved through `go/types`, so a type declared inside a function, a local type that shadows a package type, a chain of defined types and aliases of any
   length, and a type of another file of the package are each the declaration that Go itself picks. Without type information a named type is not resolved, and rule B is silent.
 - **What a build sees.** Code that declared one of these shapes now fails `gon check`, `gon vet`, `gon transpile` and `gon build`. Make the array's elements nilable (drop the `!`), fill it with a

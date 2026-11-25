@@ -60,6 +60,9 @@ are shapes in plain Go; the rule fires only where the element is declared `!`.
 **Rule.** A named result declared `!T` is treated, inside its function, like a parameter or local variable declared `!T`: `x = nil` is GN001 (`cannot assign nil to non-nil variable !x`), `x = e`
 with `e` an ordinary value is GN001 (A2), `x == nil` is GW001, and `x` is a recognised non-nil source where it is used.
 
+**Known limit (not closed by C1).** A named result holds its zero value, nil, until it is first assigned, and the rule treats it as a `!` variable from the first statement of the body, as it treats a parameter. Without flow analysis,
+any use of the result before its first assignment (a comparison, `consume(x)`, a `return x`) is taken for a use of a non-nil value. Rule C2 and a later pass can narrow this; C1 does not.
+
 **Why it is a change to the return-value RFC.** §5.4 says "Names are documentation only". For a result declared `!T` the name now also names a variable that the checker tracks.
 
 **Measured on v1.22.0:** in `func f() (x !*T)`, the statements `x = nil`, `x = ord()`, `x = nn(); if x == nil {}` are all silent (no GN001, no GW001); `p = nil` on a parameter `p !*T` and
