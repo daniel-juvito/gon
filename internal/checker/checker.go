@@ -385,6 +385,18 @@ func (c *Checker) checkFuncDecl(d *ast.FuncDecl) {
 		}
 	}
 
+	// A named result declared `!T` is a `!` variable in the body, like a parameter
+	// (rule C1 of the RFC on local backdoors, accepted 2026-11-25). A function literal
+	// has always done this; a declaration did not.
+	if d.Type.Results != nil {
+		for _, field := range d.Type.Results.List {
+			nn := c.isNonNil(field.Type)
+			for _, name := range field.Names {
+				c.define(name.Name, nn)
+			}
+		}
+	}
+
 	if d.Body != nil {
 		c.checkBlockScope(d.Body)
 	}
