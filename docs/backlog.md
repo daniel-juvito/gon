@@ -20,7 +20,8 @@ A note kept at the owner's request, not a decision or a schedule. The owner's wo
   `docs/nilability-backdoors.md`. Whether it ships as v1.x minors or as v2 is the owner's decision.
 
 - **Four local backdoors (zero-valued arrays, `make`, named `!T` results)** (measured 2026-11-23/25, proposed as `docs/rfc-cheap-backdoors.md`, PROPOSED, not accepted): rules A, B, C1 and C2, with the
-  evidence on v1.22.0 and on Go code, and four questions for the owner. Not started.
+  evidence on v1.22.0 and on Go code. **Status (2026-11-25): accepted as a design decision, with the owner's four answers recorded (C2 strict, A+B+C1 first and C2 later, GN002, the reslice limit documented with B);
+  not implemented.**
 
 ## v1 open items (focus now)
 
