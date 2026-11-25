@@ -195,6 +195,8 @@ kind, coverage is defined by **index**, not by element count:
 **no shortfall**; an inferred-length array literal never produces GN002
 under this rule.
 
+*Amendment (rules A and B of `rfc-cheap-backdoors.md`, on `main`, not yet released):* the same zero-fill is GN002 where an array of `!` elements is created at its zero value (`var a [N]!*T`, `new([N]!*T)`, a named array type, a struct field of one), and where `make([]!*T, n[, cap])` creates `n` elements with `n` other than the constant 0. The length decides, not the capacity: `make([]!*T, 0, n)` is accepted, and so is the reslice `s = s[:cap(s)]` that exposes the nil elements behind the capacity (a known limit).
+
 Variable-length slices and maps have no zero-fill of elements; an empty
 `[]!*T{}` or `map[K]!*T{}` is fine (the container may still be constrained
 by an outer `!`).
