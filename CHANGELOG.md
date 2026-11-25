@@ -1,5 +1,19 @@
 # Changelog
 
+## [Unreleased]
+
+**Possibly breaking, by design (R1), to ship alone.** Rule C2 of `docs/rfc-cheap-backdoors.md` (accepted 2026-11-25, strict): the last of the four rules; A, B and C1 shipped in 1.23.0.
+
+- **A bare `return` in a function with a named `!T` result is GN002.** In a function, method or function literal that has at least one named result declared `!T`, a `return` with no
+  operands is GN002: `func f() (x !*T) { x = nn(); return }` is rejected, `return x` is accepted. A named result holds its zero value, nil, until it is first assigned, and a bare `return` hands it
+  back as it is. The checker does not follow the order of statements, so it cannot tell whether the result was assigned on every path to the `return`; it asks for the explicit form, even when
+  the result was assigned before. A `return` with operands, a named result that is not `!`, a function with no results, an unnamed `!T` result, and a bare `return` inside a function literal that
+  has no named `!T` result of its own are unchanged.
+- **What a build sees.** Code that returned a named `!T` result with a bare `return` now fails `gon check`, `gon vet`, `gon transpile` and `gon build`. Write `return x` (or `return nn()`), or drop the
+  `!` from the result. None of the three repositories (`gon`, `gon-examples`, `gon-vscode`) has such a function: the differential run against v1.23.0 gives no new diagnostic. Users outside them are not measured.
+- **Still open, from C1 and not closed by C2:** a named result is taken for non-nil from the start of the body, so a use of it before its first assignment (a comparison, `consume(x)`) is not reported
+  as a use of a nil value.
+
 ## [1.23.0] — 2026-11-25
 
 **Possibly breaking, by design (R1), shipped solo.** Rules A, B and C1 of `docs/rfc-cheap-backdoors.md` (accepted 2026-11-25) close three paths by which a nil
