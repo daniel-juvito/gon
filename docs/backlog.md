@@ -20,7 +20,7 @@ A note kept at the owner's request, not a decision or a schedule. The owner's wo
   `docs/nilability-backdoors.md`. Whether it ships as v1.x minors or as v2 is the owner's decision.
 
 - **Four local backdoors (zero-valued arrays, `make`, named `!T` results)** (measured 2026-11-23/25; `docs/rfc-cheap-backdoors.md`, accepted 2026-11-25 with the owner's four answers: C2 strict, A+B+C1 first and C2 later, GN002, the reslice limit documented with B).
-  **Status (2026-11-25): rules A, B and C1 are implemented (PR #94), documented and released in v1.23.0; rule C2 (a bare `return` with a named `!T` result) is implemented (PR #98) and documented, not released. All four rules are on `main`.**
+  **Status (2026-11-25): rules A, B and C1 are implemented (PR #94), documented and released in v1.23.0; rule C2 (a bare `return` with a named `!T` result) is implemented (PR #98), documented and released in v1.24.0. All four rules are released.**
 
 ## v1 open items (focus now)
 

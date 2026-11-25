@@ -38,7 +38,7 @@ by the checker.** A path that is neither is a backdoor. `(!T)(x)` is a door, not
 | a function value | `var f func() !*T = ord` (`ord` returns `*T`) | accepted |
 | an interface whose method result is `!T` | `Impl.M() *T` assigned to `I` with `M() !*T` | accepted |
 | a named result of a declaration | `func f() (x !*T) { x = nil; return nn() }` | **GN001 since v1.23.0 (rule C1)**; was accepted. A named `!T` result is a `!` variable in the body |
-| a named result with a bare `return` | `func f() (x !*T) { return }` | **GN002 on `main` (rule C2, not yet released)**; was accepted, `x` is nil |
+| a named result with a bare `return` | `func f() (x !*T) { return }` | **GN002 since v1.24.0 (rule C2)**; was accepted, `x` is nil |
 
 ### 2.3 By design (rejected, GN003), not a blind spot
 
