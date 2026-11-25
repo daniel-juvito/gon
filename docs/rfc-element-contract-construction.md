@@ -274,6 +274,8 @@ element non-nil offsets exactly as it does for ordinary `!` positions.
 **LOCKED.** Entirely non-breaking for Gon source. Matches roadmap
 classification for v1.7.
 
+*Amendments after v1.7, which are breaking and are classified in their own documents:* an ordinary value into an element `!` of a literal is GN001 since v1.22.0 (amendment A2 of `rfc-explicit-nonnil-conversion.md`, R1); a zero-valued array of `!` elements and `make([]!E, n)` with `n` other than the constant 0 are GN002 (rules A and B of `rfc-cheap-backdoors.md`, R1, on `main`, not yet released). The classification of this RFC (E10) describes v1.7 only.
+
 **Compatibility caveat:**
 
 - **Gon source compatibility:** non-breaking. Programs that were valid
@@ -506,8 +508,9 @@ functions:
 
 ## 9. Compatibility & Release Shape
 
-- **Breaking risk:** None (E10). All new diagnostics fire only on syntax
-  that was previously rejected.
+- **Breaking risk:** None (E10), for v1.7: all its diagnostics fire only on syntax
+  that was previously rejected. *Not true of the later amendments*: A2 (v1.22.0) and rules A and B of
+  `rfc-cheap-backdoors.md` add diagnostics for code that was accepted, and are R1.
 - **Gon source compatibility:** non-breaking.
 - **`.gna` semantic schema:** unchanged, schema **1**.
 - **Older `.gna` tooling:** may not understand newly legal element forms
