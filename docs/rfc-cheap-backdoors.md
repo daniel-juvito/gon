@@ -1,7 +1,6 @@
 # RFC: Closing four local backdoors (zero-valued arrays, `make`, named `!T` results)
 
-**Status: ACCEPTED as a design decision (2026-11-25, the owner). Not scheduled, not implemented.** The four rules and the owner's answers to the questions of §9 are recorded below. The acceptance is a design decision only: it is not approval to implement, to merge or to release, and the release number and date remain the owner's. Nothing in the checker changes until an implementation is separately authorised.
-agreed are worth proposing; nothing in the checker changes until the rules are accepted and an implementation is separately authorised.
+**Status: ACCEPTED as a design decision (2026-11-25, the owner). Rules A, B and C1 are IMPLEMENTED on `main` (PR #94), not released; rule C2 is not implemented.** The four rules and the owner's answers to the questions of §9 are recorded below. The acceptance was a design decision only (it did not approve an implementation or a release): the implementation of A, B and C1 was authorised separately and merged in #94, and rule C2 and any release need their own go-ahead; the release number and date remain the owner's.
 **Amends:** `docs/rfc-element-contract-construction.md` (E5, "Fixed-array zero-fill"; the construction-time principle of §1) and
 `docs/rfc-return-value-contracts.md` (§5.4, "Named results: names are documentation only"). **Related:** `docs/nilability-backdoors.md` (the register),
 `docs/backlog.md`.
@@ -60,6 +59,9 @@ are shapes in plain Go; the rule fires only where the element is declared `!`.
 
 **Rule.** A named result declared `!T` is treated, inside its function, like a parameter or local variable declared `!T`: `x = nil` is GN001 (`cannot assign nil to non-nil variable !x`), `x = e`
 with `e` an ordinary value is GN001 (A2), `x == nil` is GW001, and `x` is a recognised non-nil source where it is used.
+
+**Known limit (not closed by C1).** A named result holds its zero value, nil, until it is first assigned, and the rule treats it as a `!` variable from the first statement of the body, as it treats a parameter. Without flow analysis,
+any use of the result before its first assignment (a comparison, `consume(x)`, a `return x`) is taken for a use of a non-nil value. Rule C2 and a later pass can narrow this; C1 does not.
 
 **Why it is a change to the return-value RFC.** §5.4 says "Names are documentation only". For a result declared `!T` the name now also names a variable that the checker tracks.
 
