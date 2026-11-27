@@ -1,8 +1,6 @@
 # RFC: Binding by inference (Part B) with `gon convert`
 
-**Status: PROPOSED, 2026-11-22. Not accepted, not scheduled, not implemented.** This is the proposal of the owner (Part B in full,
-plus a migration tool) written down so that it can be reviewed; nothing in the checker changes until it is accepted and an implementation
-is separately authorised.
+**Status: ACCEPTED as a design decision (2026-11-27, the owner). Not scheduled, not implemented.** The proposal of the owner (Part B in full, plus a migration tool), with the owner's five answers of §8 recorded there. The acceptance is a design decision only: it is not approval to implement, to merge or to release; the implementation of `gon convert` (Release A) and, later and alone, of the binding (Release B) each need their own go-ahead, and the release numbers and dates are the owner's.
 **Amends / continues:** `docs/rfc-explicit-nonnil-conversion.md` (Part B: C12 to C15, §6.6, §6.8, §9 I2, OQ 9 and 10) and its amendment A2
 (an ordinary flow into a `!T` slot is GN001, released in v1.22.0). Related: `docs/backlog.md`,
 `docs/measurements/partb-initial/`, `docs/measurements/partb-followup/`.
@@ -94,11 +92,11 @@ identifier and is treated like any other; a blank `_` is never bound. In a decla
 - It is flow-insensitive on purpose: it never reasons that "this assignment is not reached", so it may keep a variable nilable that a path analysis would let
   bind. That is the safe side.
 
-### 4.3 Input, output, command
+### 4.3 Input, output, command (decided, §8)
 
-Open, to be decided by the owner (§8): `gon convert <file|dir|./...>` reading `.gon` (the users of v1.22 who already wrote `!`) and, as a second mode,
-`.go`, which is renamed to `.gon` with the rewrite applied. The recommendation is `.gon` in place first (it is `gon fmt`'s contract: it writes the file, the
-diff is the review) and `.go` input later.
+`gon convert <file|dir|./...>` reads `.gon` sources (the users of v1.22 and later who already wrote `!`) and rewrites them as §4.1 says. **Without a flag it prints the diff and writes nothing**, as `gofmt`
+prints without `-w`; `--write` applies the rewrite to the files. The input is `.gon` in place first; reading a `.go` file and renaming it to `.gon` with the rewrite applied is a later mode. Because `gon fmt` and
+`gon transpile` write by default, the help text of `gon convert` says so.
 
 ### 4.4 Validation
 
@@ -145,13 +143,14 @@ forms, `&v`, and the reports of §4.2; idempotence and "no new diagnostic" as pr
 compile (drop the `&v` rule, treat `nil` as a recognised source, ignore closures); the three repositories as a differential run (`gon convert` then `gon check`: 0 new
 diagnostics, 0 rewrites in `gon` production but the one genuine site).
 
-## 8. Questions for the owner (open)
+## 8. Decisions of the owner (2026-11-27)
 
-1. The command and its modes (§4.3): `.gon` in place first, `.go` input later, or both at once; flags (`--check` to only report, `--write`).
-2. P1 (`&x` is not bound): accepted as an addition to §6.8?
-3. The wording of the hint (§6), and whether the initialiser position is sent as `relatedInformation` (the checker has no producer for that field yet).
-4. Whether Release A (the tool alone) ships before the binding, as §5 proposes, or the tool and the binding ship together.
-5. Whether the tool should, later, also propose `!` for parameters, results and fields. This RFC does not.
+1. **The command and its modes:** `gon convert`, `.gon` input in place first and `.go` input later; the default is a **preview** (the diff, nothing written) and `--write` applies it.
+2. **P1 (`&x` is not bound): accepted** as an addition to §6.8, as a syntactic check only (no alias analysis), closures of the same function included.
+3. **The hint:** the GN001 on a bound local says in its message text how to keep the local nilable (§6). The initialiser position is sent as `relatedInformation` only if the separate decision about a
+   producer for that field is taken; until then the message text carries it.
+4. **Release order:** the tool first (Release A: `gon convert` alone, no change of the checker), the binding later and alone (Release B, R1).
+5. **No `!` is proposed for parameters, results or fields:** the tool only keeps a local nilable where the binding would break correct code. That is outside Part B.
 
 ## 9. Alternatives
 
