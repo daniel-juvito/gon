@@ -72,12 +72,12 @@ importer now reads a main-module package's contracts from its `.gon` sources,
 so `gna.DefaultChain`'s `!*Chain` reaches `cmd/gon` and `internal/lsp`. The
 gate was pinned to **v1.14.0** for that (2026-11-17), which is what let the
 annotations of the two remaining exported candidates go ahead; both are done
-(below). The pin is now **v1.25.0**, the latest release (bumped 2026-11-28; v1.21 added
+(below). The pin is now **v1.26.0**, the latest release (bumped 2026-11-28; v1.21 added
 the explicit conversion `(!T)(x)`, and Gon's own sources use it at nine sites;
 v1.22 makes the ordinary flow into a `!T` slot GN001, an error, and v1.23 makes a zero-valued
 array of `!` elements and `make` of a slice of them GN002 and a named `!T` result a `!` variable,
 and v1.24 makes a bare `return` in a function with a named `!T` result GN002,
-with no new site in Gon's own sources any of the three times (v1.25 adds the tool `gon convert` and changes no diagnostic); the gate also runs `gon check ./...` and requires exactly `ok`;
+with no new site in Gon's own sources any of the three times (v1.25 adds the tool `gon convert` and changes no diagnostic; v1.26 binds a local by the form of its initialiser and Gon's own sources needed one `gon convert` rewrite for it, `internal/checker/method_contracts.gon`, which is in the tree already); the gate also runs `gon check ./...` and requires exactly `ok`;
 with it, `gon check ./...` on this repository is `ok` and every `.go` still
 matches its `.gon`).
 
