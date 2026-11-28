@@ -19,6 +19,12 @@ methods:
     results:
       - "error"
 
+  File.Chmod:
+    params:
+      - "FileMode"
+    results:
+      - "error"
+
   File.Write:
     params:
       - "[]byte"

@@ -152,7 +152,7 @@ func convertPackage(t checkTarget, write bool) int {
 		return status
 	}
 	if err := writeAll(paths, rewritten); err != nil {
-		fmt.Fprintf(os.Stderr, "gon: write: %v; no file was changed\n", err)
+		fmt.Fprintf(os.Stderr, "gon: write: %v\n", err)
 		return 2
 	}
 	for _, p := range paths {
@@ -245,67 +245,155 @@ func convertFile(filename string, write bool) int {
 		return status
 	}
 	if err := writeAll([]string{filename}, map[string][]byte{filename: out}); err != nil {
-		fmt.Fprintf(os.Stderr, "gon: write: %v; no file was changed\n", err)
+		fmt.Fprintf(os.Stderr, "gon: write: %v\n", err)
 		return 2
 	}
 	fmt.Fprintf(os.Stderr, "gon: convert: %s: %d variable(s) kept nilable\n", filename, plan.Kept)
 	return status
 }
 
-// renameFile is os.Rename; a test replaces it to make a commit fail half way.
+// renameFile and openFile are os.Rename and os.OpenFile; a test replaces them to make a
+// commit or a staging fail half way.
 var renameFile = os.Rename
+var openFile = os.OpenFile
 
-// writeAll replaces every file of paths with its new content, all or none. Each new
-// content is first written to a temporary file next to its target, with the permissions
-// of the target as the umask leaves them (0644 for a file that does not exist); only when all of them are staged
-// are they renamed over the targets, and if a rename fails the targets already replaced
-// are restored from their old content. The restore is best effort: a failure of the
-// restore itself is reported, not hidden.
-func writeAll(paths []string, data map[string][]byte) error {
-	type staged struct{ path, tmp string }
-	var done []staged
-	cleanup := func() {
-		for _, s := range done {
-			os.Remove(s.tmp)
-		}
+// writeError is the failure of writeAll. Incomplete lists what the restore could not put
+// back, as "target (the old content is in backup)"; it is empty when every file is as it
+// was before the call.
+type writeError struct {
+	cause      error
+	incomplete []string
+}
+
+func (e *writeError) Error() string {
+	if len(e.incomplete) == 0 {
+		return fmt.Sprintf("%v; no file was changed", e.cause)
 	}
-	for _, p := range paths {
-		tmp := p + ".gon-convert"
-		done = append(done, staged{p, tmp})
-		var werr error
-		if fi, err := os.Stat(p); err == nil {
-			werr = os.WriteFile(tmp, data[p], fi.Mode().Perm())
-		} else {
-			werr = os.WriteFile(tmp, data[p], 0o644)
+	return fmt.Sprintf("%v; the restore is INCOMPLETE, check: %s", e.cause, strings.Join(e.incomplete, ", "))
+}
+
+// stageFile creates a new file next to path, under a name that did not exist (created
+// with O_EXCL, so it is never a file of the user), holding data and the permissions of
+// fi (0644 if it is nil) exactly (not as the umask leaves them). It returns the name.
+func stageFile(path string, data []byte, fi os.FileInfo) (string, error) {
+	for i := 0; i < 100; i++ {
+		name := fmt.Sprintf("%s.gon-convert-%d", path, i)
+		f, err := openFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+		if err != nil {
+			if os.IsExist(err) {
+				continue
+			}
+			return "", err
+		}
+		_, werr := f.Write(data)
+		if werr == nil {
+			if fi != nil {
+				werr = f.Chmod(fi.Mode().Perm())
+			} else {
+				werr = f.Chmod(0o644)
+			}
+		}
+		if cerr := f.Close(); werr == nil {
+			werr = cerr
 		}
 		if werr != nil {
-			cleanup()
-			return werr
+			os.Remove(name)
+			return "", werr
 		}
+		return name, nil
 	}
-	var replaced []string
-	old := make(map[string][]byte, len(paths))
-	for _, p := range paths {
-		if b, err := os.ReadFile(p); err == nil {
-			old[p] = b
-		}
+	return "", fmt.Errorf("no free staging name next to %s", path)
+}
+
+// writeAll replaces every file of paths with its new content, all or none, for the
+// failures of an operation (not for the death of the process). Every new content, and a
+// copy of every old one, is first written to a file of its own next to its target, with
+// the permissions of the target. Only when all are staged are the new files renamed over
+// the targets; a target that no longer holds the content that was read, or a rename that
+// fails, undoes the renames already done by renaming the copies back. Only files that
+// this call created are ever removed. If a copy cannot be put back it is left where it
+// is and named in the error.
+func writeAll(paths []string, data map[string][]byte) error {
+	type entry struct {
+		path, tmp, backup string
+		old               []byte
+		existed           bool
+		info              os.FileInfo
 	}
-	for _, s := range done {
-		if err := renameFile(s.tmp, s.path); err != nil {
-			for _, r := range replaced {
-				if b, ok := old[r]; ok {
-					if rerr := os.WriteFile(r, b, 0o644); rerr != nil {
-						fmt.Fprintf(os.Stderr, "gon: could not restore %s: %v\n", r, rerr)
-					}
-				} else {
-					os.Remove(r)
-				}
+	var es []*entry
+	var created []string
+	cleanup := func(keep map[string]bool) {
+		for _, n := range created {
+			if !keep[n] {
+				os.Remove(n)
 			}
-			cleanup()
-			return err
 		}
-		replaced = append(replaced, s.path)
 	}
+	for _, p := range paths {
+		e := &entry{path: p}
+		if fi, err := os.Stat(p); err == nil {
+			e.existed = true
+			e.info = fi
+			b, rerr := os.ReadFile(p)
+			if rerr != nil {
+				cleanup(nil)
+				return &writeError{cause: rerr}
+			}
+			e.old = b
+		}
+		tmp, err := stageFile(p, data[p], e.info)
+		if err != nil {
+			cleanup(nil)
+			return &writeError{cause: err}
+		}
+		e.tmp = tmp
+		created = append(created, tmp)
+		if e.existed {
+			bk, err := stageFile(p, e.old, e.info)
+			if err != nil {
+				cleanup(nil)
+				return &writeError{cause: err}
+			}
+			e.backup = bk
+			created = append(created, bk)
+		}
+		es = append(es, e)
+	}
+	var replaced []*entry
+	fail := func(cause error) error {
+		var incomplete []string
+		keep := map[string]bool{}
+		for i := len(replaced) - 1; i >= 0; i-- {
+			e := replaced[i]
+			var rerr error
+			if e.existed {
+				rerr = renameFile(e.backup, e.path)
+			} else {
+				rerr = os.Remove(e.path)
+			}
+			if rerr != nil {
+				incomplete = append(incomplete, fmt.Sprintf("%s (the old content is in %s): %v", e.path, e.backup, rerr))
+				keep[e.backup] = true
+			}
+		}
+		cleanup(keep)
+		return &writeError{cause: cause, incomplete: incomplete}
+	}
+	for _, e := range es {
+		if e.existed {
+			now, err := os.ReadFile(e.path)
+			if err != nil || string(now) != string(e.old) {
+				return fail(fmt.Errorf("%s changed while it was being converted", e.path))
+			}
+		} else if _, err := os.Stat(e.path); err == nil {
+			return fail(fmt.Errorf("%s appeared while it was being converted", e.path))
+		}
+		if err := renameFile(e.tmp, e.path); err != nil {
+			return fail(err)
+		}
+		replaced = append(replaced, e)
+	}
+	cleanup(nil)
 	return nil
 }
 

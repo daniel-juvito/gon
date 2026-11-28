@@ -210,6 +210,197 @@ func TestConvertWriteIsAllOrNone(t *testing.T) {
 	}
 }
 
+const wtA = "package main\n\nfunc f() {\n\tbuf := make([]byte, 8)\n\tbuf = nil\n\t_ = buf\n}\n"
+const wtB = "package main\n\nfunc g() {\n\tbuf := make([]byte, 4)\n\tbuf = nil\n\t_ = buf\n}\n\nfunc main() { f(); g() }\n"
+
+func wtModule(t *testing.T) string {
+	t.Helper()
+	root := scModule(t, "1.21", map[string]string{"a.gon": wtA, "b.gon": wtB})
+	chdir(t, root)
+	return root
+}
+
+func wtNoLeftovers(t *testing.T, root string) {
+	t.Helper()
+	entries, _ := os.ReadDir(root)
+	for _, e := range entries {
+		if strings.Contains(e.Name(), ".gon-convert") {
+			t.Errorf("a staging file was left: %s", e.Name())
+		}
+	}
+}
+
+func wtPerm(t *testing.T, path string) os.FileMode {
+	t.Helper()
+	fi, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return fi.Mode().Perm()
+}
+
+func TestConvertWriteKeepsFilesOfTheUserAndTheirPermissions(t *testing.T) {
+	root := wtModule(t)
+	// A file that has the name an earlier version used for staging.
+	mine := filepath.Join(root, "a.gon.gon-convert")
+	if err := os.WriteFile(mine, []byte("mine"), 0o640); err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range []struct {
+		name string
+		perm os.FileMode
+	}{{"a.gon", 0o600}, {"b.gon", 0o755}} {
+		if err := os.Chmod(filepath.Join(root, f.name), f.perm); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if exit, _, errOut := captureRun([]string{"convert", "--write", "./..."}); exit != 0 {
+		t.Fatalf("exit %d\n%s", exit, errOut)
+	}
+	if convRead(t, mine) != "mine" || wtPerm(t, mine) != 0o640 {
+		t.Fatal("a file of the user was touched")
+	}
+	if p := wtPerm(t, filepath.Join(root, "a.gon")); p != 0o600 {
+		t.Errorf("a.gon mode = %o", p)
+	}
+	if p := wtPerm(t, filepath.Join(root, "b.gon")); p != 0o755 {
+		t.Errorf("b.gon mode = %o", p)
+	}
+	if !strings.Contains(convRead(t, filepath.Join(root, "a.gon")), "([]byte)(") {
+		t.Fatal("not rewritten")
+	}
+	for _, e := range func() []os.DirEntry { es, _ := os.ReadDir(root); return es }() {
+		if strings.HasPrefix(e.Name(), "a.gon.gon-convert-") || strings.HasPrefix(e.Name(), "b.gon.gon-convert-") {
+			t.Errorf("a staging file was left: %s", e.Name())
+		}
+	}
+}
+
+func TestConvertRollbackKeepsPermissionsAndTheUsersFiles(t *testing.T) {
+	root := wtModule(t)
+	mine := filepath.Join(root, "b.gon.gon-convert-0")
+	if err := os.WriteFile(mine, []byte("mine"), 0o640); err != nil {
+		t.Fatal(err)
+	}
+	os.Chmod(filepath.Join(root, "a.gon"), 0o700)
+	os.Chmod(filepath.Join(root, "b.gon"), 0o600)
+	calls := 0
+	orig := renameFile
+	defer func() { renameFile = orig }()
+	renameFile = func(from, to string) error {
+		calls++
+		if calls == 2 { // the commit of the second file
+			return os.ErrPermission
+		}
+		return orig(from, to)
+	}
+	exit, _, errOut := captureRun([]string{"convert", "--write", "./..."})
+	if exit != 2 || !strings.Contains(errOut, "no file was changed") || strings.Contains(errOut, "INCOMPLETE") {
+		t.Fatalf("exit %d, stderr %q", exit, errOut)
+	}
+	if convRead(t, filepath.Join(root, "a.gon")) != wtA || convRead(t, filepath.Join(root, "b.gon")) != wtB {
+		t.Fatal("a file differs after the rollback")
+	}
+	if p := wtPerm(t, filepath.Join(root, "a.gon")); p != 0o700 {
+		t.Errorf("a.gon mode after rollback = %o", p)
+	}
+	if p := wtPerm(t, filepath.Join(root, "b.gon")); p != 0o600 {
+		t.Errorf("b.gon mode after rollback = %o", p)
+	}
+	if convRead(t, mine) != "mine" || wtPerm(t, mine) != 0o640 {
+		t.Fatal("a file of the user was removed or changed")
+	}
+}
+
+func TestConvertFailedRestoreIsReportedAndKeepsTheOldContent(t *testing.T) {
+	root := wtModule(t)
+	calls := 0
+	orig := renameFile
+	defer func() { renameFile = orig }()
+	renameFile = func(from, to string) error {
+		calls++
+		if calls >= 2 { // the second commit and the restore of the first
+			return os.ErrPermission
+		}
+		return orig(from, to)
+	}
+	exit, _, errOut := captureRun([]string{"convert", "--write", "./..."})
+	if exit != 2 || !strings.Contains(errOut, "INCOMPLETE") || strings.Contains(errOut, "no file was changed") {
+		t.Fatalf("exit %d, stderr %q", exit, errOut)
+	}
+	// a.gon holds the converted text; the error names the copy of the old one, and it is there.
+	if !strings.Contains(convRead(t, filepath.Join(root, "a.gon")), "([]byte)(") {
+		t.Fatal("a.gon was expected to be the converted file")
+	}
+	entries, _ := os.ReadDir(root)
+	found := false
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), "a.gon.gon-convert-") {
+			if convRead(t, filepath.Join(root, e.Name())) != wtA || !strings.Contains(errOut, e.Name()) {
+				t.Errorf("the copy %s is not the old content or is not named in %q", e.Name(), errOut)
+			}
+			found = true
+		}
+		if strings.HasPrefix(e.Name(), "b.gon.gon-convert-") {
+			t.Errorf("a staging file of the unreplaced file was left: %s", e.Name())
+		}
+	}
+	if !found {
+		t.Fatal("the copy of the old content was removed")
+	}
+	if convRead(t, filepath.Join(root, "b.gon")) != wtB {
+		t.Fatal("b.gon changed")
+	}
+}
+
+func TestConvertStagingFailureLeavesNothing(t *testing.T) {
+	root := wtModule(t)
+	calls := 0
+	orig := openFile
+	defer func() { openFile = orig }()
+	openFile = func(name string, flag int, perm os.FileMode) (*os.File, error) {
+		calls++
+		if calls == 3 { // a.new, a.backup, then the staging of b
+			return nil, os.ErrPermission
+		}
+		return orig(name, flag, perm)
+	}
+	exit, _, errOut := captureRun([]string{"convert", "--write", "./..."})
+	if exit != 2 || !strings.Contains(errOut, "no file was changed") {
+		t.Fatalf("exit %d, stderr %q", exit, errOut)
+	}
+	if convRead(t, filepath.Join(root, "a.gon")) != wtA || convRead(t, filepath.Join(root, "b.gon")) != wtB {
+		t.Fatal("a file changed")
+	}
+	wtNoLeftovers(t, root)
+}
+
+func TestConvertRefusesATargetThatChangedAfterStaging(t *testing.T) {
+	root := wtModule(t)
+	changed := wtB + "// edited meanwhile\n"
+	calls := 0
+	orig := renameFile
+	defer func() { renameFile = orig }()
+	renameFile = func(from, to string) error {
+		calls++
+		if calls == 1 { // after a.gon is replaced, before b.gon is checked
+			os.WriteFile(filepath.Join(root, "b.gon"), []byte(changed), 0o644)
+		}
+		return orig(from, to)
+	}
+	exit, _, errOut := captureRun([]string{"convert", "--write", "./..."})
+	if exit != 2 || !strings.Contains(errOut, "changed while it was being converted") {
+		t.Fatalf("exit %d, stderr %q", exit, errOut)
+	}
+	if convRead(t, filepath.Join(root, "a.gon")) != wtA {
+		t.Fatal("a.gon was not restored")
+	}
+	if convRead(t, filepath.Join(root, "b.gon")) != changed {
+		t.Fatal("the edit made meanwhile was lost")
+	}
+	wtNoLeftovers(t, root)
+}
+
 func TestDiagnosticSetTellsApartTwoOnOneLine(t *testing.T) {
 	d1 := &checker.Diagnostic{Code: "GN001", Line: 20, Message: "cannot assign nil to non-nil variable !p"}
 	d2 := &checker.Diagnostic{Code: "GN001", Line: 20, Message: "cannot assign nil to non-nil variable !q"}
