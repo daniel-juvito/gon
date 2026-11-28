@@ -508,26 +508,39 @@ func TestDiagnosticsChange(t *testing.T) {
 	warn := warnOf("b")
 	other := &checker.Diagnostic{Code: "GN002", Line: 3, Message: "missing field"}
 	plainGN001 := &checker.Diagnostic{Code: "GN001", Line: 15, Message: "cannot use value of type *T as !*T; use (!*T)(x) to make an explicit claim"}
-	b := []checker.ConvertedLocal{{Name: "b", Line: 8, Column: 2}}
+	none := checker.ConvertPlan{}
+	// b is rewritten at 8:2; its initialiser opens at 8:7 and gains 7 characters.
+	b := checker.ConvertPlan{
+		Converted: []checker.ConvertedLocal{{Name: "b", Line: 8, Column: 2}},
+		Shifts:    []checker.ConvertShift{{Line: 8, Column: 7, Delta: 7}, {Line: 8, Column: 12, Delta: 1}},
+	}
+	type diags = []*checker.Diagnostic
 	for name, c := range map[string]struct {
-		before, after []*checker.Diagnostic
-		converted     []checker.ConvertedLocal
+		before, after diags
+		plan          checker.ConvertPlan
 		ok            bool
 	}{
-		"nothing changes":                            {[]*checker.Diagnostic{other}, []*checker.Diagnostic{other}, nil, true},
-		"the errors of the rewritten local go":       {[]*checker.Diagnostic{hint(8, 2), warn, other}, []*checker.Diagnostic{other}, b, true},
-		"the position of the hint moves":             {[]*checker.Diagnostic{hint(8, 2)}, []*checker.Diagnostic{hint(8, 9)}, b, true},
-		"a new diagnostic":                           {[]*checker.Diagnostic{other}, []*checker.Diagnostic{other, warn}, b, false},
-		"another one is lost":                        {[]*checker.Diagnostic{other, hint(8, 2)}, []*checker.Diagnostic{hint(8, 2)}, b, false},
-		"one of two equal ones is lost":              {[]*checker.Diagnostic{other, other}, []*checker.Diagnostic{other}, b, false},
-		"an unrelated GN001 is lost":                 {[]*checker.Diagnostic{hint(8, 2), plainGN001}, []*checker.Diagnostic{}, b, false},
-		"a GN001 of a local that was not rewritten":  {[]*checker.Diagnostic{hintAt("c", 20, 2)}, []*checker.Diagnostic{}, b, false},
-		"a GN001 of a name that ends like it":        {[]*checker.Diagnostic{hintAt("ab", 8, 2)}, []*checker.Diagnostic{}, b, false},
-		"a GN001 of the name at another place":       {[]*checker.Diagnostic{hint(30, 2)}, []*checker.Diagnostic{}, b, false},
-		"a GW001 of another local is lost":           {[]*checker.Diagnostic{warnOf("c")}, []*checker.Diagnostic{}, b, false},
-		"a bound-local error with nothing rewritten": {[]*checker.Diagnostic{hint(8, 2)}, []*checker.Diagnostic{}, nil, false},
+		"nothing changes":                            {diags{other}, diags{other}, none, true},
+		"the errors of the rewritten local go":       {diags{hint(8, 2), warn, other}, diags{other}, b, true},
+		"a local of one name that stays moves":       {diags{hint(8, 2), hintAt("x", 8, 20)}, diags{hintAt("x", 8, 28)}, b, true},
+		"two of one name on a line, one rewritten":   {diags{hint(8, 2), hint(8, 20)}, diags{hint(8, 28)}, b, true},
+		"the rewritten one stays and the other goes": {diags{hint(8, 2), hint(8, 20)}, diags{hint(8, 2)}, b, false},
+		"a position that moved with no shift":        {diags{hintAt("x", 8, 20)}, diags{hintAt("x", 8, 25)}, b, false},
+		"a position at the column of a shift moves":  {diags{hintAt("x", 8, 7)}, diags{hintAt("x", 8, 14)}, b, true},
+		"a position on another line does not move":   {diags{hintAt("x", 9, 20)}, diags{hintAt("x", 9, 20)}, b, true},
+		"a position on another line that moved":      {diags{hintAt("x", 9, 20)}, diags{hintAt("x", 9, 28)}, b, false},
+		"a position before every shift stays":        {diags{hintAt("x", 8, 3)}, diags{hintAt("x", 8, 3)}, b, true},
+		"a new diagnostic":                           {diags{other}, diags{other, warn}, b, false},
+		"another one is lost":                        {diags{other, hint(8, 2)}, diags{hint(8, 2)}, b, false},
+		"one of two equal ones is lost":              {diags{other, other}, diags{other}, b, false},
+		"an unrelated GN001 is lost":                 {diags{hint(8, 2), plainGN001}, diags{}, b, false},
+		"a GN001 of a local that was not rewritten":  {diags{hintAt("c", 20, 2)}, diags{}, b, false},
+		"a GN001 of the name at another place":       {diags{hint(30, 2)}, diags{}, b, false},
+		"a GN001 of a name that ends like it":        {diags{hintAt("ab", 8, 2)}, diags{}, b, false},
+		"a GW001 of another local is lost":           {diags{warnOf("c")}, diags{}, b, false},
+		"a bound-local error with nothing rewritten": {diags{hint(8, 2)}, diags{}, none, false},
 	} {
-		if got := diagnosticsChange(c.before, c.after, c.converted); (got == "") != c.ok {
+		if got := diagnosticsChange(c.before, c.after, c.plan); (got == "") != c.ok {
 			t.Errorf("%s: diagnosticsChange = %q, want ok=%v", name, got, c.ok)
 		}
 	}

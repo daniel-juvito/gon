@@ -130,7 +130,7 @@ func convertPackage(t checkTarget, write bool) int {
 	}
 	for _, f := range res.Files {
 		after := byPath[f.Path]
-		if problem := diagnosticsChange(f.Diagnostics, after.Diagnostics, f.Plan.Converted); problem != "" {
+		if problem := diagnosticsChange(f.Diagnostics, after.Diagnostics, *f.Plan); problem != "" {
 			fmt.Fprintf(os.Stderr, "gon: convert: the rewritten %s %s; nothing was written\n", f.Path, problem)
 			return 1
 		}
@@ -231,7 +231,7 @@ func convertFile(filename string, write bool) int {
 		fmt.Fprintf(os.Stderr, "gon: convert: the rewritten %s cannot be checked (%v); nothing was written\n", filename, err)
 		return 1
 	}
-	if problem := diagnosticsChange(before, after, plan.Converted); problem != "" {
+	if problem := diagnosticsChange(before, after, plan); problem != "" {
 		fmt.Fprintf(os.Stderr, "gon: convert: the rewritten %s %s; nothing was written\n", filename, problem)
 		return 1
 	}
@@ -407,50 +407,85 @@ func writeAll(paths []string, data map[string][]byte) error {
 	return nil
 }
 
-// diagnosticKey is how a diagnostic is told from another across a rewrite: code,
-// severity, line and message. The column is left out (an insertion moves it), and so is
-// the position that the hint of a bound local names (it moves with the insertion too).
-func diagnosticKey(d *checker.Diagnostic) string {
-	level := "error"
-	if !d.IsError() {
-		level = "warning"
+// boundHint is a parsed hint of a bound local ("NAME was bound non-nil by its
+// initialiser at LINE:COL") inside a diagnostic message.
+type boundHint struct {
+	name      string
+	line, col int
+	from, to  int // the span of "LINE:COL" in the message
+}
+
+const hintMarker = " was bound non-nil by its initialiser at "
+
+func parseBoundHint(msg string) (boundHint, bool) {
+	i := strings.Index(msg, hintMarker)
+	if i < 0 {
+		return boundHint{}, false
 	}
-	msg := d.Message
-	const marker = "by its initialiser at "
-	if i := strings.Index(msg, marker); i >= 0 {
-		j := i + len(marker)
-		k := j
-		for k < len(msg) && (msg[k] == ':' || (msg[k] >= '0' && msg[k] <= '9')) {
-			k++
+	start := strings.LastIndex(msg[:i], "; ")
+	if start < 0 {
+		return boundHint{}, false
+	}
+	h := boundHint{name: msg[start+2 : i], from: i + len(hintMarker)}
+	h.to = h.from
+	for h.to < len(msg) && (msg[h.to] == ':' || (msg[h.to] >= '0' && msg[h.to] <= '9')) {
+		h.to++
+	}
+	if _, err := fmt.Sscanf(msg[h.from:h.to], "%d:%d", &h.line, &h.col); err != nil {
+		return boundHint{}, false
+	}
+	return h, true
+}
+
+// diagnosticKeys is how the diagnostics of one file are told from each other across a
+// rewrite: code, severity, line and message, the position that the hint of a bound
+// local names included (that is the identity of the local). The column of the
+// diagnostic itself is left out. The shifts of a rewrite are applied to the position in
+// a hint first, so that the hint of a local that the rewrite did not touch, but moved,
+// has the position that the file after the rewrite gives it.
+func diagnosticKeys(diags []*checker.Diagnostic, shifts []checker.ConvertShift) []string {
+	keys := make([]string, len(diags))
+	for i, d := range diags {
+		level := "error"
+		if !d.IsError() {
+			level = "warning"
 		}
-		msg = msg[:j] + "_" + msg[k:]
+		msg := d.Message
+		if h, ok := parseBoundHint(msg); ok {
+			col := h.col
+			for _, s := range shifts {
+				if s.Line == h.line && s.Column <= h.col {
+					col += s.Delta
+				}
+			}
+			msg = msg[:h.from] + fmt.Sprintf("%d:%d", h.line, col) + msg[h.to:]
+		}
+		keys[i] = fmt.Sprintf("%s %s %d %s", d.Code, level, d.Line, msg)
 	}
-	return fmt.Sprintf("%s %s %d %s", d.Code, level, d.Line, msg)
+	return keys
 }
 
 // diagnosticSet is the sorted list of the keys of diagnostics, as one string.
 func diagnosticSet(diags []*checker.Diagnostic) string {
-	var items []string
-	for _, d := range diags {
-		items = append(items, diagnosticKey(d))
-	}
+	items := diagnosticKeys(diags, nil)
 	sort.Strings(items)
 	return strings.Join(items, "; ")
 }
 
-// diagnosticsChange says what a rewrite did to the diagnostics, or "" if it is what
-// gon convert is for. The rewrite may remove only the diagnostics that the binding gave
+// diagnosticsChange says what a rewrite (the plan) did to the diagnostics, or "" if it
+// is what gon convert is for. The rewrite may remove only the diagnostics that the binding gave
 // to the locals it rewrote: a GN001 whose hint names one of them (name and position of
 // the variable), and a GW001 that is about one of them by name. It must add no
 // diagnostic and remove no other, whatever its code.
-func diagnosticsChange(before, after []*checker.Diagnostic, converted []checker.ConvertedLocal) string {
+func diagnosticsChange(before, after []*checker.Diagnostic, plan checker.ConvertPlan) string {
+	converted := plan.Converted
+	beforeKeys := diagnosticKeys(before, plan.Shifts)
 	left := make(map[string]int)
-	for _, d := range before {
-		left[diagnosticKey(d)]++
+	for _, k := range beforeKeys {
+		left[k]++
 	}
 	var added []string
-	for _, d := range after {
-		k := diagnosticKey(d)
+	for _, k := range diagnosticKeys(after, nil) {
 		if left[k] > 0 {
 			left[k]--
 		} else {
@@ -462,8 +497,8 @@ func diagnosticsChange(before, after []*checker.Diagnostic, converted []checker.
 		return "has diagnostics that the original did not have: " + strings.Join(added, "; ")
 	}
 	var removed []string
-	for _, d := range before {
-		k := diagnosticKey(d)
+	for i, d := range before {
+		k := beforeKeys[i]
 		if left[k] == 0 {
 			continue
 		}
