@@ -26,6 +26,11 @@ type Checker struct {
 	// scopes contain lexical bindings. The value is true only for !T bindings;
 	// false is also stored so a nullable shadowing declaration hides an outer !T.
 	scopes             []map[string]bool
+	// inferred holds the locals bound `!` by the form of their initialiser (Part B),
+	// with the position of the variable, for the hint of an error on them; addrTaken the
+	// variables whose address is taken (P1).
+	inferred  map[types.Object]token.Pos
+	addrTaken map[types.Object]bool
 	currentFuncReturns []bool
 	// currentFuncNamedBang is the name of the first named result of the function being
 	// walked that is declared `!T`, or "" (rule C2: a bare return is GN002).
@@ -590,6 +595,9 @@ func (c *Checker) checkLocalVarDecl(d *ast.GenDecl) {
 				results := c.resolveCallResults(call.Fun)
 				for i, name := range vs.Names {
 					nn := i < len(results) && results[i]
+					if len(vs.Names) == 1 && c.bindsByInference(name, call) {
+						nn = true
+					}
 					c.define(name.Name, nn)
 				}
 				continue
@@ -603,6 +611,9 @@ func (c *Checker) checkLocalVarDecl(d *ast.GenDecl) {
 					if len(results) > 0 && results[0] {
 						nn = true
 					}
+				}
+				if len(vs.Names) == len(vs.Values) && c.bindsByInference(name, vs.Values[i]) {
+					nn = true
 				}
 			}
 			c.define(name.Name, nn)
@@ -628,7 +639,7 @@ func (c *Checker) checkAssignStmt(assign *ast.AssignStmt) {
 		if id, ok := lhs.(*ast.Ident); ok {
 			if nn, exists := c.lookup(id.Name); exists && nn {
 				if isNilIdent(assign.Rhs[i]) {
-					c.addError(assign.Rhs[i].Pos(), "GN001", fmt.Sprintf("cannot assign nil to non-nil variable !%s", id.Name))
+					c.addError(assign.Rhs[i].Pos(), "GN001", fmt.Sprintf("cannot assign nil to non-nil variable !%s", id.Name)+c.boundHint(id))
 				} else if assign.Tok != token.DEFINE {
 					// `:=` creates a fresh (shadowing) binding, so a value flows
 					// into an existing `!I` only on plain assignment (D3b).
@@ -641,7 +652,7 @@ func (c *Checker) checkAssignStmt(assign *ast.AssignStmt) {
 					if c.cannotSatisfyBangInterface(assign.Rhs[i], target) {
 						c.addError(assign.Rhs[i].Pos(), "GN001", fmt.Sprintf("cannot assign ordinary interface value to non-nil variable !%s", id.Name))
 					} else {
-						c.reportOrdinaryFlow(assign.Rhs[i], target)
+						c.reportOrdinaryFlowHint(assign.Rhs[i], target, c.boundHint(id))
 					}
 				}
 			}
@@ -687,6 +698,9 @@ func (c *Checker) defineFromCallResults(assign *ast.AssignStmt) {
 					continue
 				}
 				nn := i < len(results) && results[i]
+				if len(assign.Lhs) == 1 && c.bindsByInference(id, call) {
+					nn = true
+				}
 				c.define(id.Name, nn)
 			}
 			return
@@ -706,6 +720,9 @@ func (c *Checker) defineFromCallResults(assign *ast.AssignStmt) {
 				if len(results) > 0 && results[0] {
 					nn = true
 				}
+			}
+			if len(assign.Lhs) == len(assign.Rhs) && c.bindsByInference(id, assign.Rhs[i]) {
+				nn = true
 			}
 		}
 		c.define(id.Name, nn)

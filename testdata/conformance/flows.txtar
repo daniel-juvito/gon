@@ -317,11 +317,7 @@ func f(s []int, q *T) {
 	_, _, _, _, _ = t1, t2, t3, p1, p2
 }
 -- GW-B-01/want --
-7 GN001
-8 GN001
 9 GN001
-11 GN001
-13 GN001
 -- CHK-BANG-01/src --
 package p
 
@@ -431,6 +427,8 @@ func f(p *T) {
 	_ = q
 }
 -- CV-BIND-01/want --
+7 GW001
+9 GN001
 10 GN001
 -- GW-E-01/src --
 package p
@@ -874,3 +872,145 @@ func g9() (x !*T) { f := func() { return }; _ = f; return nn() }
 9 GN002
 10 GN002
 11 GN002
+-- PB-01/src --
+package p
+
+type T struct{}
+
+func ord() *T { return nil }
+
+func f(q *T, s []int) {
+	a := &T{}
+	b := new(T)
+	c := make([]int, 1)
+	d := []int{1}
+	e := map[string]int{}
+	k := func() {}
+	l := append(s, 1)
+	m := s[:0]
+	n := d[:0]
+	o := (!*T)(q)
+	a = nil
+	b = nil
+	c = nil
+	d = nil
+	e = nil
+	k = nil
+	l = nil
+	m = nil
+	n = nil
+	o = nil
+	_, _, _, _, _, _, _, _, _, _ = a, b, c, d, e, k, l, m, n, o
+}
+-- PB-01/want --
+18 GN001
+19 GN001
+20 GN001
+21 GN001
+22 GN001
+23 GN001
+24 GN001
+26 GN001
+27 GN001
+-- PB-02/src --
+package p
+
+type T struct{}
+
+func ord() *T { return nil }
+func nn() !*T { return &T{} }
+
+func f(q *T) {
+	a := &T{}
+	if a == nil {
+	}
+	b := ord()
+	if b == nil {
+	}
+	c := nn()
+	if c == nil {
+	}
+	d := &T{}
+	pd := &d
+	if d == nil {
+	}
+	e := (*T)(&T{})
+	if e == nil {
+	}
+	var g *T = &T{}
+	if g == nil {
+	}
+	var h = &T{}
+	if h == nil {
+	}
+	_, _ = pd, q
+}
+-- PB-02/want --
+10 GW001
+16 GW001
+29 GW001
+-- PB-03/src --
+package p
+
+type T struct{}
+
+func ord() *T { return nil }
+func two() (*T, error) { return nil, nil }
+func use(p !*T) {}
+
+func f(q *T) {
+	a := &T{}
+	use(a)
+	a = &T{}
+	a = q
+	a = ord()
+	b := ord()
+	use(b)
+	c := a
+	c = nil
+	use(c)
+	x, y := &T{}, ord()
+	x = nil
+	y = nil
+	var err error
+	x, err = two()
+	_, _, _, _ = b, y, err, x
+}
+-- PB-03/want --
+13 GN001
+14 GN001
+16 GN001
+18 GN001
+21 GN001
+24 GN001
+-- PB-04/src --
+package p
+
+type T struct{ next *T }
+
+func ord() *T { return nil }
+
+func f() {
+	a := &T{}
+	g := func() { a = nil }
+	g()
+	_ = a
+	for p := new(T); p != nil; p = p.next {
+	}
+	if x := new(T); x == nil {
+	}
+	z := &T{}
+	{
+		z := ord()
+		z = nil
+		_ = z
+	}
+	z = nil
+	_ = z
+}
+-- PB-04/want --
+9 GN001
+12 GW001
+12 GN001
+14 GW001
+22 GN001

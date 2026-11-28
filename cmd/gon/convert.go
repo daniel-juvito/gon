@@ -130,8 +130,8 @@ func convertPackage(t checkTarget, write bool) int {
 	}
 	for _, f := range res.Files {
 		after := byPath[f.Path]
-		if a, b := diagnosticSet(f.Diagnostics), diagnosticSet(after.Diagnostics); a != b {
-			fmt.Fprintf(os.Stderr, "gon: convert: the rewritten %s has other diagnostics than the original; nothing was written\n  before: %s\n  after:  %s\n", f.Path, a, b)
+		if problem := diagnosticsChange(f.Diagnostics, after.Diagnostics); problem != "" {
+			fmt.Fprintf(os.Stderr, "gon: convert: the rewritten %s %s; nothing was written\n", f.Path, problem)
 			return 1
 		}
 		if after.Plan != nil && len(after.Plan.Edits) != 0 {
@@ -231,8 +231,8 @@ func convertFile(filename string, write bool) int {
 		fmt.Fprintf(os.Stderr, "gon: convert: the rewritten %s cannot be checked (%v); nothing was written\n", filename, err)
 		return 1
 	}
-	if a, b := diagnosticSet(before), diagnosticSet(after); a != b {
-		fmt.Fprintf(os.Stderr, "gon: convert: the rewritten %s has other diagnostics than the original; nothing was written\n  before: %s\n  after:  %s\n", filename, a, b)
+	if problem := diagnosticsChange(before, after); problem != "" {
+		fmt.Fprintf(os.Stderr, "gon: convert: the rewritten %s %s; nothing was written\n", filename, problem)
 		return 1
 	}
 	if again := c2.PlanConvert(result2.CleanToOrig); len(again.Edits) != 0 {
@@ -407,18 +407,74 @@ func writeAll(paths []string, data map[string][]byte) error {
 	return nil
 }
 
-// diagnosticSet is the sorted list of "code severity line message" of diagnostics (the column is left out: the rewrite moves it), as one string.
+// diagnosticKey is how a diagnostic is told from another across a rewrite: code,
+// severity, line and message. The column is left out (an insertion moves it), and so is
+// the position that the hint of a bound local names (it moves with the insertion too).
+func diagnosticKey(d *checker.Diagnostic) string {
+	level := "error"
+	if !d.IsError() {
+		level = "warning"
+	}
+	msg := d.Message
+	const marker = "by its initialiser at "
+	if i := strings.Index(msg, marker); i >= 0 {
+		j := i + len(marker)
+		k := j
+		for k < len(msg) && (msg[k] == ':' || (msg[k] >= '0' && msg[k] <= '9')) {
+			k++
+		}
+		msg = msg[:j] + "_" + msg[k:]
+	}
+	return fmt.Sprintf("%s %s %d %s", d.Code, level, d.Line, msg)
+}
+
+// diagnosticSet is the sorted list of the keys of diagnostics, as one string.
 func diagnosticSet(diags []*checker.Diagnostic) string {
 	var items []string
 	for _, d := range diags {
-		level := "error"
-		if !d.IsError() {
-			level = "warning"
-		}
-		items = append(items, fmt.Sprintf("%s %s %d %s", d.Code, level, d.Line, d.Message))
+		items = append(items, diagnosticKey(d))
 	}
 	sort.Strings(items)
 	return strings.Join(items, "; ")
+}
+
+// diagnosticsChange says what a rewrite did to the diagnostics, or "" if it is what
+// gon convert is for. The rewrite may remove a GN001 error or a GW001 warning (the
+// ones that a local bound by inference gets) and nothing else: it must add no
+// diagnostic and remove no other.
+func diagnosticsChange(before, after []*checker.Diagnostic) string {
+	left := make(map[string]int)
+	for _, d := range before {
+		left[diagnosticKey(d)]++
+	}
+	var added []string
+	for _, d := range after {
+		k := diagnosticKey(d)
+		if left[k] > 0 {
+			left[k]--
+		} else {
+			added = append(added, k)
+		}
+	}
+	if len(added) > 0 {
+		sort.Strings(added)
+		return "has diagnostics that the original did not have: " + strings.Join(added, "; ")
+	}
+	var removed []string
+	for _, d := range before {
+		k := diagnosticKey(d)
+		if left[k] > 0 && d.Code != "GN001" && d.Code != "GW001" {
+			removed = append(removed, k)
+		}
+		if left[k] > 0 {
+			left[k]--
+		}
+	}
+	if len(removed) > 0 {
+		sort.Strings(removed)
+		return "lost diagnostics that are not the ones of a bound local: " + strings.Join(removed, "; ")
+	}
+	return ""
 }
 
 // printConvertDiff prints, for each line that the rewrite changed, the old and the new

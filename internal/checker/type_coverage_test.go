@@ -132,20 +132,26 @@ func f() {
 
 // --- C6: no propagation through derived expressions -------------------------
 
-func TestTC_AppendResultIsOrdinary(t *testing.T) {
+func TestTC_AppendResultIsNonNilSource(t *testing.T) {
+	// Part B (RFC C13): append with an element is never nil, and an append of a recognised
+	// base keeps the recognition; the local that it initialises is bound.
 	diags := checkTyped(t, `package main
 func base() ![]int { return []int{} }
-func f() {
+func f(o []int) {
 	s := base()
 	x := append(s, 1)
 	if x == nil {}
+	y := append(o)
+	if y == nil {}
 }`)
-	if countCode(diags, "GW001") != 0 {
-		t.Fatalf("append result must not be a ! source (no GW001): %v", diags)
+	if countCode(diags, "GW001") != 1 {
+		t.Fatalf("append(s, 1) is a ! source (one GW001, for x) and append(o) is ordinary (none for y): %v", diags)
 	}
 }
 
-func TestTC_ResliceAndConversionOrdinary(t *testing.T) {
+func TestTC_ResliceOfBangIsNonNilConversionIsOrdinary(t *testing.T) {
+	// Part B (RFC C15): a slice of a recognised value is recognised. A conversion is
+	// still ordinary: it propagates nothing.
 	diags := checkTyped(t, `package main
 type Bytes []byte
 func base() ![]byte { return []byte{} }
@@ -156,8 +162,8 @@ func f() {
 	if a == nil {}
 	if b == nil {}
 }`)
-	if countCode(diags, "GW001") != 0 {
-		t.Fatalf("reslice / conversion must not propagate ! (no GW001): %v", diags)
+	if countCode(diags, "GW001") != 1 {
+		t.Fatalf("a reslice of a ! slice is a ! source (GW001 for a); a conversion is not (none for b): %v", diags)
 	}
 }
 

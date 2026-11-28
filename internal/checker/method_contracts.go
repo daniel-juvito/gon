@@ -49,7 +49,7 @@ func (c *Checker) sourceMethodContracts() map[*types.Func]*sourceMethod {
 	if c.info == nil {
 		return c.methodContracts
 	}
-	files := []*ast.File{c.file}
+	files := ([]*ast.File)([]*ast.File{c.file})
 	if c.pkg != nil {
 		files = c.pkg.files
 	}

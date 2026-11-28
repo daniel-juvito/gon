@@ -612,11 +612,11 @@
   "rfc": "§6.6",
   "kind": "check",
   "status": "enabled",
-  "site": "internal/checker: isRecognisedSource (Part B must not leak)",
+  "site": "internal/checker: isRecognisedSource and bindsByInference (Part B)",
   "diagnostics": [
    "GN001"
   ],
-  "note": "append, slice expression, inferred local, a conversion that binds no local"
+  "note": "Part B: an inferred local, append with an element and a slice of a recognised value are recognised sources (lines 7, 8, 11, 13 are silent); a slice of an ordinary slice stays an ordinary flow (line 9)"
  },
  {
   "id": "SYN-BANG-03",
@@ -715,11 +715,12 @@
   "rfc": "§6.2",
   "kind": "check",
   "status": "enabled",
-  "site": "internal/checker: a conversion binds no local",
+  "site": "internal/checker: a (!T)(x) initialiser binds the local (Part B)",
   "diagnostics": [
-   "GN001"
+   "GN001",
+   "GW001"
   ],
-  "note": "a := (!*T)(p) is not bound: no GW001 on a == nil and no GN001 on a = nil; a declared !*T still rejects nil"
+  "note": "a := (!*T)(p) binds the local since Part B: a == nil is GW001 and a = nil is GN001, as is nil into a declared !*T"
  },
  {
   "id": "GW-E-01",
@@ -884,5 +885,50 @@
    "GN002"
   ],
   "note": "a bare return in a function with a named !T result is GN002, whatever was assigned; an explicit return, a named result that is not !, no results, and a bare return inside a literal that has none are silent"
+ },
+ {
+  "id": "PB-01",
+  "rfc": "Part B, section 3",
+  "kind": "check",
+  "status": "enabled",
+  "site": "internal/checker: bindsByInference (binding.gon)",
+  "diagnostics": [
+   "GN001"
+  ],
+  "note": "a local bound by the form of its initialiser (a literal, &, new, make, a function literal, append with an element, a slice of a recognised local, (!T)(x)) is a ! variable: x = nil is GN001; a slice of an ordinary slice binds nothing"
+ },
+ {
+  "id": "PB-02",
+  "rfc": "Part B, section 3",
+  "kind": "check",
+  "status": "enabled",
+  "site": "internal/checker: bindsByInference (binding.gon)",
+  "diagnostics": [
+   "GW001"
+  ],
+  "note": "x == nil on a bound local is GW001; not bound: an ordinary call, a local whose address is taken (P1), (T)(e), var x T = e; bound: a !T call (as before) and an untyped var with a literal"
+ },
+ {
+  "id": "PB-03",
+  "rfc": "Part B, section 3",
+  "kind": "check",
+  "status": "enabled",
+  "site": "internal/checker: bindsByInference (binding.gon)",
+  "diagnostics": [
+   "GN001"
+  ],
+  "note": "on a bound local an ordinary value is GN001 (a = q, a = ord()), a recognised one is silent, a local initialised from a bound local is bound, a multi-value := binds per position, a tuple assignment into a bound local is GN001"
+ },
+ {
+  "id": "PB-04",
+  "rfc": "Part B, section 3",
+  "kind": "check",
+  "status": "enabled",
+  "site": "internal/checker: bindsByInference (binding.gon)",
+  "diagnostics": [
+   "GN001",
+   "GW001"
+  ],
+  "note": "a closure that assigns nil to a captured bound local, the loop init and the if init bind, an inner := of the same name shadows the binding"
  }
 ]

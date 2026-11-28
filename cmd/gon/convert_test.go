@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -478,5 +479,43 @@ func TestDiagnosticSetTellsApartTwoOnOneLine(t *testing.T) {
 	moved.Col = 9
 	if diagnosticSet([]*checker.Diagnostic{d1}) != diagnosticSet([]*checker.Diagnostic{&moved}) {
 		t.Fatal("a moved column makes the sets differ")
+	}
+}
+
+func TestConvertRemovesTheErrorsOfTheBinding(t *testing.T) {
+	root := scModule(t, "1.21", map[string]string{"main.gon": convSrc})
+	chdir(t, root)
+	// Since the binding (Part B) the original is rejected: buf = nil is GN001.
+	if exit, _, errOut := captureRun([]string{"check", "main.gon"}); exit != 1 || !strings.Contains(errOut, "bound non-nil by its initialiser") {
+		t.Fatalf("before: exit %d, stderr %q", exit, errOut)
+	}
+	if exit, _, errOut := captureRun([]string{"convert", "--write", "main.gon"}); exit != 0 {
+		t.Fatalf("convert: exit %d\n%s", exit, errOut)
+	}
+	if exit, _, errOut := captureRun([]string{"check", "main.gon"}); exit != 0 {
+		t.Fatalf("after: exit %d\n%s", exit, errOut)
+	}
+}
+
+func TestDiagnosticsChange(t *testing.T) {
+	hint := func(line, col int) *checker.Diagnostic {
+		return &checker.Diagnostic{Code: "GN001", Line: 9, Message: "cannot assign nil to non-nil variable !b; b was bound non-nil by its initialiser at " + strconv.Itoa(line) + ":" + strconv.Itoa(col) + ": declare it"}
+	}
+	warn := &checker.Diagnostic{Severity: checker.SeverityWarning, Code: "GW001", Line: 12, Message: "b is non-nil"}
+	other := &checker.Diagnostic{Code: "GN002", Line: 3, Message: "missing field"}
+	for name, c := range map[string]struct {
+		before, after []*checker.Diagnostic
+		ok            bool
+	}{
+		"nothing changes":                {[]*checker.Diagnostic{other}, []*checker.Diagnostic{other}, true},
+		"the binding's errors go":        {[]*checker.Diagnostic{hint(8, 2), warn, other}, []*checker.Diagnostic{other}, true},
+		"the position of the hint moves": {[]*checker.Diagnostic{hint(8, 2)}, []*checker.Diagnostic{hint(8, 9)}, true},
+		"a new diagnostic":               {[]*checker.Diagnostic{other}, []*checker.Diagnostic{other, warn}, false},
+		"another one is lost":            {[]*checker.Diagnostic{other, hint(8, 2)}, []*checker.Diagnostic{hint(8, 2)}, false},
+		"one of two equal ones is lost":  {[]*checker.Diagnostic{other, other}, []*checker.Diagnostic{other}, false},
+	} {
+		if got := diagnosticsChange(c.before, c.after); (got == "") != c.ok {
+			t.Errorf("%s: diagnosticsChange = %q, want ok=%v", name, got, c.ok)
+		}
 	}
 }
