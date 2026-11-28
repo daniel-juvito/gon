@@ -253,7 +253,7 @@ declared `!T` identifiers emit **GW003**.
 Tooling:
 
 - `gon fmt` — `go/format` on the clean form, then token-lockstep `!` re-insertion (v1.4.1; refuses rather than write a mis-aligned result)
-- `gon convert` — rewrites `x := e` to `x := (T)(e)` where the binding of an inferred local (RFC Part B, not yet a rule) would break correct Go; a preview by default, `--write` applies it, and nothing is written unless the package still gives the same diagnostics (`docs/rfc-part-b-binding-and-convert.md`)
+- `gon convert` — rewrites `x := e` to `x := (T)(e)` where the binding of an inferred local (RFC Part B) would break correct Go; a preview by default, `--write` applies it, and nothing is written unless the package still gives the same diagnostics (`docs/rfc-part-b-binding-and-convert.md`)
 - `gon lsp` — minimal stdio LSP (`initialize` / `didOpen` / `didChange` /
   diagnostics / `shutdown`); same checker pipeline as `gon check`
 
@@ -337,11 +337,25 @@ func lookup(m map[string]*Node, k string) !*Node {
 ```
 
 `(!T)(nil)` is GN001 and a target that is not a pointer, slice, map, channel,
-function or interface is GN003. The conversion binds no local variable, and a
-contract is never carried to a different type implicitly: `(!U)(x)` is the form
+function or interface is GN003. A contract is never carried to a different type implicitly: `(!U)(x)` is the form
 that states the contract on `U`. In a type position a run of `!` is one `!` (`gon fmt`
 writes `!T`); `!!x` in an expression is still the Go double negation. See
 [docs/rfc-explicit-nonnil-conversion.md](docs/rfc-explicit-nonnil-conversion.md).
+
+### Binding by inference (unreleased)
+
+A local declared by `x := e` or `var x = e` (no written type) is a `!` variable when `e` is certainly non-nil
+(a literal, `&operand`, `new`, `make`, `append` with an element, a slice of such a value, `(!T)(x)`, a `!` name
+or field) and its address is never taken. Reassigning it to `nil` or to an ordinary value is then GN001, with
+the hint that says how to keep it nilable, and `x == nil` is GW001:
+
+```go
+buf := make([]byte, 8)   // bound: certainly non-nil
+buf = nil                // GN001 ... convert the initialiser ((T)(e)) to keep it nilable
+```
+
+Write `buf := ([]byte)(make([]byte, 8))` (or `var buf []byte = ...`) to keep it nilable; `gon convert` does it for
+every such site. See [docs/rfc-part-b-binding-and-convert.md](docs/rfc-part-b-binding-and-convert.md).
 
 ## Scope and limitations
 
