@@ -319,7 +319,7 @@ change, except v1.20, which carries two.
   measurement and audit (all of `internal/checker`'s approved groups are in).
   A release is needed only when the dogfood gate needs a checker it does not
   pin yet. The gate and the two companion repositories (`gon-examples`,
-  `gon-vscode`) are pinned to v1.24.0 (gon: this change; the two companion repositories follow).
+  `gon-vscode`) are pinned to v1.25.0 (gon: this change; the two companion repositories follow).
 - **Cross-OS tests (CI, not a release track).** The `test-os` job of `ci.yml`
   (#58) runs `go vet` and `go test` on Windows and macOS besides the Linux gate.
   It is informational and not a required check. Its first run on Windows failed

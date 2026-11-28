@@ -72,7 +72,7 @@ One line per minor version, newest first; patch releases are folded into the lin
 ## Install
 
 ```bash
-go install github.com/daniel-juvito/gon/cmd/gon@v1.24.0
+go install github.com/daniel-juvito/gon/cmd/gon@v1.25.0
 ```
 
 Or from source:
