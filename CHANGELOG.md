@@ -1,5 +1,31 @@
 # Changelog
 
+## [Unreleased]
+
+**Possibly breaking, by design (R1), shipped solo.** Release B of `docs/rfc-part-b-binding-and-convert.md` (accepted 2026-11-27): the binding of Part B, the rule whose migration tool, `gon convert`, shipped in 1.25.0.
+
+- **A local is bound `!` by the form of its initialiser.** `x := e` and an untyped `var x = e` make `x` a `!` variable when `e` is certainly non-nil and `x` is a pointer, slice, map, channel or function: a composite literal,
+  a function literal, `&operand`, `new`, `make`, `append` with an explicit element, `append` of a recognised base (also with a spread), a slice of a recognised value, `(!T)(x)`, or an identifier or field that is `!`. On such a local,
+  `x = nil` and `x = e` with an ordinary `e` are GN001, `x == nil` is GW001, and `x` is a non-nil source where it is used. It is per variable and per position (`a, b := &T{}, f()` binds `a`), and a call whose result is
+  declared `!T` binds as it did. Not bound: an ordinary call, a written type (`var x T = e`), a conversion without `!` (`x := (T)(e)`), a local whose address is taken anywhere in the file (`&x`, closures included: an alias can
+  write nil), a parameter, a range variable, a package variable, an interface, and any local when there is no type information.
+- **The GN001 on a bound local says how to keep it nilable:** `x was bound non-nil by its initialiser at L:C: declare it with a written type (var x T = ...) or convert the initialiser ((T)(e)) to keep it nilable`. The position is in the
+  message text; `relatedInformation` is not produced. Consumers must not rely on the wording.
+- **`append` and a slice of a recognised value are recognised sources for every flow** (C13, C15), not only for a bound local: `use(append(s, 1))` and `use(base[1:])` into a `!T` slot need no conversion. That is a loosening, not a
+  new rejection. A spread `append(a, s...)` is recognised only if `a` is; a conversion still propagates nothing.
+- **What a build sees.** Code that reassigns such a local to nil or to an ordinary value (the release idiom `buf = nil`, a traversal loop `for p := new(T); p != nil; p = p.next`, `x = f()`) now fails `gon check`, `gon vet`,
+  `gon transpile` and `gon build`; a comparison with nil on one gets GW001. **Run `gon convert ./...`** (1.25.0; preview by default, `--write` applies it): it rewrites `x := e` to `x := (T)(e)` exactly where the binding would break
+  the code, and its output is checked. Code that was converted before this release does not change behaviour, because `(T)(e)` binds nothing.
+- **`gon convert` and the binding.** Its gate used to require the same diagnostics before and after; with the binding the original has the errors that the rewrite removes. It now accepts a rewrite that removes only the diagnostics that the
+  binding gave to the locals it rewrote (a GN001 whose hint names the local and the position of its initialiser, a GW001 about it by name) and adds or loses nothing else, whatever its code. The positions in the hints are moved by the
+  insertions of the rewrite, so two locals of one name on one line keep two identities.
+- **Measured against v1.25.0 (`main` of each repository):** `gon`: one new GN001, the site that the RFC predicted (`internal/checker/method_contracts.gon:54`); `gon convert` rewrote it and `gon check ./...` prints `ok`. `gon-examples`
+  (20 examples): four give fewer GN001 and none more, 11 flows less in all (field-contracts 3 to 1, ecosystem-contracts 9 to 3, type-coverage 4 to 3, generic-gna 5 to 3), and type-coverage gets one GW001 that is true
+  (`grown := append(hs, f)` then `grown == nil`) and contradicts the comment of that example. `gon-vscode` fixtures (11): `genericgna` GN001 5 to 3, the rest unchanged. Every other `.gon` of this repository, `testdata` included, gives the
+  same diagnostics. Users outside the three repositories are not measured; the syntax-only counts on Go code (the standard library, consul, five modules) put the rewrite at 1% to 3% of the bindings.
+- **Limits.** A tuple assignment (`x, err = f()`) into a bound local is GN001 without the hint and a `range` assignment into one is not reported. The binding is flow-insensitive. In the gate of `gon convert` a GW001 is matched to a rewritten
+  local by name only, so a GW001 of another local of the same name in another scope is not told apart.
+
 ## [1.25.0] — 2026-11-28
 
 **Additive; the checker does not change.** Release A of `docs/rfc-part-b-binding-and-convert.md` (accepted 2026-11-27): a tool, not a rule. No diagnostic of `gon check`, `gon vet`, `gon transpile` or `gon build` changes.
