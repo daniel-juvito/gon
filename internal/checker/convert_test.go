@@ -179,3 +179,10 @@ func TestConvert_ApplyKeepsOuterBeforeInnerAtOneOffset(t *testing.T) {
 		t.Fatalf("got %q", out)
 	}
 }
+
+func TestConvert_PlanNamesTheRewrittenLocals(t *testing.T) {
+	_, plan := cvRun(t, "func f() { a := &T{}; b := make([]int, 1); b = nil; _, _ = a, b }\n")
+	if len(plan.Converted) != 1 || plan.Converted[0].Name != "b" || plan.Converted[0].Line == 0 || plan.Converted[0].Column == 0 {
+		t.Fatalf("Converted = %+v, want b alone, with its position", plan.Converted)
+	}
+}

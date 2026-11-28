@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -478,5 +479,69 @@ func TestDiagnosticSetTellsApartTwoOnOneLine(t *testing.T) {
 	moved.Col = 9
 	if diagnosticSet([]*checker.Diagnostic{d1}) != diagnosticSet([]*checker.Diagnostic{&moved}) {
 		t.Fatal("a moved column makes the sets differ")
+	}
+}
+
+func TestConvertRemovesTheErrorsOfTheBinding(t *testing.T) {
+	root := scModule(t, "1.21", map[string]string{"main.gon": convSrc})
+	chdir(t, root)
+	// Since the binding (Part B) the original is rejected: buf = nil is GN001.
+	if exit, _, errOut := captureRun([]string{"check", "main.gon"}); exit != 1 || !strings.Contains(errOut, "bound non-nil by its initialiser") {
+		t.Fatalf("before: exit %d, stderr %q", exit, errOut)
+	}
+	if exit, _, errOut := captureRun([]string{"convert", "--write", "main.gon"}); exit != 0 {
+		t.Fatalf("convert: exit %d\n%s", exit, errOut)
+	}
+	if exit, _, errOut := captureRun([]string{"check", "main.gon"}); exit != 0 {
+		t.Fatalf("after: exit %d\n%s", exit, errOut)
+	}
+}
+
+func TestDiagnosticsChange(t *testing.T) {
+	hintAt := func(name string, line, col int) *checker.Diagnostic {
+		return &checker.Diagnostic{Code: "GN001", Line: 9, Message: "cannot assign nil to non-nil variable !" + name + "; " + name + " was bound non-nil by its initialiser at " + strconv.Itoa(line) + ":" + strconv.Itoa(col) + ": declare it"}
+	}
+	hint := func(line, col int) *checker.Diagnostic { return hintAt("b", line, col) }
+	warnOf := func(name string) *checker.Diagnostic {
+		return &checker.Diagnostic{Severity: checker.SeverityWarning, Code: "GW001", Line: 12, Message: name + " is non-nil; comparison with nil is always false"}
+	}
+	warn := warnOf("b")
+	other := &checker.Diagnostic{Code: "GN002", Line: 3, Message: "missing field"}
+	plainGN001 := &checker.Diagnostic{Code: "GN001", Line: 15, Message: "cannot use value of type *T as !*T; use (!*T)(x) to make an explicit claim"}
+	none := checker.ConvertPlan{}
+	// b is rewritten at 8:2; its initialiser opens at 8:7 and gains 7 characters.
+	b := checker.ConvertPlan{
+		Converted: []checker.ConvertedLocal{{Name: "b", Line: 8, Column: 2}},
+		Shifts:    []checker.ConvertShift{{Line: 8, Column: 7, Delta: 7}, {Line: 8, Column: 12, Delta: 1}},
+	}
+	type diags = []*checker.Diagnostic
+	for name, c := range map[string]struct {
+		before, after diags
+		plan          checker.ConvertPlan
+		ok            bool
+	}{
+		"nothing changes":                            {diags{other}, diags{other}, none, true},
+		"the errors of the rewritten local go":       {diags{hint(8, 2), warn, other}, diags{other}, b, true},
+		"a local of one name that stays moves":       {diags{hint(8, 2), hintAt("x", 8, 20)}, diags{hintAt("x", 8, 28)}, b, true},
+		"two of one name on a line, one rewritten":   {diags{hint(8, 2), hint(8, 20)}, diags{hint(8, 28)}, b, true},
+		"the rewritten one stays and the other goes": {diags{hint(8, 2), hint(8, 20)}, diags{hint(8, 2)}, b, false},
+		"a position that moved with no shift":        {diags{hintAt("x", 8, 20)}, diags{hintAt("x", 8, 25)}, b, false},
+		"a position at the column of a shift moves":  {diags{hintAt("x", 8, 7)}, diags{hintAt("x", 8, 14)}, b, true},
+		"a position on another line does not move":   {diags{hintAt("x", 9, 20)}, diags{hintAt("x", 9, 20)}, b, true},
+		"a position on another line that moved":      {diags{hintAt("x", 9, 20)}, diags{hintAt("x", 9, 28)}, b, false},
+		"a position before every shift stays":        {diags{hintAt("x", 8, 3)}, diags{hintAt("x", 8, 3)}, b, true},
+		"a new diagnostic":                           {diags{other}, diags{other, warn}, b, false},
+		"another one is lost":                        {diags{other, hint(8, 2)}, diags{hint(8, 2)}, b, false},
+		"one of two equal ones is lost":              {diags{other, other}, diags{other}, b, false},
+		"an unrelated GN001 is lost":                 {diags{hint(8, 2), plainGN001}, diags{}, b, false},
+		"a GN001 of a local that was not rewritten":  {diags{hintAt("c", 20, 2)}, diags{}, b, false},
+		"a GN001 of the name at another place":       {diags{hint(30, 2)}, diags{}, b, false},
+		"a GN001 of a name that ends like it":        {diags{hintAt("ab", 8, 2)}, diags{}, b, false},
+		"a GW001 of another local is lost":           {diags{warnOf("c")}, diags{}, b, false},
+		"a bound-local error with nothing rewritten": {diags{hint(8, 2)}, diags{}, none, false},
+	} {
+		if got := diagnosticsChange(c.before, c.after, c.plan); (got == "") != c.ok {
+			t.Errorf("%s: diagnosticsChange = %q, want ok=%v", name, got, c.ok)
+		}
 	}
 }

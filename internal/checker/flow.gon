@@ -121,8 +121,8 @@ func tupleMentionsTypeParam(t *types.Tuple) bool {
 // today, a call whose first result is `!T`, a selector of a `!` field, the
 // construction forms of a direct flow (a composite literal, `&literal`, `new`,
 // `make`, a function literal), any `&operand` and the non-nil conversion (!T)(x).
-// Parentheses never change recognition. There is no `append`, no slice expression, no
-// binding by inference and no propagation across types: those are Part B.
+// Parentheses never change recognition. Part B adds `append` (C13) and a slice expression
+// of a recognised value (C15) here, and the binding by inference in binding.gon.
 func (c *Checker) isRecognisedSource(expr ast.Expr) bool {
 	e := unparenExpr(expr)
 	switch x := e.(type) {
@@ -134,9 +134,16 @@ func (c *Checker) isRecognisedSource(expr ast.Expr) bool {
 		// (&p.f with p nil, &a[i] out of range), exactly as Go does (RFC section 4,
 		// decided 2026-11-22). The static type is *T, so the identity rule applies.
 		return x.Op == token.AND
+	case *ast.SliceExpr:
+		// A slice of a recognised value (RFC C15, Part B): a[i:j] of a non-nil slice is
+		// non-nil, as a slice of a nil one is nil only when it is.
+		return c.isRecognisedSource(x.X)
 	case *ast.CallExpr:
 		if c.isConstructionBuiltin(x) {
 			return true
+		}
+		if name, builtin := c.convertBuiltin(x); builtin && name == "append" {
+			return c.isAppendRecognised(x)
 		}
 	}
 	return c.isNonNilSource(e)
@@ -155,13 +162,19 @@ func (c *Checker) isConstructionBuiltin(call *ast.CallExpr) bool {
 
 // reportOrdinaryFlow emits GN001 at expr when flowOutcome says so.
 func (c *Checker) reportOrdinaryFlow(expr ast.Expr, slot types.Type) {
+	c.reportOrdinaryFlowHint(expr, slot, "")
+}
+
+// reportOrdinaryFlowHint is reportOrdinaryFlow with a sentence added to the message
+// (the hint of a local bound by inference, or "").
+func (c *Checker) reportOrdinaryFlowHint(expr ast.Expr, slot types.Type, hint string) {
 	warn, src := c.flowOutcome(expr, slot)
 	if !warn {
 		return
 	}
 	c.addError(expr.Pos(), "GN001", fmt.Sprintf(
 		"cannot use value of type %s as !%s; use (!%s)(x) to make an explicit claim",
-		c.typeString(src), c.typeString(slot), c.typeString(slot)))
+		c.typeString(src), c.typeString(slot), c.typeString(slot))+hint)
 }
 
 // typeString writes a type relative to the package being checked.

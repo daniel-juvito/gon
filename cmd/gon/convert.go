@@ -130,8 +130,8 @@ func convertPackage(t checkTarget, write bool) int {
 	}
 	for _, f := range res.Files {
 		after := byPath[f.Path]
-		if a, b := diagnosticSet(f.Diagnostics), diagnosticSet(after.Diagnostics); a != b {
-			fmt.Fprintf(os.Stderr, "gon: convert: the rewritten %s has other diagnostics than the original; nothing was written\n  before: %s\n  after:  %s\n", f.Path, a, b)
+		if problem := diagnosticsChange(f.Diagnostics, after.Diagnostics, *f.Plan); problem != "" {
+			fmt.Fprintf(os.Stderr, "gon: convert: the rewritten %s %s; nothing was written\n", f.Path, problem)
 			return 1
 		}
 		if after.Plan != nil && len(after.Plan.Edits) != 0 {
@@ -231,8 +231,8 @@ func convertFile(filename string, write bool) int {
 		fmt.Fprintf(os.Stderr, "gon: convert: the rewritten %s cannot be checked (%v); nothing was written\n", filename, err)
 		return 1
 	}
-	if a, b := diagnosticSet(before), diagnosticSet(after); a != b {
-		fmt.Fprintf(os.Stderr, "gon: convert: the rewritten %s has other diagnostics than the original; nothing was written\n  before: %s\n  after:  %s\n", filename, a, b)
+	if problem := diagnosticsChange(before, after, plan); problem != "" {
+		fmt.Fprintf(os.Stderr, "gon: convert: the rewritten %s %s; nothing was written\n", filename, problem)
 		return 1
 	}
 	if again := c2.PlanConvert(result2.CleanToOrig); len(again.Edits) != 0 {
@@ -407,18 +407,130 @@ func writeAll(paths []string, data map[string][]byte) error {
 	return nil
 }
 
-// diagnosticSet is the sorted list of "code severity line message" of diagnostics (the column is left out: the rewrite moves it), as one string.
-func diagnosticSet(diags []*checker.Diagnostic) string {
-	var items []string
-	for _, d := range diags {
+// boundHint is a parsed hint of a bound local ("NAME was bound non-nil by its
+// initialiser at LINE:COL") inside a diagnostic message.
+type boundHint struct {
+	name      string
+	line, col int
+	from, to  int // the span of "LINE:COL" in the message
+}
+
+const hintMarker = " was bound non-nil by its initialiser at "
+
+func parseBoundHint(msg string) (boundHint, bool) {
+	i := strings.Index(msg, hintMarker)
+	if i < 0 {
+		return boundHint{}, false
+	}
+	start := strings.LastIndex(msg[:i], "; ")
+	if start < 0 {
+		return boundHint{}, false
+	}
+	h := boundHint{name: msg[start+2 : i], from: i + len(hintMarker)}
+	h.to = h.from
+	for h.to < len(msg) && (msg[h.to] == ':' || (msg[h.to] >= '0' && msg[h.to] <= '9')) {
+		h.to++
+	}
+	if _, err := fmt.Sscanf(msg[h.from:h.to], "%d:%d", &h.line, &h.col); err != nil {
+		return boundHint{}, false
+	}
+	return h, true
+}
+
+// diagnosticKeys is how the diagnostics of one file are told from each other across a
+// rewrite: code, severity, line and message, the position that the hint of a bound
+// local names included (that is the identity of the local). The column of the
+// diagnostic itself is left out. The shifts of a rewrite are applied to the position in
+// a hint first, so that the hint of a local that the rewrite did not touch, but moved,
+// has the position that the file after the rewrite gives it.
+func diagnosticKeys(diags []*checker.Diagnostic, shifts []checker.ConvertShift) []string {
+	keys := make([]string, len(diags))
+	for i, d := range diags {
 		level := "error"
 		if !d.IsError() {
 			level = "warning"
 		}
-		items = append(items, fmt.Sprintf("%s %s %d %s", d.Code, level, d.Line, d.Message))
+		msg := d.Message
+		if h, ok := parseBoundHint(msg); ok {
+			col := h.col
+			for _, s := range shifts {
+				if s.Line == h.line && s.Column <= h.col {
+					col += s.Delta
+				}
+			}
+			msg = msg[:h.from] + fmt.Sprintf("%d:%d", h.line, col) + msg[h.to:]
+		}
+		keys[i] = fmt.Sprintf("%s %s %d %s", d.Code, level, d.Line, msg)
 	}
+	return keys
+}
+
+// diagnosticSet is the sorted list of the keys of diagnostics, as one string.
+func diagnosticSet(diags []*checker.Diagnostic) string {
+	items := diagnosticKeys(diags, nil)
 	sort.Strings(items)
 	return strings.Join(items, "; ")
+}
+
+// diagnosticsChange says what a rewrite (the plan) did to the diagnostics, or "" if it
+// is what gon convert is for. The rewrite may remove only the diagnostics that the binding gave
+// to the locals it rewrote: a GN001 whose hint names one of them (name and position of
+// the variable), and a GW001 that is about one of them by name. It must add no
+// diagnostic and remove no other, whatever its code.
+func diagnosticsChange(before, after []*checker.Diagnostic, plan checker.ConvertPlan) string {
+	converted := plan.Converted
+	beforeKeys := diagnosticKeys(before, plan.Shifts)
+	left := make(map[string]int)
+	for _, k := range beforeKeys {
+		left[k]++
+	}
+	var added []string
+	for _, k := range diagnosticKeys(after, nil) {
+		if left[k] > 0 {
+			left[k]--
+		} else {
+			added = append(added, k)
+		}
+	}
+	if len(added) > 0 {
+		sort.Strings(added)
+		return "has diagnostics that the original did not have: " + strings.Join(added, "; ")
+	}
+	var removed []string
+	for i, d := range before {
+		k := beforeKeys[i]
+		if left[k] == 0 {
+			continue
+		}
+		left[k]--
+		if !boundDiagnosticOf(d, converted) {
+			removed = append(removed, k)
+		}
+	}
+	if len(removed) > 0 {
+		sort.Strings(removed)
+		return "lost diagnostics that are not the ones of a rewritten local: " + strings.Join(removed, "; ")
+	}
+	return ""
+}
+
+// boundDiagnosticOf reports whether d is a diagnostic that the binding gave to one of
+// the converted locals: GN001 with the hint "NAME was bound non-nil by its initialiser
+// at LINE:COL" of that local, or GW001 "NAME is non-nil; ..." of that name.
+func boundDiagnosticOf(d *checker.Diagnostic, converted []checker.ConvertedLocal) bool {
+	for _, c := range converted {
+		switch d.Code {
+		case "GN001":
+			if strings.Contains(d.Message, fmt.Sprintf("; %s was bound non-nil by its initialiser at %d:%d:", c.Name, c.Line, c.Column)) {
+				return true
+			}
+		case "GW001":
+			if strings.HasPrefix(d.Message, c.Name+" is non-nil;") {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // printConvertDiff prints, for each line that the rewrite changed, the old and the new
