@@ -116,6 +116,9 @@ gon check ./...           # every directory below here that holds .gon files
 # format in place (preserves !)
 gon fmt file.gon
 
+# keep a local nilable where a later binding would break it (preview; --write applies)
+gon convert ./...
+
 # emit clean Go
 gon transpile file.gon    # writes file.go
 
@@ -250,6 +253,7 @@ declared `!T` identifiers emit **GW003**.
 Tooling:
 
 - `gon fmt` — `go/format` on the clean form, then token-lockstep `!` re-insertion (v1.4.1; refuses rather than write a mis-aligned result)
+- `gon convert` — rewrites `x := e` to `x := (T)(e)` where the binding of an inferred local (RFC Part B, not yet a rule) would break correct Go; a preview by default, `--write` applies it, and nothing is written unless the package still gives the same diagnostics (`docs/rfc-part-b-binding-and-convert.md`)
 - `gon lsp` — minimal stdio LSP (`initialize` / `didOpen` / `didChange` /
   diagnostics / `shutdown`); same checker pipeline as `gon check`
 

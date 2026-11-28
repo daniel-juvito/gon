@@ -1,6 +1,6 @@
 # RFC: Binding by inference (Part B) with `gon convert`
 
-**Status: ACCEPTED as a design decision (2026-11-27, the owner). Not scheduled, not implemented.** The proposal of the owner (Part B in full, plus a migration tool), with the owner's five answers of §8 recorded there. The acceptance is a design decision only: it is not approval to implement, to merge or to release; the implementation of `gon convert` (Release A) and, later and alone, of the binding (Release B) each need their own go-ahead, and the release numbers and dates are the owner's.
+**Status: ACCEPTED as a design decision (2026-11-27, the owner). Release A (`gon convert`) is IMPLEMENTED (PR #103) and not yet released; Release B (the binding) is not scheduled and not implemented.** The proposal of the owner (Part B in full, plus a migration tool), with the owner's five answers of §8 recorded there. The acceptance is a design decision only: it is not approval to implement, to merge or to release; the implementation of `gon convert` (Release A, since merged) and, later and alone, of the binding (Release B) each need their own go-ahead, and the release numbers and dates are the owner's.
 **Amends / continues:** `docs/rfc-explicit-nonnil-conversion.md` (Part B: C12 to C15, §6.6, §6.8, §9 I2, OQ 9 and 10) and its amendment A2
 (an ordinary flow into a `!T` slot is GN001, released in v1.22.0). Related: `docs/backlog.md`,
 `docs/measurements/partb-initial/`, `docs/measurements/partb-followup/`.
@@ -166,3 +166,14 @@ diagnostics, 0 rewrites in `gon` production but the one genuine site).
 A proposal; no code. The measured figures are syntax-only upper bounds on Go, not Gon, code; Part B and the tool have no implementation, so every claim about their
 behaviour is a design claim except the two conversions checked in §3. The variables that §4.2 cannot rewrite have not been counted. Users outside the three repositories
 are not measured.
+
+## 11. Release A as implemented (PR #103)
+
+What the code does, where it is more than §4 said:
+
+- **Operands.** Files, directories and `./...`. A file of a package with several files fails with Go type errors as `gon check file` does; a directory is converted as one package.
+- **Gate.** After the rewrite the package is loaded again; the diagnostics are compared by code, severity, line and message (the column moves with an insertion), and a second pass must have no edit. Any difference writes nothing (exit 1).
+- **Write.** All files or none: staging files created with `O_EXCL`, a copy of every old content, renames only when everything is staged, restore by renaming the copies back, `INCOMPLETE` plus the name of the copy if a restore fails. A symbolic link is refused. A target whose content or mode changed after it was read is not overwritten.
+- **Not covered, stated:** a process that dies mid-write; a change between the last comparison and the rename (no lock); owner, extended attributes, hard links; on Windows only the read-only bit of the mode.
+- **Measured on `main` after the merge (c0f83f3):** gon, one rewrite (`internal/checker/method_contracts.gon:52`); `gon-examples@455eb05` none; `gon-vscode@83f9ebf` `.gon` fixtures none. This is an application of the tool, not the §7 corpus measurement of Part B.
+- **Tests.** Unit tests of the plan (`internal/checker/convert_test.go`), CLI tests including the failure paths (`cmd/gon/convert_test.go`); mutations of each rule were run and each was caught except two equivalent ones.
