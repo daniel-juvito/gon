@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.26.0] — 2026-11-28
 
 **Possibly breaking, by design (R1), shipped solo.** Release B of `docs/rfc-part-b-binding-and-convert.md` (accepted 2026-11-27): the binding of Part B, the rule whose migration tool, `gon convert`, shipped in 1.25.0.
 
