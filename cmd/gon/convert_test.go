@@ -4,6 +4,7 @@ import (
 	"github.com/daniel-juvito/gon/internal/checker"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -239,7 +240,15 @@ func wtPerm(t *testing.T, path string) os.FileMode {
 	return fi.Mode().Perm()
 }
 
+func skipWithoutModes(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("file modes are not kept as permission bits on windows")
+	}
+}
+
 func TestConvertWriteKeepsFilesOfTheUserAndTheirPermissions(t *testing.T) {
+	skipWithoutModes(t)
 	root := wtModule(t)
 	// A file that has the name an earlier version used for staging.
 	mine := filepath.Join(root, "a.gon.gon-convert")
@@ -277,6 +286,7 @@ func TestConvertWriteKeepsFilesOfTheUserAndTheirPermissions(t *testing.T) {
 }
 
 func TestConvertRollbackKeepsPermissionsAndTheUsersFiles(t *testing.T) {
+	skipWithoutModes(t)
 	root := wtModule(t)
 	mine := filepath.Join(root, "b.gon.gon-convert-0")
 	if err := os.WriteFile(mine, []byte("mine"), 0o640); err != nil {
@@ -397,6 +407,60 @@ func TestConvertRefusesATargetThatChangedAfterStaging(t *testing.T) {
 	}
 	if convRead(t, filepath.Join(root, "b.gon")) != changed {
 		t.Fatal("the edit made meanwhile was lost")
+	}
+	wtNoLeftovers(t, root)
+}
+
+func TestConvertWriteRefusesASymbolicLink(t *testing.T) {
+	root := wtModule(t)
+	real := filepath.Join(t.TempDir(), "real.gon")
+	if err := os.Rename(filepath.Join(root, "a.gon"), real); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(root, "a.gon")
+	if err := os.Symlink(real, link); err != nil {
+		t.Skipf("symbolic links are not available: %v", err)
+	}
+	exit, _, errOut := captureRun([]string{"convert", "--write", "./..."})
+	if exit != 2 || !strings.Contains(errOut, "symbolic link") || !strings.Contains(errOut, "no file was changed") {
+		t.Fatalf("exit %d, stderr %q", exit, errOut)
+	}
+	if fi, err := os.Lstat(link); err != nil || fi.Mode()&os.ModeSymlink == 0 {
+		t.Fatal("the link was replaced")
+	}
+	if convRead(t, real) != wtA || convRead(t, filepath.Join(root, "b.gon")) != wtB {
+		t.Fatal("a file changed")
+	}
+	wtNoLeftovers(t, root)
+	// A preview of it is not a write.
+	if exit, _, _ := captureRun([]string{"convert", "./..."}); exit != 0 {
+		t.Fatalf("preview exit %d", exit)
+	}
+}
+
+func TestConvertRefusesATargetWhoseModeChangedAfterStaging(t *testing.T) {
+	skipWithoutModes(t)
+	root := wtModule(t)
+	os.Chmod(filepath.Join(root, "b.gon"), 0o600)
+	calls := 0
+	orig := renameFile
+	defer func() { renameFile = orig }()
+	renameFile = func(from, to string) error {
+		calls++
+		if calls == 1 {
+			os.Chmod(filepath.Join(root, "b.gon"), 0o644)
+		}
+		return orig(from, to)
+	}
+	exit, _, errOut := captureRun([]string{"convert", "--write", "./..."})
+	if exit != 2 || !strings.Contains(errOut, "changed while it was being converted") {
+		t.Fatalf("exit %d, stderr %q", exit, errOut)
+	}
+	if convRead(t, filepath.Join(root, "a.gon")) != wtA || convRead(t, filepath.Join(root, "b.gon")) != wtB {
+		t.Fatal("a file changed")
+	}
+	if p := wtPerm(t, filepath.Join(root, "b.gon")); p != 0o644 {
+		t.Errorf("the mode set meanwhile was lost: %o", p)
 	}
 	wtNoLeftovers(t, root)
 }

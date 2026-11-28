@@ -311,7 +311,11 @@ func stageFile(path string, data []byte, fi os.FileInfo) (string, error) {
 // the permissions of the target. Only when all are staged are the new files renamed over
 // the targets; a target that no longer holds the content that was read, or a rename that
 // fails, undoes the renames already done by renaming the copies back. Only files that
-// this call created are ever removed. If a copy cannot be put back it is left where it
+// this call created are ever removed. Limits, stated: a symbolic link is refused (a
+// rename would replace the link, not the file it points to); only content and mode are
+// compared before a rename, so the owner, extended attributes and hard links of a file
+// are not preserved; and a change made between the last comparison and the rename is not
+// seen (no lock is taken). If a copy cannot be put back it is left where it
 // is and named in the error.
 func writeAll(paths []string, data map[string][]byte) error {
 	type entry struct {
@@ -319,6 +323,11 @@ func writeAll(paths []string, data map[string][]byte) error {
 		old               []byte
 		existed           bool
 		info              os.FileInfo
+	}
+	for _, p := range paths {
+		if li, err := os.Lstat(p); err == nil && li.Mode()&os.ModeSymlink != 0 {
+			return &writeError{cause: fmt.Errorf("%s is a symbolic link; convert the file it points to (a write would replace the link)", p)}
+		}
 	}
 	var es []*entry
 	var created []string
@@ -382,7 +391,8 @@ func writeAll(paths []string, data map[string][]byte) error {
 	for _, e := range es {
 		if e.existed {
 			now, err := os.ReadFile(e.path)
-			if err != nil || string(now) != string(e.old) {
+			st, serr := os.Stat(e.path)
+			if err != nil || serr != nil || string(now) != string(e.old) || st.Mode() != e.info.Mode() {
 				return fail(fmt.Errorf("%s changed while it was being converted", e.path))
 			}
 		} else if _, err := os.Stat(e.path); err == nil {

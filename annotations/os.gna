@@ -103,6 +103,13 @@ functions:
       - "FileInfo"
       - "error"
 
+  Lstat:
+    params:
+      - "string"
+    results:
+      - "FileInfo"
+      - "error"
+
   Getwd:
     params: []
     results:
