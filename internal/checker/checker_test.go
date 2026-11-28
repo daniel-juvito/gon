@@ -530,11 +530,11 @@ func TestGNAOSUnannotatedSymbolNoGN001(t *testing.T) {
 	if err := reg.Add(f); err != nil {
 		t.Fatal(err)
 	}
-	// Chmod is not in os.gna → GW002, not GN001.
+	// Sync is not in os.gna → GW002, not GN001.
 	src := `package main
 import "os"
 func f(file *os.File) {
-	file.Chmod(0644)
+	file.Sync()
 }
 `
 	result := preproc.Process("test.gon", []byte(src))
@@ -549,7 +549,7 @@ func f(file *os.File) {
 		}
 	}
 	if len(diags) != 1 || diags[0].Code != "GW002" {
-		t.Fatalf("expected GW002 for unannotated File.Chmod, got %v", diags)
+		t.Fatalf("expected GW002 for unannotated File.Sync, got %v", diags)
 	}
 }
 

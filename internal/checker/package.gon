@@ -30,6 +30,10 @@ type PackageFile struct {
 	Path          string       // path of the .gon file
 	Clean         []byte       // source with the `!` modifiers removed
 	NonNilOffsets map[int]bool // byte offsets in Clean where a `!` type began
+	// CleanToOrig, when set, asks for the plan of gon convert (ConvertPlan) of this
+	// file, computed after the file is walked: it maps offsets of Clean to offsets of
+	// the original source, as preproc.Result.CleanToOrig does.
+	CleanToOrig []int
 }
 
 // FileDiagnostics are the diagnostics of one file of a package, in the order
@@ -37,6 +41,9 @@ type PackageFile struct {
 type FileDiagnostics struct {
 	Path        string
 	Diagnostics []*Diagnostic
+	// Plan is the plan of gon convert for the file, set only when the PackageFile
+	// carried CleanToOrig.
+	Plan *ConvertPlan
 }
 
 // PackageResult is the outcome of checking one package.
@@ -303,7 +310,12 @@ func CheckPackage(dir string, files []PackageFile, resolver gna.Resolver) (*Pack
 	}
 	res := &PackageResult{TypeErrors: invalid, InvalidFiles: invalidFiles}
 	for i, c := range checkers {
-		res.Files = append(res.Files, FileDiagnostics{Path: checked[i].Path, Diagnostics: c.walk()})
+		fd := FileDiagnostics{Path: checked[i].Path, Diagnostics: c.walk()}
+		if checked[i].CleanToOrig != nil {
+			plan := c.PlanConvert(checked[i].CleanToOrig)
+			fd.Plan = &plan
+		}
+		res.Files = append(res.Files, fd)
 	}
 
 	for _, e := range pkg.Errors {

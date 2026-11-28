@@ -183,6 +183,10 @@ type loadedPackage struct {
 	files     []checker.PackageFile
 	srcByPath map[string][]byte
 	res       *checker.PackageResult
+	// dir and resolver are what the package was checked with, so that gon convert can
+	// check the rewritten package the same way.
+	dir      string
+	resolver gna.Resolver
 }
 
 // loadPackage reads and checks the .gon files of t's directory as one package.
@@ -194,6 +198,12 @@ type loadedPackage struct {
 // printed. skipped is true, with no message, for a package found by a `...`
 // pattern none of whose sources is in the build.
 func loadPackage(t checkTarget) (lp *loadedPackage, skipped bool, code int) {
+	return loadPackagePlans(t, false)
+}
+
+// loadPackagePlans is loadPackage; with plans set, every file also gets the plan of
+// gon convert (FileDiagnostics.Plan).
+func loadPackagePlans(t checkTarget, plans bool) (lp *loadedPackage, skipped bool, code int) {
 	dir := t.path
 	names, err := gonFilesIn(dir)
 	if err != nil {
@@ -210,7 +220,11 @@ func loadPackage(t checkTarget) (lp *loadedPackage, skipped bool, code int) {
 		}
 		r := preproc.Process(path, src)
 		lp.srcByPath[path] = src
-		lp.files = append(lp.files, checker.PackageFile{Path: path, Clean: r.Clean, NonNilOffsets: r.NonNilOffsets})
+		pf := checker.PackageFile{Path: path, Clean: r.Clean, NonNilOffsets: r.NonNilOffsets}
+		if plans {
+			pf.CleanToOrig = r.CleanToOrig
+		}
+		lp.files = append(lp.files, pf)
 	}
 
 	dirAbs, err := filepath.Abs(dir)
@@ -222,6 +236,7 @@ func loadPackage(t checkTarget) (lp *loadedPackage, skipped bool, code int) {
 		wd = dirAbs
 	}
 	resolver := gna.DefaultChain(wd, dirAbs)
+	lp.dir, lp.resolver = dir, resolver
 
 	res, err := checker.CheckPackage(dir, lp.files, resolver)
 	var excluded *checker.ExcludedError

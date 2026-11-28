@@ -58,7 +58,7 @@ func run(args []string) int {
 	}
 
 	switch cmd {
-	case "check", "vet", "transpile", "build", "fmt", "lsp":
+	case "check", "vet", "transpile", "build", "fmt", "lsp", "convert":
 		// ok
 	default:
 		fmt.Fprintf(os.Stderr, "gon: unknown command: %s\n", cmd)
@@ -73,6 +73,10 @@ func run(args []string) int {
 			return 1
 		}
 		return 0
+	}
+
+	if cmd == "convert" {
+		return runConvert(args[1:])
 	}
 
 	// check / vet: support --json and multiple file operands.
@@ -374,6 +378,9 @@ Commands:
   check, vet   check for nil-safety violations (exit 1 on errors); a file is
                checked alone, a directory (or dir/...) as one package
   fmt          format Gon source in place
+  convert      keep a local nilable where the binding of x := e would break it:
+               rewrites x := e to x := (T)(e); prints the diff, --write applies it
+               (unlike fmt and transpile, the default does not write)
   lsp          run the language server over stdio
   transpile    emit clean Go source (.go next to the input); a directory
                (or dir/...) is checked as one package and written only if it

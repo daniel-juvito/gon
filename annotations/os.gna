@@ -19,6 +19,12 @@ methods:
     results:
       - "error"
 
+  File.Chmod:
+    params:
+      - "FileMode"
+    results:
+      - "error"
+
   File.Write:
     params:
       - "[]byte"
@@ -91,6 +97,13 @@ functions:
       - "error"
 
   Stat:
+    params:
+      - "string"
+    results:
+      - "FileInfo"
+      - "error"
+
+  Lstat:
     params:
       - "string"
     results:
