@@ -342,7 +342,7 @@ that states the contract on `U`. In a type position a run of `!` is one `!` (`go
 writes `!T`); `!!x` in an expression is still the Go double negation. See
 [docs/rfc-explicit-nonnil-conversion.md](docs/rfc-explicit-nonnil-conversion.md).
 
-### Binding by inference (unreleased)
+### Binding by inference (v1.26)
 
 A local declared by `x := e` or `var x = e` (no written type) is a `!` variable when `e` is certainly non-nil
 (a literal, `&operand`, `new`, `make`, `append` with an element, a slice of such a value, `(!T)(x)`, a `!` name
