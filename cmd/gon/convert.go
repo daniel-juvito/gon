@@ -130,7 +130,7 @@ func convertPackage(t checkTarget, write bool) int {
 	}
 	for _, f := range res.Files {
 		after := byPath[f.Path]
-		if problem := diagnosticsChange(f.Diagnostics, after.Diagnostics); problem != "" {
+		if problem := diagnosticsChange(f.Diagnostics, after.Diagnostics, f.Plan.Converted); problem != "" {
 			fmt.Fprintf(os.Stderr, "gon: convert: the rewritten %s %s; nothing was written\n", f.Path, problem)
 			return 1
 		}
@@ -231,7 +231,7 @@ func convertFile(filename string, write bool) int {
 		fmt.Fprintf(os.Stderr, "gon: convert: the rewritten %s cannot be checked (%v); nothing was written\n", filename, err)
 		return 1
 	}
-	if problem := diagnosticsChange(before, after); problem != "" {
+	if problem := diagnosticsChange(before, after, plan.Converted); problem != "" {
 		fmt.Fprintf(os.Stderr, "gon: convert: the rewritten %s %s; nothing was written\n", filename, problem)
 		return 1
 	}
@@ -439,10 +439,11 @@ func diagnosticSet(diags []*checker.Diagnostic) string {
 }
 
 // diagnosticsChange says what a rewrite did to the diagnostics, or "" if it is what
-// gon convert is for. The rewrite may remove a GN001 error or a GW001 warning (the
-// ones that a local bound by inference gets) and nothing else: it must add no
-// diagnostic and remove no other.
-func diagnosticsChange(before, after []*checker.Diagnostic) string {
+// gon convert is for. The rewrite may remove only the diagnostics that the binding gave
+// to the locals it rewrote: a GN001 whose hint names one of them (name and position of
+// the variable), and a GW001 that is about one of them by name. It must add no
+// diagnostic and remove no other, whatever its code.
+func diagnosticsChange(before, after []*checker.Diagnostic, converted []checker.ConvertedLocal) string {
 	left := make(map[string]int)
 	for _, d := range before {
 		left[diagnosticKey(d)]++
@@ -463,18 +464,38 @@ func diagnosticsChange(before, after []*checker.Diagnostic) string {
 	var removed []string
 	for _, d := range before {
 		k := diagnosticKey(d)
-		if left[k] > 0 && d.Code != "GN001" && d.Code != "GW001" {
-			removed = append(removed, k)
+		if left[k] == 0 {
+			continue
 		}
-		if left[k] > 0 {
-			left[k]--
+		left[k]--
+		if !boundDiagnosticOf(d, converted) {
+			removed = append(removed, k)
 		}
 	}
 	if len(removed) > 0 {
 		sort.Strings(removed)
-		return "lost diagnostics that are not the ones of a bound local: " + strings.Join(removed, "; ")
+		return "lost diagnostics that are not the ones of a rewritten local: " + strings.Join(removed, "; ")
 	}
 	return ""
+}
+
+// boundDiagnosticOf reports whether d is a diagnostic that the binding gave to one of
+// the converted locals: GN001 with the hint "NAME was bound non-nil by its initialiser
+// at LINE:COL" of that local, or GW001 "NAME is non-nil; ..." of that name.
+func boundDiagnosticOf(d *checker.Diagnostic, converted []checker.ConvertedLocal) bool {
+	for _, c := range converted {
+		switch d.Code {
+		case "GN001":
+			if strings.Contains(d.Message, fmt.Sprintf("; %s was bound non-nil by its initialiser at %d:%d:", c.Name, c.Line, c.Column)) {
+				return true
+			}
+		case "GW001":
+			if strings.HasPrefix(d.Message, c.Name+" is non-nil;") {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // printConvertDiff prints, for each line that the rewrite changed, the old and the new

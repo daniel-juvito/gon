@@ -38,10 +38,19 @@ type ConvertReport struct {
 // source (in the order they must be applied, by offset), the reports, and how many
 // locals the binding would keep bound and how many it would rewrite.
 type ConvertPlan struct {
-	Edits   []ConvertEdit
-	Reports []ConvertReport
-	Bound   int
-	Kept    int // locals rewritten to stay nilable
+	Edits     []ConvertEdit
+	Reports   []ConvertReport
+	Bound     int
+	Kept      int              // locals rewritten to stay nilable
+	Converted []ConvertedLocal // the locals rewritten, for the gate of gon convert
+}
+
+// ConvertedLocal names a local that the plan rewrites to stay nilable, with the
+// position (1-based) of the variable, which is the position that the hint of its
+// diagnostics names.
+type ConvertedLocal struct {
+	Name         string
+	Line, Column int
 }
 
 type convertCandidate struct {
@@ -116,6 +125,7 @@ func (c *Checker) PlanConvert(cleanToOrig []int) ConvertPlan {
 			ConvertEdit{Offset: cleanToOrig[start], Text: "(" + text + ")("},
 			ConvertEdit{Offset: cleanToOrig[end-1] + 1, Text: ")"})
 		plan.Kept++
+		plan.Converted = append(plan.Converted, ConvertedLocal{Name: cd.id.Name, Line: pos.Line, Column: pos.Column})
 	}
 	// Apply order: by offset; at one offset the opening edits keep the order in which
 	// they were found (an outer one first), which a stable sort preserves.

@@ -498,23 +498,36 @@ func TestConvertRemovesTheErrorsOfTheBinding(t *testing.T) {
 }
 
 func TestDiagnosticsChange(t *testing.T) {
-	hint := func(line, col int) *checker.Diagnostic {
-		return &checker.Diagnostic{Code: "GN001", Line: 9, Message: "cannot assign nil to non-nil variable !b; b was bound non-nil by its initialiser at " + strconv.Itoa(line) + ":" + strconv.Itoa(col) + ": declare it"}
+	hintAt := func(name string, line, col int) *checker.Diagnostic {
+		return &checker.Diagnostic{Code: "GN001", Line: 9, Message: "cannot assign nil to non-nil variable !" + name + "; " + name + " was bound non-nil by its initialiser at " + strconv.Itoa(line) + ":" + strconv.Itoa(col) + ": declare it"}
 	}
-	warn := &checker.Diagnostic{Severity: checker.SeverityWarning, Code: "GW001", Line: 12, Message: "b is non-nil"}
+	hint := func(line, col int) *checker.Diagnostic { return hintAt("b", line, col) }
+	warnOf := func(name string) *checker.Diagnostic {
+		return &checker.Diagnostic{Severity: checker.SeverityWarning, Code: "GW001", Line: 12, Message: name + " is non-nil; comparison with nil is always false"}
+	}
+	warn := warnOf("b")
 	other := &checker.Diagnostic{Code: "GN002", Line: 3, Message: "missing field"}
+	plainGN001 := &checker.Diagnostic{Code: "GN001", Line: 15, Message: "cannot use value of type *T as !*T; use (!*T)(x) to make an explicit claim"}
+	b := []checker.ConvertedLocal{{Name: "b", Line: 8, Column: 2}}
 	for name, c := range map[string]struct {
 		before, after []*checker.Diagnostic
+		converted     []checker.ConvertedLocal
 		ok            bool
 	}{
-		"nothing changes":                {[]*checker.Diagnostic{other}, []*checker.Diagnostic{other}, true},
-		"the binding's errors go":        {[]*checker.Diagnostic{hint(8, 2), warn, other}, []*checker.Diagnostic{other}, true},
-		"the position of the hint moves": {[]*checker.Diagnostic{hint(8, 2)}, []*checker.Diagnostic{hint(8, 9)}, true},
-		"a new diagnostic":               {[]*checker.Diagnostic{other}, []*checker.Diagnostic{other, warn}, false},
-		"another one is lost":            {[]*checker.Diagnostic{other, hint(8, 2)}, []*checker.Diagnostic{hint(8, 2)}, false},
-		"one of two equal ones is lost":  {[]*checker.Diagnostic{other, other}, []*checker.Diagnostic{other}, false},
+		"nothing changes":                            {[]*checker.Diagnostic{other}, []*checker.Diagnostic{other}, nil, true},
+		"the errors of the rewritten local go":       {[]*checker.Diagnostic{hint(8, 2), warn, other}, []*checker.Diagnostic{other}, b, true},
+		"the position of the hint moves":             {[]*checker.Diagnostic{hint(8, 2)}, []*checker.Diagnostic{hint(8, 9)}, b, true},
+		"a new diagnostic":                           {[]*checker.Diagnostic{other}, []*checker.Diagnostic{other, warn}, b, false},
+		"another one is lost":                        {[]*checker.Diagnostic{other, hint(8, 2)}, []*checker.Diagnostic{hint(8, 2)}, b, false},
+		"one of two equal ones is lost":              {[]*checker.Diagnostic{other, other}, []*checker.Diagnostic{other}, b, false},
+		"an unrelated GN001 is lost":                 {[]*checker.Diagnostic{hint(8, 2), plainGN001}, []*checker.Diagnostic{}, b, false},
+		"a GN001 of a local that was not rewritten":  {[]*checker.Diagnostic{hintAt("c", 20, 2)}, []*checker.Diagnostic{}, b, false},
+		"a GN001 of a name that ends like it":        {[]*checker.Diagnostic{hintAt("ab", 8, 2)}, []*checker.Diagnostic{}, b, false},
+		"a GN001 of the name at another place":       {[]*checker.Diagnostic{hint(30, 2)}, []*checker.Diagnostic{}, b, false},
+		"a GW001 of another local is lost":           {[]*checker.Diagnostic{warnOf("c")}, []*checker.Diagnostic{}, b, false},
+		"a bound-local error with nothing rewritten": {[]*checker.Diagnostic{hint(8, 2)}, []*checker.Diagnostic{}, nil, false},
 	} {
-		if got := diagnosticsChange(c.before, c.after); (got == "") != c.ok {
+		if got := diagnosticsChange(c.before, c.after, c.converted); (got == "") != c.ok {
 			t.Errorf("%s: diagnosticsChange = %q, want ok=%v", name, got, c.ok)
 		}
 	}

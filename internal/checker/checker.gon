@@ -25,12 +25,12 @@ type Checker struct {
 
 	// scopes contain lexical bindings. The value is true only for !T bindings;
 	// false is also stored so a nullable shadowing declaration hides an outer !T.
-	scopes             []map[string]bool
+	scopes []map[string]bool
 	// inferred holds the locals bound `!` by the form of their initialiser (Part B),
 	// with the position of the variable, for the hint of an error on them; addrTaken the
 	// variables whose address is taken (P1).
-	inferred  map[types.Object]token.Pos
-	addrTaken map[types.Object]bool
+	inferred           map[types.Object]token.Pos
+	addrTaken          map[types.Object]bool
 	currentFuncReturns []bool
 	// currentFuncNamedBang is the name of the first named result of the function being
 	// walked that is declared `!T`, or "" (rule C2: a bare return is GN002).
