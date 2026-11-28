@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/daniel-juvito/gon/internal/checker"
 	"os"
 	"path/filepath"
 	"strings"
@@ -163,5 +164,64 @@ func TestConvertLeavesAFileWithNothingToDoAlone(t *testing.T) {
 	}
 	if got := convRead(t, "main.gon"); got != src {
 		t.Fatalf("the file changed:\n%s", got)
+	}
+}
+
+func TestConvertWriteIsAllOrNone(t *testing.T) {
+	files := map[string]string{
+		"types.gon": "package main\n\ntype T struct{ next *T }\n\nfunc use(p *T) {}\n",
+		"a.gon":     "package main\n\nfunc f() {\n\tbuf := make([]byte, 8)\n\tbuf = nil\n\t_ = buf\n}\n",
+		"b.gon":     "package main\n\nfunc g() {\n\tbuf := make([]byte, 4)\n\tbuf = nil\n\t_ = buf\n}\n\nfunc main() { f(); g() }\n",
+	}
+	root := scModule(t, "1.21", files)
+	chdir(t, root)
+	calls := 0
+	orig := renameFile
+	renameFile = func(from, to string) error {
+		calls++
+		if calls == 2 {
+			return os.ErrPermission
+		}
+		return orig(from, to)
+	}
+	defer func() { renameFile = orig }()
+	exit, _, errOut := captureRun([]string{"convert", "--write", "./..."})
+	if exit != 2 || !strings.Contains(errOut, "no file was changed") {
+		t.Fatalf("exit = %d, stderr %q", exit, errOut)
+	}
+	for name, want := range files {
+		if got := convRead(t, filepath.Join(root, name)); got != want {
+			t.Errorf("%s changed after a failed write:\n%s", name, got)
+		}
+	}
+	entries, _ := os.ReadDir(root)
+	for _, e := range entries {
+		if strings.Contains(e.Name(), ".gon-convert") {
+			t.Errorf("a staging file was left: %s", e.Name())
+		}
+	}
+	// With the failure gone, the same run succeeds.
+	renameFile = orig
+	if exit, _, errOut := captureRun([]string{"convert", "--write", "./..."}); exit != 0 {
+		t.Fatalf("retry: exit %d\n%s", exit, errOut)
+	}
+	if !strings.Contains(convRead(t, filepath.Join(root, "a.gon")), "([]byte)(") || !strings.Contains(convRead(t, filepath.Join(root, "b.gon")), "([]byte)(") {
+		t.Fatal("the retry did not rewrite both files")
+	}
+}
+
+func TestDiagnosticSetTellsApartTwoOnOneLine(t *testing.T) {
+	d1 := &checker.Diagnostic{Code: "GN001", Line: 20, Message: "cannot assign nil to non-nil variable !p"}
+	d2 := &checker.Diagnostic{Code: "GN001", Line: 20, Message: "cannot assign nil to non-nil variable !q"}
+	if diagnosticSet([]*checker.Diagnostic{d1}) == diagnosticSet([]*checker.Diagnostic{d2}) {
+		t.Fatal("two diagnostics with other messages compare equal")
+	}
+	if diagnosticSet([]*checker.Diagnostic{d1, d2}) != diagnosticSet([]*checker.Diagnostic{d2, d1}) {
+		t.Fatal("the order of the diagnostics matters")
+	}
+	moved := *d1
+	moved.Col = 9
+	if diagnosticSet([]*checker.Diagnostic{d1}) != diagnosticSet([]*checker.Diagnostic{&moved}) {
+		t.Fatal("a moved column makes the sets differ")
 	}
 }

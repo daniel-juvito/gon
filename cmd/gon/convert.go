@@ -145,15 +145,17 @@ func convertPackage(t checkTarget, write bool) int {
 		paths = append(paths, p)
 	}
 	sort.Strings(paths)
-	for _, p := range paths {
-		if !write {
+	if !write {
+		for _, p := range paths {
 			printConvertDiff(filepath.ToSlash(p), lp.srcByPath[p], rewritten[p])
-			continue
 		}
-		if err := writeKeepingMode(p, rewritten[p]); err != nil {
-			fmt.Fprintf(os.Stderr, "gon: write %s: %v\n", p, err)
-			return 2
-		}
+		return status
+	}
+	if err := writeAll(paths, rewritten); err != nil {
+		fmt.Fprintf(os.Stderr, "gon: write: %v; no file was changed\n", err)
+		return 2
+	}
+	for _, p := range paths {
 		fmt.Fprintf(os.Stderr, "gon: convert: %s: %d variable(s) kept nilable\n", filepath.ToSlash(p), kept[p])
 	}
 	return status
@@ -242,24 +244,72 @@ func convertFile(filename string, write bool) int {
 		printConvertDiff(filename, src, out)
 		return status
 	}
-	if err := writeKeepingMode(filename, out); err != nil {
-		fmt.Fprintf(os.Stderr, "gon: write %s: %v\n", filename, err)
+	if err := writeAll([]string{filename}, map[string][]byte{filename: out}); err != nil {
+		fmt.Fprintf(os.Stderr, "gon: write: %v; no file was changed\n", err)
 		return 2
 	}
 	fmt.Fprintf(os.Stderr, "gon: convert: %s: %d variable(s) kept nilable\n", filename, plan.Kept)
 	return status
 }
 
-// writeKeepingMode overwrites a file that exists with the permissions it has, and
-// creates one that does not with 0644.
-func writeKeepingMode(path string, data []byte) error {
-	if fi, err := os.Stat(path); err == nil {
-		return os.WriteFile(path, data, fi.Mode().Perm())
+// renameFile is os.Rename; a test replaces it to make a commit fail half way.
+var renameFile = os.Rename
+
+// writeAll replaces every file of paths with its new content, all or none. Each new
+// content is first written to a temporary file next to its target, with the permissions
+// of the target as the umask leaves them (0644 for a file that does not exist); only when all of them are staged
+// are they renamed over the targets, and if a rename fails the targets already replaced
+// are restored from their old content. The restore is best effort: a failure of the
+// restore itself is reported, not hidden.
+func writeAll(paths []string, data map[string][]byte) error {
+	type staged struct{ path, tmp string }
+	var done []staged
+	cleanup := func() {
+		for _, s := range done {
+			os.Remove(s.tmp)
+		}
 	}
-	return os.WriteFile(path, data, 0o644)
+	for _, p := range paths {
+		tmp := p + ".gon-convert"
+		done = append(done, staged{p, tmp})
+		var werr error
+		if fi, err := os.Stat(p); err == nil {
+			werr = os.WriteFile(tmp, data[p], fi.Mode().Perm())
+		} else {
+			werr = os.WriteFile(tmp, data[p], 0o644)
+		}
+		if werr != nil {
+			cleanup()
+			return werr
+		}
+	}
+	var replaced []string
+	old := make(map[string][]byte, len(paths))
+	for _, p := range paths {
+		if b, err := os.ReadFile(p); err == nil {
+			old[p] = b
+		}
+	}
+	for _, s := range done {
+		if err := renameFile(s.tmp, s.path); err != nil {
+			for _, r := range replaced {
+				if b, ok := old[r]; ok {
+					if rerr := os.WriteFile(r, b, 0o644); rerr != nil {
+						fmt.Fprintf(os.Stderr, "gon: could not restore %s: %v\n", r, rerr)
+					}
+				} else {
+					os.Remove(r)
+				}
+			}
+			cleanup()
+			return err
+		}
+		replaced = append(replaced, s.path)
+	}
+	return nil
 }
 
-// diagnosticSet is the sorted list of "code severity line" of diagnostics, as one string.
+// diagnosticSet is the sorted list of "code severity line message" of diagnostics (the column is left out: the rewrite moves it), as one string.
 func diagnosticSet(diags []*checker.Diagnostic) string {
 	var items []string
 	for _, d := range diags {
@@ -267,7 +317,7 @@ func diagnosticSet(diags []*checker.Diagnostic) string {
 		if !d.IsError() {
 			level = "warning"
 		}
-		items = append(items, fmt.Sprintf("%s %s %d", d.Code, level, d.Line))
+		items = append(items, fmt.Sprintf("%s %s %d %s", d.Code, level, d.Line, d.Message))
 	}
 	sort.Strings(items)
 	return strings.Join(items, "; ")
