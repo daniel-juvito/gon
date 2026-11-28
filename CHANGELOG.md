@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.25.0] — 2026-11-28
 
 **Additive; the checker does not change.** Release A of `docs/rfc-part-b-binding-and-convert.md` (accepted 2026-11-27): a tool, not a rule. No diagnostic of `gon check`, `gon vet`, `gon transpile` or `gon build` changes.
 
