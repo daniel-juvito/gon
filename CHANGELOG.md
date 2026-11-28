@@ -1,5 +1,24 @@
 # Changelog
 
+## [Unreleased]
+
+**Additive; the checker does not change.** Release A of `docs/rfc-part-b-binding-and-convert.md` (accepted 2026-11-27): a tool, not a rule. No diagnostic of `gon check`, `gon vet`, `gon transpile` or `gon build` changes.
+
+- **`gon convert`** keeps a local nilable where the binding of Part B (RFC §6.8, not implemented) would break it. It rewrites `x := e` to `x := (T)(e)` for a local whose initialiser is a form that Part B would
+  bind `!` (a composite or function literal, `&operand`, `new`, `make`, `append`, a slice of such a value, `(!T)(x)`, a `!` identifier or field) and whose later uses would be an error or a false claim: `x = nil`,
+  an ordinary value or a value of another type, a multi-value or `range` assignment, or `&x`. On today's Gon the rewrite changes nothing: `(T)(e)` is valid Go and `x` is nilable either way.
+  - **Preview by default.** `gon convert path` prints, per file, the lines it would change; `--write` applies them. (Unlike `gon fmt` and `gon transpile`, the default does not write.) Operands are files,
+    directories and `./...`; a directory is converted as one package.
+  - **Safe by construction.** The rewritten package must still load, must give the same diagnostics as before (code, severity, line, message) and a second pass over it must find nothing to do; otherwise nothing is written
+    (exit 1). A write replaces every file or none: each file is staged next to its target and renamed only when all are staged, and a failed commit puts the files already replaced back; if that restore itself fails the
+    error says `INCOMPLETE` and names the copy of the old content that was left. A symbolic link is refused, and a file that changed (content or mode) after it was read is not overwritten.
+  - **Exit codes:** 0 done (or nothing to do), 1 the rewrite is unsafe, the package has a Go type error, or a site cannot be rewritten (reported), 2 usage, input, or a write that failed.
+  - **Measured on `main`:** `gon convert ./...` on gon gives one rewrite (`internal/checker/method_contracts.gon:52`); on `gon-examples` and on the `.gon` fixtures of `gon-vscode`, none.
+  - **Limits.** It looks at one package at a time and does not follow a local across a call; it reads `.gon` files, not `.go`. A type that the file cannot name (a package that the file does not import) is reported, not
+    rewritten. Owner, extended attributes and hard links of a rewritten file are not preserved, there is no lock between the last comparison and the rename, and a process that dies in the middle of a write is not covered. On
+    Windows a file's mode is only its read-only bit, so the mode check is weaker there.
+- `annotations/os.gna`: `File.Chmod` and `Lstat` are listed as ordinary (the tool uses them), so a call to them is not a GW002.
+
 ## [1.24.0] — 2026-11-25
 
 **Possibly breaking, by design (R1), shipped solo.** Rule C2 of `docs/rfc-cheap-backdoors.md` (accepted 2026-11-25, strict): the last of the four rules; A, B and C1 shipped in 1.23.0.
